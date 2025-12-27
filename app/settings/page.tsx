@@ -9,9 +9,15 @@ import {
   getReminderDays,
   setReminderDays,
 } from "@/components/BackupReminder";
-import { supabase, type Recipe } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 type ExportFormat = "json" | "csv" | "markdown" | "html";
+
+interface RecipeListItem {
+  id: string;
+  title: string;
+  created_at: string;
+}
 
 interface FormatOption {
   id: ExportFormat;
@@ -77,7 +83,7 @@ const REMINDER_OPTIONS = [
 ];
 
 export default function SettingsPage() {
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [recipes, setRecipes] = useState<RecipeListItem[]>([]);
   const [selectedRecipes, setSelectedRecipes] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(true);
   const [exporting, setExporting] = useState(false);
