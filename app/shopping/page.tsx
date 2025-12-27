@@ -6,6 +6,20 @@ import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import { searchGroceries, type GroceryProduct, GROCERY_CATEGORIES } from "@/lib/spanish-groceries";
 
+// Category icons mapping
+const CATEGORY_ICONS: Record<string, string> = {
+  "Frutas y Verduras": "🥬",
+  "Lácteos": "🥛",
+  "Carnes y Mariscos": "🥩",
+  "Panadería": "🥖",
+  "Despensa": "🫙",
+  "Congelados": "🧊",
+  "Bebidas": "🥤",
+  "Comida Preparada": "🍱",
+  "Droguería": "🧴",
+  "Otros": "🛒",
+};
+
 function getWeekStart(): string {
   const today = new Date();
   const monday = new Date(today);
@@ -205,7 +219,8 @@ function CategoryOrderModal({
                   {index + 1}
                 </span>
 
-                {/* Category Name */}
+                {/* Category Icon & Name */}
+                <span className="text-xl">{CATEGORY_ICONS[category] || "📦"}</span>
                 <span className="flex-1 font-medium text-[var(--foreground)]">
                   {category}
                 </span>
@@ -412,33 +427,20 @@ function GrocerySearchModal({
                 Busca o explora por categoría
               </p>
               <div className="grid grid-cols-2 gap-2">
-                {GROCERY_CATEGORIES.map((category) => {
-                  const icons: Record<string, string> = {
-                    "Frutas y Verduras": "🥬",
-                    "Lácteos": "🥛",
-                    "Carnes y Mariscos": "🥩",
-                    "Panadería": "🥖",
-                    "Despensa": "🫙",
-                    "Congelados": "🧊",
-                    "Bebidas": "🥤",
-                    "Otros": "🛒",
-                  };
-                  
-                  return (
-                    <button
-                      key={category}
-                      onClick={() => handleCategoryClick(category)}
-                      className={`p-3 rounded-xl text-left transition-all ${
-                        selectedCategory === category
-                          ? "bg-[var(--color-purple)] text-white shadow-lg scale-[0.98]"
-                          : "bg-[var(--color-purple-bg)] hover:bg-[var(--color-purple-bg-dark)] text-[var(--foreground)]"
-                      }`}
-                    >
-                      <span className="text-xl mb-1 block">{icons[category]}</span>
-                      <span className="font-medium text-sm">{category}</span>
-                    </button>
-                  );
-                })}
+                {GROCERY_CATEGORIES.map((category) => (
+                  <button
+                    key={category}
+                    onClick={() => handleCategoryClick(category)}
+                    className={`p-3 rounded-xl text-left transition-all ${
+                      selectedCategory === category
+                        ? "bg-[var(--color-purple)] text-white shadow-lg scale-[0.98]"
+                        : "bg-[var(--color-purple-bg)] hover:bg-[var(--color-purple-bg-dark)] text-[var(--foreground)]"
+                    }`}
+                  >
+                    <span className="text-xl mb-1 block">{CATEGORY_ICONS[category] || "📦"}</span>
+                    <span className="font-medium text-sm">{category}</span>
+                  </button>
+                ))}
               </div>
 
               {/* Category Products */}
@@ -482,14 +484,162 @@ function GrocerySearchModal({
   );
 }
 
+// Edit Item Modal Component
+function EditItemModal({
+  item,
+  onClose,
+  onSave,
+  categoryOrder,
+}: {
+  item: ShoppingItem;
+  onClose: () => void;
+  onSave: (item: ShoppingItem, name: string, quantity: string, category?: string) => void;
+  categoryOrder: string[];
+}) {
+  const [name, setName] = useState(item.name);
+  const [quantity, setQuantity] = useState(item.quantity || "");
+  const [category, setCategory] = useState(item.category || "Otros");
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, []);
+
+  const handleSave = async () => {
+    if (!name.trim()) return;
+    setSaving(true);
+    await onSave(item, name, quantity, category);
+    setSaving(false);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleSave();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <div className="relative bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl animate-fade-in">
+        {/* Header */}
+        <div className="p-4 border-b border-[var(--border-color)]">
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-xl font-semibold text-[var(--foreground)]">
+              Editar Artículo
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-[var(--color-purple-bg-dark)] rounded-full transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          {/* Name Field */}
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-slate)] mb-1">
+              Nombre
+            </label>
+            <input
+              ref={inputRef}
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="input"
+              placeholder="Nombre del artículo"
+            />
+          </div>
+
+          {/* Quantity Field */}
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-slate)] mb-1">
+              Cantidad <span className="text-[var(--color-slate-light)] font-normal">(opcional)</span>
+            </label>
+            <input
+              type="text"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="input"
+              placeholder="Ej: 3, 500g, 2 kg, 1 docena..."
+            />
+            <p className="text-xs text-[var(--color-slate-light)] mt-1">
+              Puedes escribir cualquier formato: "3", "500g", "2 bolsas", etc.
+            </p>
+          </div>
+
+          {/* Category Field */}
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-slate)] mb-1">
+              Categoría
+            </label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="input"
+            >
+              {categoryOrder.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 btn-secondary"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              disabled={!name.trim() || saving}
+              className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {saving ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                "Guardar"
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function ShoppingPage() {
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [newItemName, setNewItemName] = useState("");
+  const [newItemQuantity, setNewItemQuantity] = useState("");
   const [newItemCategory, setNewItemCategory] = useState("Otros");
   const [isGroceryModalOpen, setIsGroceryModalOpen] = useState(false);
   const [isCategoryOrderModalOpen, setIsCategoryOrderModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
   
   // Supermarket state
   const [selectedSupermarket, setSelectedSupermarket] = useState<SupermarketName>("Mercadona");
@@ -681,6 +831,7 @@ export default function ShoppingPage() {
       const { error } = await supabase.from("shopping_items").insert([
         {
           name: newItemName.trim(),
+          quantity: newItemQuantity.trim() || null,
           category: newItemCategory,
           checked: false,
           week_start: weekStart,
@@ -691,9 +842,39 @@ export default function ShoppingPage() {
       if (error) throw error;
 
       setNewItemName("");
+      setNewItemQuantity("");
       loadItems();
     } catch (error) {
       console.error("Error adding item:", error);
+    }
+  };
+
+  const updateItem = async (item: ShoppingItem, name: string, quantity: string, category?: string) => {
+    try {
+      const updates: { name: string; quantity: string | null; category?: string } = { 
+        name: name.trim(),
+        quantity: quantity.trim() || null 
+      };
+      
+      if (category) {
+        updates.category = category;
+      }
+
+      const { error } = await supabase
+        .from("shopping_items")
+        .update(updates)
+        .eq("id", item.id);
+
+      if (error) throw error;
+
+      setItems(
+        items.map((i) =>
+          i.id === item.id ? { ...i, name: name.trim(), quantity: quantity.trim() || null, category: category || i.category } : i
+        )
+      );
+      setEditingItem(null);
+    } catch (error) {
+      console.error("Error updating item:", error);
     }
   };
 
@@ -856,34 +1037,46 @@ export default function ShoppingPage() {
         </div>
 
         {/* Add Item Form */}
-        <form onSubmit={addItem} className="flex gap-2 mb-6">
-          <input
-            type="text"
-            value={newItemName}
-            onChange={(e) => setNewItemName(e.target.value)}
-            className="input flex-1"
-            placeholder="Añadir artículo manual..."
-          />
-          <select
-            value={newItemCategory}
-            onChange={(e) => setNewItemCategory(e.target.value)}
-            className="input w-auto"
-          >
-            {categoryOrder.map((cat) => (
-              <option key={cat} value={cat}>
-                {cat}
-              </option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            disabled={!newItemName.trim()}
-            className="btn-primary px-4 disabled:opacity-50"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-          </button>
+        <form onSubmit={addItem} className="mb-6">
+          <div className="flex gap-2 mb-2">
+            <input
+              type="text"
+              value={newItemName}
+              onChange={(e) => setNewItemName(e.target.value)}
+              className="input flex-1"
+              placeholder="Añadir artículo..."
+            />
+            <input
+              type="text"
+              value={newItemQuantity}
+              onChange={(e) => setNewItemQuantity(e.target.value)}
+              className="input w-24 sm:w-32"
+              placeholder="Cantidad"
+            />
+          </div>
+          <div className="flex gap-2">
+            <select
+              value={newItemCategory}
+              onChange={(e) => setNewItemCategory(e.target.value)}
+              className="input flex-1"
+            >
+              {categoryOrder.map((cat) => (
+                <option key={cat} value={cat}>
+                  {CATEGORY_ICONS[cat] || "📦"} {cat}
+                </option>
+              ))}
+            </select>
+            <button
+              type="submit"
+              disabled={!newItemName.trim()}
+              className="btn-primary px-6 disabled:opacity-50 flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span className="hidden sm:inline">Añadir</span>
+            </button>
+          </div>
         </form>
 
         {/* Progress */}
@@ -927,6 +1120,7 @@ export default function ShoppingPage() {
                     <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${supermarketColor.bg} ${supermarketColor.text}`}>
                       {categoryOrder.indexOf(category) + 1}
                     </span>
+                    <span className="text-xl">{CATEGORY_ICONS[category] || "📦"}</span>
                     {category}
                   </h3>
                   <div className="bg-white rounded-xl border border-[var(--border-color)] divide-y divide-[var(--border-color)]">
@@ -943,7 +1137,10 @@ export default function ShoppingPage() {
                           onChange={() => toggleItem(item)}
                           className="checkbox"
                         />
-                        <div className="flex-1 min-w-0">
+                        <button
+                          onClick={() => setEditingItem(item)}
+                          className="flex-1 min-w-0 text-left hover:bg-[var(--color-purple-bg)] rounded-lg px-2 py-1 -mx-2 -my-1 transition-colors"
+                        >
                           <span
                             className={`${
                               item.checked
@@ -954,11 +1151,11 @@ export default function ShoppingPage() {
                             {item.name}
                           </span>
                           {item.quantity && (
-                            <span className="text-sm text-[var(--color-slate-light)] ml-2">
-                              ({item.quantity})
+                            <span className="text-sm text-[var(--color-purple)] font-medium ml-2">
+                              {item.quantity}
                             </span>
                           )}
-                        </div>
+                        </button>
                         <button
                           onClick={() => deleteItem(item.id)}
                           className="p-1 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
@@ -1027,6 +1224,16 @@ export default function ShoppingPage() {
         categoryOrder={categoryOrder}
         onSave={saveCategoryOrder}
       />
+
+      {/* Edit Item Modal */}
+      {editingItem && (
+        <EditItemModal
+          item={editingItem}
+          onClose={() => setEditingItem(null)}
+          onSave={updateItem}
+          categoryOrder={categoryOrder}
+        />
+      )}
     </div>
   );
 }

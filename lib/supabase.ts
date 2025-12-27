@@ -134,6 +134,8 @@ export const DEFAULT_CATEGORIES = [
   "Despensa",
   "Congelados",
   "Bebidas",
+  "Comida Preparada",
+  "Droguería",
   "Otros",
 ] as const;
 

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, type Ingredient, type Instruction } from "@/lib/supabase";
 import type { ParsedRecipe } from "@/lib/parse-copymthat";
+import { detectRecipeLanguage } from "@/lib/translate";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import TagInput from "@/components/TagInput";
@@ -13,6 +14,7 @@ interface ImportRecipeEntry {
   status: "pending" | "accepted" | "edited" | "discarded";
   edited: ParsedRecipe | null;
   imported_id: string | null;
+  translated?: boolean; // Track if recipe was translated
 }
 
 interface ImportSession {
@@ -44,6 +46,8 @@ export default function ImportReviewPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [imageFiles, setImageFiles] = useState<Map<string, File>>(new Map());
   const [imagePreviews, setImagePreviews] = useState<Map<string, string>>(new Map());
+  const [translating, setTranslating] = useState(false);
+  const [detectedLanguage, setDetectedLanguage] = useState<"en" | "es" | "unknown">("unknown");
 
   // Edit form state
   const [editedRecipe, setEditedRecipe] = useState<ParsedRecipe | null>(null);
@@ -67,6 +71,14 @@ export default function ImportReviewPage() {
     loadSession();
   }, []);
 
+  // Detect language when current recipe changes
+  useEffect(() => {
+    if (currentRecipe?.original) {
+      const lang = detectRecipeLanguage(currentRecipe.original);
+      setDetectedLanguage(lang);
+    }
+  }, [currentRecipe?.original, session?.current_index]);
+
   const loadSession = async () => {
     try {
       const response = await fetch("/api/import-session");
@@ -88,6 +100,41 @@ export default function ImportReviewPage() {
       setError("Error al cargar la sesión de importación");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleTranslate = async () => {
+    if (!currentRecipe?.original) return;
+    
+    setTranslating(true);
+    setError("");
+    
+    try {
+      const response = await fetch("/api/translate-recipe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ recipe: currentRecipe.original }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Translation failed");
+      }
+
+      const { recipe: translatedRecipe, translated, message } = await response.json();
+      
+      if (translated) {
+        // Switch to edit mode with the translated recipe
+        setEditedRecipe(translatedRecipe);
+        setIsEditing(true);
+        setDetectedLanguage("es");
+      } else {
+        setError(message || "La receta ya está en español");
+      }
+    } catch (err) {
+      console.error("Translation error:", err);
+      setError("Error al traducir la receta. Inténtalo de nuevo.");
+    } finally {
+      setTranslating(false);
     }
   };
 
@@ -492,6 +539,11 @@ export default function ImportReviewPage() {
 
               {/* Meta info */}
               <div className="flex flex-wrap gap-2 mb-4 text-sm text-[var(--color-slate)]">
+                {detectedLanguage === "en" && !isEditing && (
+                  <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
+                    🇬🇧 English
+                  </span>
+                )}
                 {displayRecipe.rating && (
                   <span>{"★".repeat(displayRecipe.rating)}{"☆".repeat(3 - displayRecipe.rating)}</span>
                 )}
@@ -725,28 +777,49 @@ export default function ImportReviewPage() {
                 </button>
               </div>
             ) : (
-              <div className="flex gap-2">
-                <button
-                  onClick={handleDiscard}
-                  disabled={saving}
-                  className="flex-1 py-3 px-4 rounded-lg border border-red-200 text-red-600 font-medium hover:bg-red-50 disabled:opacity-50"
+              <div className="space-y-2">
+                {/* Translate button for English recipes */}
+                {detectedLanguage === "en" && (
+                  <button
+                    onClick={handleTranslate}
+                    disabled={translating || saving}
+                    className="w-full py-2 px-4 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 font-medium hover:bg-blue-100 disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {translating ? (
+                      <>
+                        <span className="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                        Traduciendo...
+                      </>
+                    ) : (
+                      <>
+                        🌐 Traducir al Español
+                      </>
+                    )}
+                  </button>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleDiscard}
+                    disabled={saving || translating}
+                    className="flex-1 py-3 px-4 rounded-lg border border-red-200 text-red-600 font-medium hover:bg-red-50 disabled:opacity-50"
+                  >
+                    Descartar
+                  </button>
+                  <button
+                    onClick={handleEdit}
+                    disabled={saving || translating}
+                    className="flex-1 py-3 px-4 rounded-lg border border-[var(--border-color)] text-[var(--foreground)] font-medium hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={handleAccept}
+                    disabled={saving || translating}
+                    className="flex-1 py-3 px-4 rounded-lg bg-green-500 text-white font-medium hover:bg-green-600 disabled:opacity-50"
                 >
-                  Descartar
-                </button>
-                <button
-                  onClick={handleEdit}
-                  disabled={saving}
-                  className="flex-1 py-3 px-4 rounded-lg border border-[var(--border-color)] text-[var(--foreground)] font-medium hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Editar
-                </button>
-                <button
-                  onClick={handleAccept}
-                  disabled={saving}
-                  className="flex-1 py-3 px-4 rounded-lg bg-green-500 text-white font-medium hover:bg-green-600 disabled:opacity-50"
-                >
-                  {saving ? "..." : "Aceptar"}
-                </button>
+                    {saving ? "..." : "Aceptar"}
+                  </button>
+                </div>
               </div>
             )
           ) : (
