@@ -1,6 +1,8 @@
 import * as cheerio from "cheerio";
 import type { Ingredient } from "./supabase";
 
+type CheerioAPI = ReturnType<typeof cheerio.load>;
+
 export interface ParsedRecipe {
   title: string;
   description: string | null;
@@ -55,7 +57,7 @@ export function parseRecipeHtml(html: string, sourceUrl: string): ParsedRecipe {
 /**
  * Extract recipe from JSON-LD structured data
  */
-function extractJsonLd($: cheerio.CheerioAPI): Omit<ParsedRecipe, "source_url"> | null {
+function extractJsonLd($: CheerioAPI): Omit<ParsedRecipe, "source_url"> | null {
   const scripts = $('script[type="application/ld+json"]');
 
   for (let i = 0; i < scripts.length; i++) {
@@ -68,15 +70,15 @@ function extractJsonLd($: cheerio.CheerioAPI): Omit<ParsedRecipe, "source_url"> 
 
       if (recipe) {
         return {
-          title: recipe.name || "Untitled Recipe",
-          description: recipe.description || null,
+          title: (recipe.name as string) || "Untitled Recipe",
+          description: (recipe.description as string) || null,
           image_url: extractImage(recipe.image),
           prep_time_minutes: parseDuration(recipe.prepTime),
           cook_time_minutes: parseDuration(recipe.cookTime),
           servings: parseServings(recipe.recipeYield),
           tags: extractTags(recipe),
-          ingredients: parseIngredients(recipe.recipeIngredient || []),
-          instructions: parseInstructions(recipe.recipeInstructions || []),
+          ingredients: parseIngredients((recipe.recipeIngredient as unknown[]) || []),
+          instructions: parseInstructions((recipe.recipeInstructions as unknown[]) || []),
         };
       }
     } catch {
@@ -269,7 +271,7 @@ function parseInstructions(instructions: unknown[]): string[] {
 /**
  * Fallback: Extract recipe from HTML elements
  */
-function extractFromHtml($: cheerio.CheerioAPI, sourceUrl: string): ParsedRecipe {
+function extractFromHtml($: CheerioAPI, sourceUrl: string): ParsedRecipe {
   // Title
   const title =
     $('meta[property="og:title"]').attr("content") ||

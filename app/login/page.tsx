@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function LoginPage() {
+function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,6 +37,48 @@ export default function LoginPage() {
   };
 
   return (
+    <form
+      onSubmit={handleSubmit}
+      className="bg-white rounded-xl p-6 shadow-sm border border-[var(--border-color)] animate-fade-in animate-fade-in-delay-1"
+    >
+      <div className="mb-4">
+        <label
+          htmlFor="password"
+          className="block text-sm font-medium text-[var(--color-warm-gray)] mb-2"
+        >
+          Password
+        </label>
+        <input
+          type="password"
+          id="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className="input"
+          placeholder="Enter your password"
+          autoFocus
+          required
+        />
+      </div>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          {error}
+        </div>
+      )}
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {loading ? "Signing in..." : "Sign In"}
+      </button>
+    </form>
+  );
+}
+
+export default function LoginPage() {
+  return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--background)]">
       <div className="w-full max-w-md">
         <div className="text-center mb-8 animate-fade-in">
@@ -63,45 +105,16 @@ export default function LoginPage() {
           </p>
         </div>
 
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-xl p-6 shadow-sm border border-[var(--border-color)] animate-fade-in animate-fade-in-delay-1"
-        >
-          <div className="mb-4">
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-[var(--color-warm-gray)] mb-2"
-            >
-              Password
-            </label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input"
-              placeholder="Enter your password"
-              autoFocus
-              required
-            />
+        <Suspense fallback={
+          <div className="bg-white rounded-xl p-6 shadow-sm border border-[var(--border-color)] animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-20 mb-4"></div>
+            <div className="h-10 bg-gray-200 rounded mb-4"></div>
+            <div className="h-10 bg-gray-200 rounded"></div>
           </div>
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              {error}
-            </div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? "Signing in..." : "Sign In"}
-          </button>
-        </form>
+        }>
+          <LoginForm />
+        </Suspense>
       </div>
     </div>
   );
 }
-
