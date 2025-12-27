@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { 
   detectRecipeLanguage, 
   translateText, 
-  translateTexts 
+  translateTexts,
+  translateRecipeWithDictionary,
 } from "@/lib/translate";
 import type { ParsedRecipe } from "@/lib/parse-copymthat";
 
 export async function POST(request: NextRequest) {
   try {
-    const { recipe } = await request.json() as { recipe: ParsedRecipe };
+    const { recipe, useDictionaryOnly } = await request.json() as { 
+      recipe: ParsedRecipe;
+      useDictionaryOnly?: boolean;
+    };
 
     if (!recipe) {
       return NextResponse.json({ error: "No recipe provided" }, { status: 400 });
@@ -22,78 +26,130 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         recipe, 
         translated: false,
-        message: "Recipe is already in Spanish" 
+        message: "La receta ya está en español" 
       });
     }
 
-    if (language === "unknown") {
-      // Can't determine language, try translating anyway
-      console.log("Unknown language, attempting translation anyway");
+    // If dictionary-only mode is requested, use fast local translation
+    if (useDictionaryOnly) {
+      const translatedRecipe = translateRecipeWithDictionary(recipe) as ParsedRecipe;
+      return NextResponse.json({ 
+        recipe: translatedRecipe, 
+        translated: true,
+        method: "dictionary",
+        originalLanguage: language,
+        message: "Receta traducida con diccionario local" 
+      });
     }
 
-    // Translate recipe fields
-    const [
-      translatedTitle,
-      translatedDescription,
-    ] = await Promise.all([
-      translateText(recipe.title),
-      recipe.description ? translateText(recipe.description) : Promise.resolve(null),
-    ]);
+    console.log("Starting translation for:", recipe.title);
 
-    // Translate ingredients
-    const ingredientNames = recipe.ingredients.map(i => i.name);
-    const translatedIngredientNames = await translateTexts(ingredientNames);
-    
-    const translatedIngredients = recipe.ingredients.map((ing, i) => ({
-      ...ing,
-      name: translatedIngredientNames[i],
-    }));
+    // Try API translation with timeout
+    try {
+      // Translate recipe fields
+      const [
+        translatedTitle,
+        translatedDescription,
+      ] = await Promise.all([
+        translateText(recipe.title),
+        recipe.description ? translateText(recipe.description) : Promise.resolve(null),
+      ]);
 
-    // Translate instructions
-    const instructionTexts = recipe.instructions.map(i => 
-      typeof i === "string" ? i : i.text
-    );
-    const translatedInstructionTexts = await translateTexts(instructionTexts);
-    
-    const translatedInstructions = recipe.instructions.map((inst, i) => {
-      if (typeof inst === "string") {
-        return { text: translatedInstructionTexts[i], ingredientIndices: [] };
-      }
-      return {
-        ...inst,
-        text: translatedInstructionTexts[i],
+      // Translate ingredients (names and units)
+      const ingredientNames = recipe.ingredients.map(i => i.name);
+      const ingredientUnits = recipe.ingredients.map(i => i.unit);
+      
+      const [translatedIngredientNames, translatedIngredientUnits] = await Promise.all([
+        translateTexts(ingredientNames),
+        translateTexts(ingredientUnits),
+      ]);
+      
+      const translatedIngredients = recipe.ingredients.map((ing, i) => ({
+        ...ing,
+        name: translatedIngredientNames[i] || ing.name, // Fallback to original
+        unit: translatedIngredientUnits[i] || ing.unit,
+      }));
+
+      // Translate instructions
+      const instructionTexts = recipe.instructions.map(i => 
+        typeof i === "string" ? i : i.text
+      );
+      const translatedInstructionTexts = await translateTexts(instructionTexts);
+      
+      const translatedInstructions = recipe.instructions.map((inst, i) => {
+        const translatedText = translatedInstructionTexts[i] || 
+          (typeof inst === "string" ? inst : inst.text); // Fallback
+        
+        if (typeof inst === "string") {
+          return { text: translatedText, ingredientIndices: [] };
+        }
+        return {
+          ...inst,
+          text: translatedText,
+        };
+      });
+
+      // Translate notes if present
+      const translatedNotes = recipe.notes 
+        ? await translateText(recipe.notes)
+        : null;
+
+      // Translate tags
+      const translatedTags = await translateTexts(recipe.tags);
+
+      const translatedRecipe: ParsedRecipe = {
+        ...recipe,
+        title: translatedTitle || recipe.title,
+        description: translatedDescription,
+        ingredients: translatedIngredients,
+        instructions: translatedInstructions,
+        notes: translatedNotes || recipe.notes,
+        tags: translatedTags.map((t, i) => t || recipe.tags[i]),
       };
-    });
 
-    // Translate notes if present
-    const translatedNotes = recipe.notes 
-      ? await translateText(recipe.notes)
-      : null;
+      // Verify translation worked (check if at least title changed or ingredients have values)
+      const hasValidIngredients = translatedRecipe.ingredients.every(
+        ing => ing.name && ing.name.trim().length > 0
+      );
 
-    // Translate tags (common cooking tags)
-    const translatedTags = await translateTexts(recipe.tags);
+      if (!hasValidIngredients) {
+        console.warn("Translation produced empty ingredients, falling back to dictionary");
+        const fallbackRecipe = translateRecipeWithDictionary(recipe) as ParsedRecipe;
+        return NextResponse.json({ 
+          recipe: fallbackRecipe, 
+          translated: true,
+          method: "dictionary",
+          originalLanguage: language,
+          message: "Traducido con diccionario (API no disponible)" 
+        });
+      }
 
-    const translatedRecipe: ParsedRecipe = {
-      ...recipe,
-      title: translatedTitle,
-      description: translatedDescription,
-      ingredients: translatedIngredients,
-      instructions: translatedInstructions,
-      notes: translatedNotes,
-      tags: translatedTags,
-    };
+      return NextResponse.json({ 
+        recipe: translatedRecipe, 
+        translated: true,
+        method: "api",
+        originalLanguage: language,
+        message: "Receta traducida al español" 
+      });
 
-    return NextResponse.json({ 
-      recipe: translatedRecipe, 
-      translated: true,
-      originalLanguage: language,
-      message: "Recipe translated to Spanish" 
-    });
+    } catch (apiError) {
+      console.error("API translation failed, using dictionary:", apiError);
+      
+      // Fallback to dictionary translation
+      const translatedRecipe = translateRecipeWithDictionary(recipe) as ParsedRecipe;
+      return NextResponse.json({ 
+        recipe: translatedRecipe, 
+        translated: true,
+        method: "dictionary",
+        originalLanguage: language,
+        message: "Traducido con diccionario (API no disponible)" 
+      });
+    }
 
   } catch (error) {
     console.error("Translation error:", error);
     return NextResponse.json(
-      { error: "Failed to translate recipe" },
+      { error: "Error al traducir la receta" },
       { status: 500 }
     );
   }

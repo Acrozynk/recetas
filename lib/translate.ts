@@ -105,6 +105,7 @@ const LIBRETRANSLATE_INSTANCES = [
 
 /**
  * Translate text from English to Spanish using LibreTranslate
+ * Falls back to dictionary translation if API fails
  */
 export async function translateText(
   text: string,
@@ -115,9 +116,12 @@ export async function translateText(
     return text;
   }
   
-  // Try each instance until one works
+  // Try each LibreTranslate instance
   for (const baseUrl of LIBRETRANSLATE_INSTANCES) {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+      
       const response = await fetch(`${baseUrl}/translate`, {
         method: "POST",
         headers: {
@@ -129,11 +133,18 @@ export async function translateText(
           target: to,
           format: "text",
         }),
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
       
       if (response.ok) {
         const data = await response.json();
-        return data.translatedText || text;
+        const translated = data.translatedText;
+        // Make sure we got a valid translation
+        if (translated && translated.trim().length > 0) {
+          return translated;
+        }
       }
     } catch (error) {
       console.warn(`Translation failed with ${baseUrl}:`, error);
@@ -141,9 +152,36 @@ export async function translateText(
     }
   }
   
-  // If all instances fail, return original text
-  console.error("All translation instances failed, returning original text");
-  return text;
+  // If all API instances fail, try dictionary-based translation
+  console.log("API translation failed, using dictionary fallback for:", text);
+  return translateWithDictionary(text);
+}
+
+/**
+ * Translate text using local dictionary (fallback when API fails)
+ */
+export function translateWithDictionary(text: string): string {
+  if (!text) return text;
+  
+  let result = text;
+  
+  // Sort dictionary entries by length (longest first) to avoid partial replacements
+  const sortedEntries = Object.entries(COOKING_TRANSLATIONS)
+    .sort((a, b) => b[0].length - a[0].length);
+  
+  for (const [english, spanish] of sortedEntries) {
+    // Case-insensitive replacement with word boundaries
+    const regex = new RegExp(`\\b${english}\\b`, 'gi');
+    result = result.replace(regex, (match) => {
+      // Preserve capitalization
+      if (match[0] === match[0].toUpperCase()) {
+        return spanish.charAt(0).toUpperCase() + spanish.slice(1);
+      }
+      return spanish;
+    });
+  }
+  
+  return result;
 }
 
 /**
@@ -167,7 +205,7 @@ export async function translateTexts(
   }
   
   // Translate in smaller batches to avoid timeouts
-  const BATCH_SIZE = 10;
+  const BATCH_SIZE = 5; // Smaller batches for reliability
   const results = [...texts];
   
   for (let i = 0; i < nonEmptyTexts.length; i += BATCH_SIZE) {
@@ -178,13 +216,46 @@ export async function translateTexts(
       batch.map(({ text }) => translateText(text, from, to))
     );
     
-    // Put translations back in correct positions
-    batch.forEach(({ index }, batchIndex) => {
-      results[index] = translations[batchIndex];
+    // Put translations back in correct positions, ensuring no empty strings
+    batch.forEach(({ index, text }, batchIndex) => {
+      const translated = translations[batchIndex];
+      // Never return empty - fall back to original if translation is empty
+      results[index] = (translated && translated.trim().length > 0) ? translated : text;
     });
   }
   
   return results;
+}
+
+/**
+ * Quick translate using only the dictionary (synchronous, no API)
+ * Useful when API is not available
+ */
+export function translateRecipeWithDictionary(recipe: {
+  title: string;
+  description?: string | null;
+  ingredients: { amount: string; unit: string; name: string }[];
+  instructions: { text: string }[] | string[];
+  notes?: string | null;
+  tags: string[];
+}): typeof recipe {
+  return {
+    ...recipe,
+    title: translateWithDictionary(recipe.title),
+    description: recipe.description ? translateWithDictionary(recipe.description) : null,
+    ingredients: recipe.ingredients.map(ing => ({
+      ...ing,
+      name: translateWithDictionary(ing.name),
+      unit: translateWithDictionary(ing.unit),
+    })),
+    instructions: recipe.instructions.map(inst => 
+      typeof inst === 'string' 
+        ? { text: translateWithDictionary(inst), ingredientIndices: [] }
+        : { ...inst, text: translateWithDictionary(inst.text) }
+    ),
+    notes: recipe.notes ? translateWithDictionary(recipe.notes) : null,
+    tags: recipe.tags.map(tag => translateWithDictionary(tag)),
+  };
 }
 
 /**

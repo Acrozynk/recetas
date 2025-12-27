@@ -120,19 +120,33 @@ export default function ImportReviewPage() {
         throw new Error("Translation failed");
       }
 
-      const { recipe: translatedRecipe, translated, message } = await response.json();
+      const { recipe: translatedRecipe, translated, message, method } = await response.json();
       
       if (translated) {
+        // Verify translation has valid data
+        const hasValidData = translatedRecipe.ingredients?.every(
+          (ing: { name: string }) => ing.name && ing.name.trim().length > 0
+        );
+        
+        if (!hasValidData) {
+          throw new Error("Translation returned invalid data");
+        }
+        
         // Switch to edit mode with the translated recipe
         setEditedRecipe(translatedRecipe);
         setIsEditing(true);
         setDetectedLanguage("es");
+        
+        // Show info about translation method
+        if (method === "dictionary") {
+          setError("ℹ️ Traducido con diccionario local (revisa y ajusta si es necesario)");
+        }
       } else {
         setError(message || "La receta ya está en español");
       }
     } catch (err) {
       console.error("Translation error:", err);
-      setError("Error al traducir la receta. Inténtalo de nuevo.");
+      setError("Error al traducir. Prueba a editar manualmente.");
     } finally {
       setTranslating(false);
     }
@@ -746,7 +760,11 @@ export default function ImportReviewPage() {
 
         {/* Error message */}
         {error && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          <div className={`mt-4 p-3 rounded-lg text-sm ${
+            error.startsWith("ℹ️") 
+              ? "bg-blue-50 border border-blue-200 text-blue-700"
+              : "bg-red-50 border border-red-200 text-red-700"
+          }`}>
             {error}
           </div>
         )}
