@@ -23,6 +23,9 @@ export default function RecipeDetailPage() {
   const [wakeLockSupported, setWakeLockSupported] = useState(false);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const [showSecondaryUnits, setShowSecondaryUnits] = useState(false);
+  const [rating, setRating] = useState<number | null>(null);
+  const [madeIt, setMadeIt] = useState(false);
+  const [savingStatus, setSavingStatus] = useState(false);
 
   // Check if Wake Lock API is supported
   useEffect(() => {
@@ -96,6 +99,14 @@ export default function RecipeDetailPage() {
     }
   }, [recipe, portionsInitialized]);
 
+  // Initialize rating and madeIt from recipe
+  useEffect(() => {
+    if (recipe) {
+      setRating(recipe.rating ?? null);
+      setMadeIt(recipe.made_it ?? false);
+    }
+  }, [recipe]);
+
   const loadRecipe = async (id: string) => {
     try {
       const { data, error } = await supabase
@@ -131,6 +142,51 @@ export default function RecipeDetailPage() {
       router.push("/");
     } catch (error) {
       console.error("Error deleting recipe:", error);
+    }
+  };
+
+  const updateRating = async (newRating: number | null) => {
+    if (!recipe) return;
+    
+    setRating(newRating);
+    setSavingStatus(true);
+    
+    try {
+      const { error } = await supabase
+        .from("recipes")
+        .update({ rating: newRating })
+        .eq("id", recipe.id);
+      
+      if (error) throw error;
+    } catch (error) {
+      console.error("Error updating rating:", error);
+      // Revert on error
+      setRating(recipe.rating ?? null);
+    } finally {
+      setSavingStatus(false);
+    }
+  };
+
+  const toggleMadeIt = async () => {
+    if (!recipe) return;
+    
+    const newValue = !madeIt;
+    setMadeIt(newValue);
+    setSavingStatus(true);
+    
+    try {
+      const { error } = await supabase
+        .from("recipes")
+        .update({ made_it: newValue })
+        .eq("id", recipe.id);
+      
+      if (error) throw error;
+    } catch (error) {
+      console.error("Error updating made_it:", error);
+      // Revert on error
+      setMadeIt(recipe.made_it ?? false);
+    } finally {
+      setSavingStatus(false);
     }
   };
 
@@ -256,7 +312,21 @@ export default function RecipeDetailPage() {
         title=""
         showBack
         rightAction={
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 print:hidden">
+            <button
+              onClick={() => window.print()}
+              className="p-2 text-[var(--color-slate)] hover:text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] rounded-lg transition-colors"
+              title="Imprimir receta"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                />
+              </svg>
+            </button>
             <Link
               href={`/recipes/${recipe.id}/edit`}
               className="p-2 text-[var(--color-slate)] hover:text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] rounded-lg transition-colors"
@@ -313,6 +383,71 @@ export default function RecipeDetailPage() {
                 {recipe.description}
               </p>
             )}
+
+            {/* Rating and Made It */}
+            <div className="flex flex-wrap items-center gap-4 mb-4">
+              {/* Interactive Rating */}
+              <div className="flex items-center gap-1">
+                {[1, 2, 3].map((star) => (
+                  <button
+                    key={star}
+                    onClick={() => updateRating(rating === star ? null : star)}
+                    disabled={savingStatus}
+                    className="p-0.5 transition-transform hover:scale-110 focus:outline-none disabled:opacity-50"
+                    title={rating === star ? "Quitar valoración" : `${star} estrella${star > 1 ? 's' : ''}`}
+                  >
+                    <svg
+                      className={`w-6 h-6 transition-colors ${
+                        rating && star <= rating
+                          ? "text-amber-400 fill-amber-400"
+                          : "text-gray-300 hover:text-amber-200"
+                      }`}
+                      fill={rating && star <= rating ? "currentColor" : "none"}
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                      />
+                    </svg>
+                  </button>
+                ))}
+              </div>
+
+              {/* Made It Toggle */}
+              <button
+                onClick={toggleMadeIt}
+                disabled={savingStatus}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all disabled:opacity-50 ${
+                  madeIt
+                    ? "bg-green-100 text-green-700 border border-green-300"
+                    : "bg-gray-100 text-[var(--color-slate)] border border-gray-200 hover:border-green-300 hover:text-green-600"
+                }`}
+              >
+                <span className={`flex items-center justify-center w-4 h-4 rounded-full transition-colors ${
+                  madeIt
+                    ? "bg-green-500"
+                    : "border border-current"
+                }`}>
+                  {madeIt && (
+                    <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </span>
+                {madeIt ? "¡Lo hice!" : "¿Lo hiciste?"}
+              </button>
+
+              {/* Saving indicator */}
+              {savingStatus && (
+                <span className="text-xs text-[var(--color-slate-light)] animate-pulse">
+                  Guardando...
+                </span>
+              )}
+            </div>
 
             <div className="flex flex-wrap items-center gap-4 text-sm text-[var(--color-slate-light)]">
               {recipe.prep_time_minutes && (

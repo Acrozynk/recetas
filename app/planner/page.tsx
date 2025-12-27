@@ -6,6 +6,16 @@ import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import Link from "next/link";
 
+interface Suggestion {
+  recipe_id: string;
+  title: string;
+  tags: string[];
+  image_url: string | null;
+  times_planned: number;
+  days_since_last: number | null;
+  reason: string;
+}
+
 const MEAL_TYPES = ["breakfast", "lunch", "snack", "dinner"] as const;
 type MealType = (typeof MEAL_TYPES)[number];
 
@@ -50,6 +60,9 @@ export default function PlannerPage() {
     mealType: MealType;
   } | null>(null);
   const [search, setSearch] = useState("");
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [excludedTags, setExcludedTags] = useState<string[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   const weekDates = getWeekDates(weekOffset);
   const weekStart = formatDateKey(weekDates[0]);
@@ -132,6 +145,39 @@ export default function PlannerPage() {
   const filteredRecipes = recipes.filter((recipe) =>
     recipe.title.toLowerCase().includes(search.toLowerCase())
   );
+
+  const fetchSuggestions = useCallback(
+    async (date: string, mealType: MealType) => {
+      setLoadingSuggestions(true);
+      try {
+        const params = new URLSearchParams({
+          date,
+          meal_type: mealType,
+          week_start: weekStart,
+          week_end: weekEnd,
+        });
+
+        const response = await fetch(`/api/planner/suggestions?${params}`);
+        if (response.ok) {
+          const data = await response.json();
+          setSuggestions(data.suggestions || []);
+          setExcludedTags(data.excluded_tags || []);
+        }
+      } catch (error) {
+        console.error("Error fetching suggestions:", error);
+      } finally {
+        setLoadingSuggestions(false);
+      }
+    },
+    [weekStart, weekEnd]
+  );
+
+  const openRecipeSelector = (date: string, mealType: MealType) => {
+    setShowRecipeSelector({ date, mealType });
+    setSearch("");
+    setSuggestions([]);
+    fetchSuggestions(date, mealType);
+  };
 
   const isToday = (date: Date): boolean => {
     const today = new Date();
@@ -273,7 +319,7 @@ export default function PlannerPage() {
                         ) : (
                           <button
                             onClick={() =>
-                              setShowRecipeSelector({ date: dateKey, mealType })
+                              openRecipeSelector(dateKey, mealType)
                             }
                             className="w-full h-full flex flex-col items-center justify-center text-[var(--color-slate-light)] hover:text-[var(--color-purple)]"
                           >
@@ -334,6 +380,75 @@ export default function PlannerPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-2">
+              {/* Smart Suggestions Section */}
+              {!search && suggestions.length > 0 && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 px-2 mb-2">
+                    <svg className="w-4 h-4 text-[var(--color-purple)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                    <span className="text-sm font-medium text-[var(--color-purple)]">
+                      Sugerencias para ti
+                    </span>
+                  </div>
+
+                  {loadingSuggestions ? (
+                    <div className="flex items-center justify-center py-4">
+                      <div className="w-5 h-5 border-2 border-[var(--color-purple)] border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {suggestions.map((suggestion) => (
+                        <button
+                          key={suggestion.recipe_id}
+                          onClick={() => addMealPlan(suggestion.recipe_id)}
+                          className="w-full text-left p-3 rounded-lg bg-[var(--color-purple-bg)] hover:bg-[var(--color-purple-bg-dark)] transition-colors border border-[var(--color-purple)]/20"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-[var(--foreground)] truncate">
+                                {suggestion.title}
+                              </p>
+                              <p className="text-xs text-[var(--color-purple)] mt-0.5">
+                                {suggestion.reason}
+                              </p>
+                            </div>
+                            {suggestion.image_url && (
+                              <img
+                                src={suggestion.image_url}
+                                alt=""
+                                className="w-10 h-10 rounded-md object-cover flex-shrink-0"
+                              />
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Show excluded tags notice */}
+                  {excludedTags.length > 0 && (
+                    <div className="mt-2 px-2">
+                      <p className="text-xs text-[var(--color-slate-light)]">
+                        <span className="inline-flex items-center gap-1">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          Ya tienes planeado esta semana:
+                        </span>{" "}
+                        {excludedTags.join(", ")}
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="mt-3 border-t border-[var(--border-color)] pt-3">
+                    <p className="text-xs text-[var(--color-slate-light)] px-2 mb-2">
+                      Todas las recetas
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {filteredRecipes.length > 0 ? (
                 <div className="space-y-1">
                   {filteredRecipes.map((recipe) => (

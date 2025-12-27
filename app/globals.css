@@ -191,3 +191,117 @@ body {
 .meal-lunch { background: #FFEDD5; border-color: #F97316; }
 .meal-dinner { background: #FEE2E2; border-color: #DC2626; }
 .meal-snack { background: #FFF7ED; border-color: #EA580C; }
+
+/* Print styles */
+@media print {
+  /* Reset background and use black text */
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+    line-height: 1.4;
+  }
+  
+  /* Hide navigation and interactive elements */
+  header,
+  nav,
+  .print\\:hidden,
+  button,
+  .checkbox {
+    display: none !important;
+  }
+  
+  /* Remove bottom padding for nav */
+  .min-h-screen {
+    padding-bottom: 0 !important;
+    min-height: auto !important;
+  }
+  
+  /* Ensure images print nicely */
+  img {
+    max-height: 200px !important;
+    object-fit: cover;
+    page-break-inside: avoid;
+  }
+  
+  /* Make recipe image smaller for printing */
+  .aspect-video {
+    aspect-ratio: auto !important;
+    height: 180px !important;
+  }
+  
+  /* Adjust cards and borders for print */
+  .recipe-card,
+  .rounded-xl,
+  .rounded-lg {
+    border: 1px solid #ddd !important;
+    background: white !important;
+    box-shadow: none !important;
+  }
+  
+  /* Tags in print */
+  .tag {
+    background: #f5f5f5 !important;
+    border: 1px solid #ddd !important;
+    color: #333 !important;
+  }
+  
+  /* Make text readable */
+  .text-\\[var\\(--color-slate\\)\\],
+  .text-\\[var\\(--color-slate-light\\)\\] {
+    color: #444 !important;
+  }
+  
+  .text-\\[var\\(--color-purple\\)\\] {
+    color: #c2410c !important;
+  }
+  
+  /* Keep ingredients and instructions side by side if room */
+  .grid {
+    display: block !important;
+  }
+  
+  .grid > div {
+    page-break-inside: avoid;
+    margin-bottom: 1rem;
+  }
+  
+  /* Ingredient list styling */
+  ul.space-y-2 li {
+    padding: 0.25rem 0 !important;
+    border-bottom: 1px dotted #ddd;
+  }
+  
+  /* Instructions list */
+  ol.space-y-4 li {
+    padding: 0.5rem 0 !important;
+    page-break-inside: avoid;
+  }
+  
+  /* Step numbers in print */
+  ol.space-y-4 li .w-8.h-8 {
+    display: inline-flex !important;
+    background: #f97316 !important;
+    color: white !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  
+  /* Notes section */
+  .bg-amber-50 {
+    background: #fffbeb !important;
+    border: 1px solid #fbbf24 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  
+  /* Page margins */
+  @page {
+    margin: 1.5cm;
+  }
+  
+  /* Avoid page breaks in the middle of sections */
+  h1, h2, h3 {
+    page-break-after: avoid;
+  }
+}

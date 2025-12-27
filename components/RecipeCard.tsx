@@ -14,6 +14,38 @@ export default function RecipeCard({ recipe }: RecipeCardProps) {
     <Link href={`/recipes/${recipe.id}`} className="block">
       <article className="recipe-card group">
         <div className="relative aspect-[4/3] bg-[var(--color-purple-bg-dark)]">
+          {/* Made it badge */}
+          {recipe.made_it && (
+            <div className="absolute top-2 left-2 z-10 flex items-center gap-1 px-2 py-1 bg-green-500 text-white text-xs font-semibold rounded-full shadow-sm">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+              Hecho
+            </div>
+          )}
+          {/* Rating stars */}
+          {recipe.rating && (
+            <div className="absolute top-2 right-2 z-10 flex items-center gap-0.5 px-2 py-1 bg-black/50 backdrop-blur-sm rounded-full">
+              {[1, 2, 3].map((star) => (
+                <svg
+                  key={star}
+                  className={`w-3.5 h-3.5 ${
+                    star <= recipe.rating! ? "text-amber-400 fill-amber-400" : "text-white/40"
+                  }`}
+                  fill={star <= recipe.rating! ? "currentColor" : "none"}
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                  />
+                </svg>
+              ))}
+            </div>
+          )}
           {recipe.image_url ? (
             <Image
               src={recipe.image_url}

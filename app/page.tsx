@@ -5,6 +5,7 @@ import { supabase, type Recipe } from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import RecipeCard from "@/components/RecipeCard";
+import BackupReminder from "@/components/BackupReminder";
 import Link from "next/link";
 
 export default function HomePage() {
@@ -176,6 +177,7 @@ export default function HomePage() {
         )}
       </main>
 
+      <BackupReminder />
       <BottomNav />
     </div>
   );

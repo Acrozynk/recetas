@@ -24,6 +24,8 @@ export interface Recipe {
   ingredients: Ingredient[];
   instructions: Instruction[] | string[]; // Soporta ambos formatos para retrocompatibilidad
   notes: string | null;
+  rating: number | null; // 1-3 stars, null = not rated
+  made_it: boolean; // Whether user has made this recipe
   created_at: string;
 }
 

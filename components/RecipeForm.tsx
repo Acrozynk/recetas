@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, type Recipe, type Ingredient, type Instruction, normalizeInstructions } from "@/lib/supabase";
 import { 
@@ -10,6 +10,7 @@ import {
   isWeightUnit,
   COMMON_UNITS 
 } from "@/lib/unit-conversion";
+import TagInput from "./TagInput";
 
 interface RecipeFormProps {
   recipe?: Recipe;
@@ -153,7 +154,10 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   const [prepTime, setPrepTime] = useState(recipe?.prep_time_minutes?.toString() || "");
   const [cookTime, setCookTime] = useState(recipe?.cook_time_minutes?.toString() || "");
   const [servings, setServings] = useState(recipe?.servings?.toString() || "4");
-  const [tags, setTags] = useState(recipe?.tags?.join(", ") || "");
+  const [tags, setTags] = useState<string[]>(recipe?.tags || []);
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
+  const [rating, setRating] = useState<number | null>(recipe?.rating ?? null);
+  const [madeIt, setMadeIt] = useState(recipe?.made_it ?? false);
   const [ingredients, setIngredients] = useState<Ingredient[]>(
     (recipe?.ingredients as Ingredient[]) || Array.from({ length: 5 }, () => ({ name: "", amount: "", unit: "", amount2: "", unit2: "" }))
   );
@@ -164,6 +168,22 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
       : Array.from({ length: 5 }, () => ({ text: "", ingredientIndices: [] }))
   );
   const [notes, setNotes] = useState(recipe?.notes || "");
+
+  // Fetch tag suggestions on mount
+  useEffect(() => {
+    const fetchTags = async () => {
+      try {
+        const response = await fetch("/api/tags");
+        if (response.ok) {
+          const data = await response.json();
+          setTagSuggestions(data.tags || []);
+        }
+      } catch (error) {
+        console.error("Error fetching tags:", error);
+      }
+    };
+    fetchTags();
+  }, []);
 
   const addIngredient = () => {
     setIngredients([...ingredients, { name: "", amount: "", unit: "", amount2: "", unit2: "" }]);
@@ -277,13 +297,12 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         prep_time_minutes: prepTime ? parseInt(prepTime) : null,
         cook_time_minutes: cookTime ? parseInt(cookTime) : null,
         servings: servings ? parseInt(servings) : null,
-        tags: tags
-          .split(",")
-          .map((t) => t.trim())
-          .filter(Boolean),
+        tags: tags.filter((t) => t.trim()),
         ingredients: ingredients.filter((i) => i.name.trim()),
         instructions: instructions.filter((i) => i.text.trim()),
         notes: notes.trim() || null,
+        rating: rating,
+        made_it: madeIt,
       };
 
       if (mode === "edit" && recipe) {
@@ -514,13 +533,89 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
             <label className="block text-sm font-medium text-[var(--color-slate)] mb-1">
               Etiquetas
             </label>
-            <input
-              type="text"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              className="input"
-              placeholder="Cena, Italiana, Rápida (separadas por coma)"
+            <TagInput
+              tags={tags}
+              onChange={setTags}
+              suggestions={tagSuggestions}
+              placeholder="Añadir etiqueta..."
             />
+          </div>
+
+          {/* Rating and Made It */}
+          <div className="grid grid-cols-2 gap-4 pt-2">
+            {/* Rating (1-3 stars) */}
+            <div>
+              <label className="block text-sm font-medium text-[var(--color-slate)] mb-2">
+                Valoración
+              </label>
+              <div className="flex items-center gap-1">
+                {[1, 2, 3].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setRating(rating === star ? null : star)}
+                    className="p-1 transition-transform hover:scale-110 focus:outline-none"
+                    title={rating === star ? "Quitar valoración" : `${star} estrella${star > 1 ? 's' : ''}`}
+                  >
+                    <svg
+                      className={`w-8 h-8 transition-colors ${
+                        rating && star <= rating
+                          ? "text-amber-400 fill-amber-400"
+                          : "text-gray-300"
+                      }`}
+                      fill={rating && star <= rating ? "currentColor" : "none"}
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                      />
+                    </svg>
+                  </button>
+                ))}
+                {rating && (
+                  <button
+                    type="button"
+                    onClick={() => setRating(null)}
+                    className="ml-2 text-xs text-[var(--color-slate-light)] hover:text-[var(--color-slate)] transition-colors"
+                  >
+                    Borrar
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Made It checkbox */}
+            <div>
+              <label className="block text-sm font-medium text-[var(--color-slate)] mb-2">
+                Estado
+              </label>
+              <button
+                type="button"
+                onClick={() => setMadeIt(!madeIt)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-all ${
+                  madeIt
+                    ? "bg-green-50 border-green-300 text-green-700"
+                    : "bg-white border-[var(--border-color)] text-[var(--color-slate)] hover:border-green-300"
+                }`}
+              >
+                <span className={`flex items-center justify-center w-5 h-5 rounded border transition-colors ${
+                  madeIt
+                    ? "bg-green-500 border-green-500"
+                    : "border-gray-300"
+                }`}>
+                  {madeIt && (
+                    <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </span>
+                <span className="font-medium">¡Lo hice!</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
