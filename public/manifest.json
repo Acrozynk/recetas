@@ -1,7 +1,7 @@
 {
   "name": "Recetas",
   "short_name": "Recetas",
-  "description": "Personal recipe manager with meal planning and shopping lists",
+  "description": "Gestor de recetas personal con planificación de comidas y listas de compras",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#FBF7F4",

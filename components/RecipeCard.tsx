@@ -13,7 +13,7 @@ export default function RecipeCard({ recipe }: RecipeCardProps) {
   return (
     <Link href={`/recipes/${recipe.id}`} className="block">
       <article className="recipe-card group">
-        <div className="relative aspect-[4/3] bg-[var(--color-cream-dark)]">
+        <div className="relative aspect-[4/3] bg-[var(--color-purple-bg-dark)]">
           {recipe.image_url ? (
             <Image
               src={recipe.image_url}
@@ -25,7 +25,7 @@ export default function RecipeCard({ recipe }: RecipeCardProps) {
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
               <svg
-                className="w-16 h-16 text-[var(--color-warm-gray-light)] opacity-40"
+                className="w-16 h-16 text-[var(--color-slate-light)] opacity-40"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -42,11 +42,11 @@ export default function RecipeCard({ recipe }: RecipeCardProps) {
         </div>
 
         <div className="p-4">
-          <h3 className="font-display text-lg font-semibold text-[var(--foreground)] line-clamp-2 group-hover:text-[var(--color-amber)] transition-colors">
+          <h3 className="font-display text-lg font-semibold text-[var(--foreground)] line-clamp-2 group-hover:text-[var(--color-purple)] transition-colors">
             {recipe.title}
           </h3>
 
-          <div className="flex items-center gap-4 mt-2 text-sm text-[var(--color-warm-gray-light)]">
+          <div className="flex items-center gap-4 mt-2 text-sm text-[var(--color-slate-light)]">
             {totalTime > 0 && (
               <span className="flex items-center gap-1">
                 <svg

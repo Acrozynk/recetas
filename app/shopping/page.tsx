@@ -6,14 +6,14 @@ import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 
 const CATEGORIES = [
-  "Produce",
-  "Dairy",
-  "Meat & Seafood",
-  "Bakery",
-  "Pantry",
-  "Frozen",
-  "Beverages",
-  "Other",
+  "Frutas y Verduras",
+  "Lácteos",
+  "Carnes y Mariscos",
+  "Panadería",
+  "Despensa",
+  "Congelados",
+  "Bebidas",
+  "Otros",
 ];
 
 function getWeekStart(): string {
@@ -26,56 +26,56 @@ function getWeekStart(): string {
 function categorizeIngredient(name: string): string {
   const lowerName = name.toLowerCase();
 
-  // Produce
+  // Frutas y Verduras
   if (
-    /\b(lettuce|tomato|onion|garlic|pepper|carrot|celery|potato|broccoli|spinach|kale|cucumber|zucchini|squash|mushroom|avocado|lemon|lime|orange|apple|banana|berry|fruit|vegetable|herb|cilantro|parsley|basil|mint|thyme|rosemary)\b/.test(
+    /\b(lettuce|tomato|onion|garlic|pepper|carrot|celery|potato|broccoli|spinach|kale|cucumber|zucchini|squash|mushroom|avocado|lemon|lime|orange|apple|banana|berry|fruit|vegetable|herb|cilantro|parsley|basil|mint|thyme|rosemary|lechuga|tomate|cebolla|ajo|pimiento|zanahoria|apio|patata|papa|brócoli|espinaca|pepino|calabacín|champiñón|aguacate|limón|naranja|manzana|plátano|fruta|verdura|hierba|perejil|albahaca|menta|romero)\b/.test(
       lowerName
     )
   ) {
-    return "Produce";
+    return "Frutas y Verduras";
   }
 
-  // Dairy
+  // Lácteos
   if (
-    /\b(milk|cheese|butter|cream|yogurt|sour cream|egg|eggs)\b/.test(lowerName)
+    /\b(milk|cheese|butter|cream|yogurt|sour cream|egg|eggs|leche|queso|mantequilla|nata|crema|yogur|huevo|huevos)\b/.test(lowerName)
   ) {
-    return "Dairy";
+    return "Lácteos";
   }
 
-  // Meat & Seafood
+  // Carnes y Mariscos
   if (
-    /\b(chicken|beef|pork|lamb|turkey|fish|salmon|shrimp|bacon|sausage|meat|steak|ground)\b/.test(
+    /\b(chicken|beef|pork|lamb|turkey|fish|salmon|shrimp|bacon|sausage|meat|steak|ground|pollo|res|cerdo|cordero|pavo|pescado|salmón|camarón|tocino|salchicha|carne|bistec|molida)\b/.test(
       lowerName
     )
   ) {
-    return "Meat & Seafood";
+    return "Carnes y Mariscos";
   }
 
-  // Bakery
-  if (/\b(bread|roll|bun|bagel|tortilla|pita|croissant)\b/.test(lowerName)) {
-    return "Bakery";
+  // Panadería
+  if (/\b(bread|roll|bun|bagel|tortilla|pita|croissant|pan|bollo|bolillo)\b/.test(lowerName)) {
+    return "Panadería";
   }
 
-  // Frozen
-  if (/\b(frozen|ice cream)\b/.test(lowerName)) {
-    return "Frozen";
+  // Congelados
+  if (/\b(frozen|ice cream|congelado|helado)\b/.test(lowerName)) {
+    return "Congelados";
   }
 
-  // Beverages
-  if (/\b(juice|soda|water|wine|beer|coffee|tea)\b/.test(lowerName)) {
-    return "Beverages";
+  // Bebidas
+  if (/\b(juice|soda|water|wine|beer|coffee|tea|jugo|refresco|agua|vino|cerveza|café|té)\b/.test(lowerName)) {
+    return "Bebidas";
   }
 
-  // Pantry (default for most dry goods, canned items, etc.)
+  // Despensa (default for most dry goods, canned items, etc.)
   if (
-    /\b(flour|sugar|salt|oil|vinegar|sauce|pasta|rice|bean|can|stock|broth|spice|seasoning)\b/.test(
+    /\b(flour|sugar|salt|oil|vinegar|sauce|pasta|rice|bean|can|stock|broth|spice|seasoning|harina|azúcar|sal|aceite|vinagre|salsa|arroz|frijol|lata|caldo|especia|condimento)\b/.test(
       lowerName
     )
   ) {
-    return "Pantry";
+    return "Despensa";
   }
 
-  return "Other";
+  return "Otros";
 }
 
 export default function ShoppingPage() {
@@ -83,7 +83,7 @@ export default function ShoppingPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [newItemName, setNewItemName] = useState("");
-  const [newItemCategory, setNewItemCategory] = useState("Other");
+  const [newItemCategory, setNewItemCategory] = useState("Otros");
 
   const weekStart = getWeekStart();
 
@@ -127,7 +127,7 @@ export default function ShoppingPage() {
       if (plansError) throw plansError;
 
       if (!mealPlans || mealPlans.length === 0) {
-        alert("No meals planned for this week. Add some meals to the planner first!");
+        alert("No hay comidas planificadas para esta semana. ¡Añade algunas comidas al planificador primero!");
         return;
       }
 
@@ -188,7 +188,7 @@ export default function ShoppingPage() {
       loadItems();
     } catch (error) {
       console.error("Error generating shopping list:", error);
-      alert("Failed to generate shopping list. Please try again.");
+      alert("Error al generar la lista de compras. Por favor, inténtalo de nuevo.");
     } finally {
       setGenerating(false);
     }
@@ -271,7 +271,7 @@ export default function ShoppingPage() {
   // Group items by category
   const groupedItems = items.reduce(
     (acc, item) => {
-      const category = item.category || "Other";
+      const category = item.category || "Otros";
       if (!acc[category]) acc[category] = [];
       acc[category].push(item);
       return acc;
@@ -285,13 +285,13 @@ export default function ShoppingPage() {
   return (
     <div className="min-h-screen pb-20">
       <Header
-        title="Shopping List"
+        title="Lista de Compras"
         rightAction={
           items.length > 0 && checkedCount > 0 ? (
             <button
               onClick={clearChecked}
-              className="p-2 text-[var(--color-warm-gray)] hover:text-red-600 transition-colors"
-              title="Clear checked items"
+              className="p-2 text-[var(--color-slate)] hover:text-red-600 transition-colors"
+              title="Eliminar artículos marcados"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -311,14 +311,14 @@ export default function ShoppingPage() {
           {generating ? (
             <>
               <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Generating...
+              Generando...
             </>
           ) : (
             <>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              Generate from Meal Plan
+              Generar desde Planificador
             </>
           )}
         </button>
@@ -330,7 +330,7 @@ export default function ShoppingPage() {
             value={newItemName}
             onChange={(e) => setNewItemName(e.target.value)}
             className="input flex-1"
-            placeholder="Add item..."
+            placeholder="Añadir artículo..."
           />
           <select
             value={newItemCategory}
@@ -348,22 +348,22 @@ export default function ShoppingPage() {
             disabled={!newItemName.trim()}
             className="btn-primary px-4 disabled:opacity-50"
           >
-            Add
+            Añadir
           </button>
         </form>
 
         {/* Progress */}
         {totalCount > 0 && (
           <div className="mb-6">
-            <div className="flex justify-between text-sm text-[var(--color-warm-gray)] mb-1">
-              <span>Progress</span>
+            <div className="flex justify-between text-sm text-[var(--color-slate)] mb-1">
+              <span>Progreso</span>
               <span>
-                {checkedCount} of {totalCount} items
+                {checkedCount} de {totalCount} artículos
               </span>
             </div>
-            <div className="w-full bg-[var(--color-cream-dark)] rounded-full h-2">
+            <div className="w-full bg-[var(--color-purple-bg-dark)] rounded-full h-2">
               <div
-                className="bg-[var(--color-sage)] h-2 rounded-full transition-all"
+                className="bg-[var(--color-purple)] h-2 rounded-full transition-all"
                 style={{ width: `${(checkedCount / totalCount) * 100}%` }}
               />
             </div>
@@ -374,10 +374,10 @@ export default function ShoppingPage() {
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="animate-pulse">
-                <div className="h-6 bg-[var(--color-cream-dark)] rounded w-24 mb-2" />
+                <div className="h-6 bg-[var(--color-purple-bg-dark)] rounded w-24 mb-2" />
                 <div className="space-y-2">
                   {[...Array(3)].map((_, j) => (
-                    <div key={j} className="h-12 bg-[var(--color-cream-dark)] rounded" />
+                    <div key={j} className="h-12 bg-[var(--color-purple-bg-dark)] rounded" />
                   ))}
                 </div>
               </div>
@@ -396,7 +396,7 @@ export default function ShoppingPage() {
                       <div
                         key={item.id}
                         className={`flex items-center gap-3 p-3 transition-colors ${
-                          item.checked ? "bg-[var(--color-cream-dark)]" : ""
+                          item.checked ? "bg-[var(--color-purple-bg-dark)]" : ""
                         }`}
                       >
                         <input
@@ -409,21 +409,21 @@ export default function ShoppingPage() {
                           <span
                             className={`${
                               item.checked
-                                ? "line-through text-[var(--color-warm-gray-light)]"
+                                ? "line-through text-[var(--color-slate-light)]"
                                 : "text-[var(--foreground)]"
                             }`}
                           >
                             {item.name}
                           </span>
                           {item.quantity && (
-                            <span className="text-sm text-[var(--color-warm-gray-light)] ml-2">
+                            <span className="text-sm text-[var(--color-slate-light)] ml-2">
                               ({item.quantity})
                             </span>
                           )}
                         </div>
                         <button
                           onClick={() => deleteItem(item.id)}
-                          className="p-1 text-[var(--color-warm-gray-light)] hover:text-red-600 transition-colors"
+                          className="p-1 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
@@ -438,9 +438,9 @@ export default function ShoppingPage() {
           </div>
         ) : (
           <div className="text-center py-12">
-            <div className="w-20 h-20 mx-auto mb-4 bg-[var(--color-cream-dark)] rounded-full flex items-center justify-center">
+            <div className="w-20 h-20 mx-auto mb-4 bg-[var(--color-purple-bg-dark)] rounded-full flex items-center justify-center">
               <svg
-                className="w-10 h-10 text-[var(--color-warm-gray-light)]"
+                className="w-10 h-10 text-[var(--color-slate-light)]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -454,10 +454,10 @@ export default function ShoppingPage() {
               </svg>
             </div>
             <h2 className="font-display text-xl font-semibold text-[var(--foreground)] mb-2">
-              No items yet
+              Aún no hay artículos
             </h2>
-            <p className="text-[var(--color-warm-gray-light)] mb-4">
-              Generate a list from your meal plan or add items manually
+            <p className="text-[var(--color-slate-light)] mb-4">
+              Genera una lista desde tu planificador o añade artículos manualmente
             </p>
           </div>
         )}

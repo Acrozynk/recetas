@@ -16,7 +16,7 @@ const sans = Source_Sans_3({
 
 export const metadata: Metadata = {
   title: "Recetas",
-  description: "Personal recipe manager with meal planning and shopping lists",
+  description: "Gestor de recetas personal con planificación de comidas y listas de compras",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -42,7 +42,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="es">
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
       </head>

@@ -27,10 +27,10 @@ function LoginForm() {
         router.push(redirect);
         router.refresh();
       } else {
-        setError("Incorrect password");
+        setError("Contraseña incorrecta");
       }
     } catch {
-      setError("Something went wrong");
+      setError("Algo salió mal");
     } finally {
       setLoading(false);
     }
@@ -44,9 +44,9 @@ function LoginForm() {
       <div className="mb-4">
         <label
           htmlFor="password"
-          className="block text-sm font-medium text-[var(--color-warm-gray)] mb-2"
+          className="block text-sm font-medium text-[var(--color-slate)] mb-2"
         >
-          Password
+          Contraseña
         </label>
         <input
           type="password"
@@ -54,7 +54,7 @@ function LoginForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           className="input"
-          placeholder="Enter your password"
+          placeholder="Introduce tu contraseña"
           autoFocus
           required
         />
@@ -71,7 +71,7 @@ function LoginForm() {
         disabled={loading}
         className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {loading ? "Signing in..." : "Sign In"}
+        {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
       </button>
     </form>
   );
@@ -82,7 +82,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-[var(--background)]">
       <div className="w-full max-w-md">
         <div className="text-center mb-8 animate-fade-in">
-          <div className="w-20 h-20 mx-auto mb-4 bg-[var(--color-amber)] rounded-2xl flex items-center justify-center">
+          <div className="w-20 h-20 mx-auto mb-4 bg-[var(--color-purple)] rounded-2xl flex items-center justify-center">
             <svg
               className="w-12 h-12 text-white"
               fill="none"
@@ -100,8 +100,8 @@ export default function LoginPage() {
           <h1 className="font-display text-3xl font-semibold text-[var(--foreground)]">
             Recetas
           </h1>
-          <p className="text-[var(--color-warm-gray-light)] mt-2">
-            Your personal recipe collection
+          <p className="text-[var(--color-slate-light)] mt-2">
+            Tu colección personal de recetas
           </p>
         </div>
 

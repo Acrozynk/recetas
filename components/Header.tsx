@@ -25,7 +25,7 @@ export default function Header({
           {showBack && (
             <button
               onClick={() => router.back()}
-              className="p-2 -ml-2 text-[var(--color-warm-gray)] hover:text-[var(--foreground)] transition-colors"
+              className="p-2 -ml-2 text-[var(--color-slate)] hover:text-[var(--foreground)] transition-colors"
             >
               <svg
                 className="w-5 h-5"
@@ -51,7 +51,7 @@ export default function Header({
           {showAdd && (
             <Link
               href="/recipes/new"
-              className="p-2 text-[var(--color-amber)] hover:bg-[var(--color-cream-dark)] rounded-lg transition-colors"
+              className="p-2 text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] rounded-lg transition-colors"
             >
               <svg
                 className="w-6 h-6"

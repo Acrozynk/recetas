@@ -38,12 +38,12 @@ export default function EditRecipePage() {
   if (loading) {
     return (
       <div className="min-h-screen pb-20">
-        <Header title="Edit Recipe" showBack />
+        <Header title="Editar Receta" showBack />
         <div className="max-w-2xl mx-auto p-4">
           <div className="animate-pulse space-y-4">
-            <div className="h-12 bg-[var(--color-cream-dark)] rounded" />
-            <div className="h-32 bg-[var(--color-cream-dark)] rounded" />
-            <div className="h-32 bg-[var(--color-cream-dark)] rounded" />
+            <div className="h-12 bg-[var(--color-purple-bg-dark)] rounded" />
+            <div className="h-32 bg-[var(--color-purple-bg-dark)] rounded" />
+            <div className="h-32 bg-[var(--color-purple-bg-dark)] rounded" />
           </div>
         </div>
         <BottomNav />
@@ -54,10 +54,10 @@ export default function EditRecipePage() {
   if (!recipe) {
     return (
       <div className="min-h-screen pb-20">
-        <Header title="Recipe Not Found" showBack />
+        <Header title="Receta No Encontrada" showBack />
         <div className="text-center py-12">
-          <p className="text-[var(--color-warm-gray-light)]">
-            This recipe doesn&apos;t exist or was deleted.
+          <p className="text-[var(--color-slate-light)]">
+            Esta receta no existe o fue eliminada.
           </p>
         </div>
         <BottomNav />
@@ -67,7 +67,7 @@ export default function EditRecipePage() {
 
   return (
     <div className="min-h-screen pb-20">
-      <Header title="Edit Recipe" showBack />
+      <Header title="Editar Receta" showBack />
 
       <main className="max-w-2xl mx-auto p-4">
         <RecipeForm recipe={recipe} mode="edit" />

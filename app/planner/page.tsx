@@ -10,10 +10,10 @@ const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
 type MealType = (typeof MEAL_TYPES)[number];
 
 const MEAL_LABELS: Record<MealType, string> = {
-  breakfast: "Breakfast",
-  lunch: "Lunch",
-  dinner: "Dinner",
-  snack: "Snack",
+  breakfast: "Desayuno",
+  lunch: "Almuerzo",
+  dinner: "Cena",
+  snack: "Merienda",
 };
 
 function getWeekDates(offset: number = 0): Date[] {
@@ -33,7 +33,7 @@ function formatDateKey(date: Date): string {
 }
 
 function formatDayName(date: Date): string {
-  return date.toLocaleDateString("en-US", { weekday: "short" });
+  return date.toLocaleDateString("es-ES", { weekday: "short" });
 }
 
 function formatDayNumber(date: Date): string {
@@ -145,11 +145,11 @@ export default function PlannerPage() {
   return (
     <div className="min-h-screen pb-20">
       <Header
-        title="Meal Planner"
+        title="Planificador de Comidas"
         rightAction={
           <Link
             href="/shopping"
-            className="p-2 text-[var(--color-amber)] hover:bg-[var(--color-cream-dark)] rounded-lg transition-colors"
+            className="p-2 text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] rounded-lg transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
@@ -168,7 +168,7 @@ export default function PlannerPage() {
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => setWeekOffset(weekOffset - 1)}
-            className="p-2 text-[var(--color-warm-gray)] hover:text-[var(--foreground)] transition-colors"
+            className="p-2 text-[var(--color-slate)] hover:text-[var(--foreground)] transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -177,22 +177,22 @@ export default function PlannerPage() {
 
           <div className="text-center">
             <h2 className="font-display text-lg font-semibold text-[var(--foreground)]">
-              {weekDates[0].toLocaleDateString("en-US", { month: "long", day: "numeric" })} -{" "}
-              {weekDates[6].toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+              {weekDates[0].toLocaleDateString("es-ES", { month: "long", day: "numeric" })} -{" "}
+              {weekDates[6].toLocaleDateString("es-ES", { month: "long", day: "numeric", year: "numeric" })}
             </h2>
             {weekOffset !== 0 && (
               <button
                 onClick={() => setWeekOffset(0)}
-                className="text-sm text-[var(--color-amber)] hover:underline"
+                className="text-sm text-[var(--color-purple)] hover:underline"
               >
-                Go to current week
+                Ir a la semana actual
               </button>
             )}
           </div>
 
           <button
             onClick={() => setWeekOffset(weekOffset + 1)}
-            className="p-2 text-[var(--color-warm-gray)] hover:text-[var(--foreground)] transition-colors"
+            className="p-2 text-[var(--color-slate)] hover:text-[var(--foreground)] transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -204,10 +204,10 @@ export default function PlannerPage() {
           <div className="grid grid-cols-7 gap-2">
             {[...Array(7)].map((_, i) => (
               <div key={i} className="animate-pulse">
-                <div className="h-8 bg-[var(--color-cream-dark)] rounded mb-2" />
+                <div className="h-8 bg-[var(--color-purple-bg-dark)] rounded mb-2" />
                 <div className="space-y-2">
                   {[...Array(4)].map((_, j) => (
-                    <div key={j} className="h-16 bg-[var(--color-cream-dark)] rounded" />
+                    <div key={j} className="h-16 bg-[var(--color-purple-bg-dark)] rounded" />
                   ))}
                 </div>
               </div>
@@ -222,8 +222,8 @@ export default function PlannerPage() {
                   key={date.toISOString()}
                   className={`text-center p-2 rounded-lg ${
                     isToday(date)
-                      ? "bg-[var(--color-amber)] text-white"
-                      : "bg-[var(--color-cream-dark)]"
+                      ? "bg-[var(--color-purple)] text-white"
+                      : "bg-[var(--color-purple-bg-dark)]"
                   }`}
                 >
                   <div className="text-xs font-medium opacity-80">
@@ -246,7 +246,7 @@ export default function PlannerPage() {
                         className={`min-h-[80px] rounded-lg border-2 border-dashed p-2 transition-colors ${
                           plan
                             ? `meal-${mealType} border-solid`
-                            : "border-[var(--border-color)] hover:border-[var(--color-amber)]"
+                            : "border-[var(--border-color)] hover:border-[var(--color-purple)]"
                         }`}
                       >
                         {plan && plan.recipe ? (
@@ -275,7 +275,7 @@ export default function PlannerPage() {
                             onClick={() =>
                               setShowRecipeSelector({ date: dateKey, mealType })
                             }
-                            className="w-full h-full flex flex-col items-center justify-center text-[var(--color-warm-gray-light)] hover:text-[var(--color-amber)]"
+                            className="w-full h-full flex flex-col items-center justify-center text-[var(--color-slate-light)] hover:text-[var(--color-purple)]"
                           >
                             <svg
                               className="w-5 h-5"
@@ -312,11 +312,11 @@ export default function PlannerPage() {
             <div className="p-4 border-b border-[var(--border-color)]">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-display text-lg font-semibold">
-                  Add {MEAL_LABELS[showRecipeSelector.mealType]}
+                  Añadir {MEAL_LABELS[showRecipeSelector.mealType]}
                 </h3>
                 <button
                   onClick={() => setShowRecipeSelector(null)}
-                  className="p-1 text-[var(--color-warm-gray-light)] hover:text-[var(--foreground)]"
+                  className="p-1 text-[var(--color-slate-light)] hover:text-[var(--foreground)]"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -328,7 +328,7 @@ export default function PlannerPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="input"
-                placeholder="Search recipes..."
+                placeholder="Buscar recetas..."
                 autoFocus
               />
             </div>
@@ -340,13 +340,13 @@ export default function PlannerPage() {
                     <button
                       key={recipe.id}
                       onClick={() => addMealPlan(recipe.id)}
-                      className="w-full text-left p-3 rounded-lg hover:bg-[var(--color-cream-dark)] transition-colors"
+                      className="w-full text-left p-3 rounded-lg hover:bg-[var(--color-purple-bg-dark)] transition-colors"
                     >
                       <p className="font-medium text-[var(--foreground)]">
                         {recipe.title}
                       </p>
                       {recipe.tags && recipe.tags.length > 0 && (
-                        <p className="text-xs text-[var(--color-warm-gray-light)] mt-1">
+                        <p className="text-xs text-[var(--color-slate-light)] mt-1">
                           {recipe.tags.slice(0, 3).join(", ")}
                         </p>
                       )}
@@ -354,19 +354,19 @@ export default function PlannerPage() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-8 text-[var(--color-warm-gray-light)]">
+                <div className="text-center py-8 text-[var(--color-slate-light)]">
                   {recipes.length === 0 ? (
                     <>
-                      <p>No recipes yet</p>
+                      <p>Aún no hay recetas</p>
                       <Link
                         href="/recipes/new"
-                        className="text-[var(--color-amber)] hover:underline mt-2 inline-block"
+                        className="text-[var(--color-purple)] hover:underline mt-2 inline-block"
                       >
-                        Add your first recipe
+                        Añade tu primera receta
                       </Link>
                     </>
                   ) : (
-                    <p>No recipes match your search</p>
+                    <p>Ninguna receta coincide con tu búsqueda</p>
                   )}
                 </div>
               )}

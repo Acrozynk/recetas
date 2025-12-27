@@ -1,22 +1,30 @@
 @import "tailwindcss";
 
 :root {
-  /* Warm, recipe book inspired palette */
-  --color-cream: #FBF7F4;
-  --color-cream-dark: #F5EDE6;
-  --color-warm-gray: #6B5B4F;
-  --color-warm-gray-light: #8B7B6F;
-  --color-amber: #D97706;
-  --color-amber-dark: #B45309;
-  --color-amber-light: #FCD34D;
-  --color-terracotta: #C2410C;
-  --color-sage: #65A30D;
-  --color-sage-dark: #4D7C0F;
+  /* Purple, Blue & Pink palette */
+  --color-purple: #7C3AED;
+  --color-purple-dark: #6D28D9;
+  --color-purple-light: #A78BFA;
+  --color-purple-muted: #C4B5FD;
+  --color-purple-bg: #F5F3FF;
+  --color-purple-bg-dark: #EDE9FE;
   
-  --background: var(--color-cream);
-  --foreground: #2D2420;
+  --color-blue: #3B82F6;
+  --color-blue-dark: #2563EB;
+  --color-blue-light: #93C5FD;
+  
+  --color-pink: #EC4899;
+  --color-pink-dark: #DB2777;
+  --color-pink-light: #F9A8D4;
+  --color-pink-bg: #FCE7F3;
+  
+  --color-slate: #64748B;
+  --color-slate-light: #94A3B8;
+  
+  --background: var(--color-purple-bg);
+  --foreground: #1E1B4B;
   --card-background: #FFFFFF;
-  --border-color: #E5DDD5;
+  --border-color: #DDD6FE;
 }
 
 @theme inline {
@@ -54,16 +62,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-cream-dark);
+  background: var(--color-purple-bg-dark);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-warm-gray-light);
+  background: var(--color-purple-muted);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-warm-gray);
+  background: var(--color-purple-light);
 }
 
 /* Bottom navigation safe area */
@@ -82,30 +90,33 @@ body {
 
 .recipe-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(107, 91, 79, 0.12);
+  box-shadow: 0 8px 24px rgba(124, 58, 237, 0.15);
 }
 
 /* Button styles */
 .btn-primary {
-  background: var(--color-amber);
+  background: linear-gradient(135deg, var(--color-purple), var(--color-purple-dark));
   color: white;
   font-weight: 600;
   padding: 0.75rem 1.5rem;
   border-radius: 8px;
-  transition: background 0.2s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.25);
 }
 
 .btn-primary:hover {
-  background: var(--color-amber-dark);
+  background: linear-gradient(135deg, var(--color-purple-dark), #5B21B6);
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);
+  transform: translateY(-1px);
 }
 
 .btn-secondary {
-  background: var(--color-cream-dark);
-  color: var(--color-warm-gray);
+  background: var(--color-purple-bg-dark);
+  color: var(--color-purple-dark);
   font-weight: 600;
   padding: 0.75rem 1.5rem;
   border-radius: 8px;
-  transition: background 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .btn-secondary:hover {
@@ -115,7 +126,10 @@ body {
 /* Input styles */
 .input {
   width: 100%;
-  padding: 0.75rem 1rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   background: white;
@@ -125,8 +139,8 @@ body {
 
 .input:focus {
   outline: none;
-  border-color: var(--color-amber);
-  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
+  border-color: var(--color-purple);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
 }
 
 /* Tag styles */
@@ -134,8 +148,8 @@ body {
   display: inline-flex;
   align-items: center;
   padding: 0.25rem 0.75rem;
-  background: var(--color-cream-dark);
-  color: var(--color-warm-gray);
+  background: var(--color-purple-bg-dark);
+  color: var(--color-purple-dark);
   border-radius: 9999px;
   font-size: 0.875rem;
   font-weight: 500;
@@ -153,8 +167,8 @@ body {
 }
 
 .checkbox:checked {
-  background: var(--color-sage);
-  border-color: var(--color-sage);
+  background: var(--color-purple);
+  border-color: var(--color-purple);
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='white' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z'/%3E%3C/svg%3E");
 }
 
@@ -173,7 +187,7 @@ body {
 .animate-fade-in-delay-3 { animation-delay: 0.3s; opacity: 0; }
 
 /* Meal type colors */
-.meal-breakfast { background: #FEF3C7; border-color: #F59E0B; }
-.meal-lunch { background: #DCFCE7; border-color: #22C55E; }
-.meal-dinner { background: #FEE2E2; border-color: #EF4444; }
-.meal-snack { background: #E0E7FF; border-color: #6366F1; }
+.meal-breakfast { background: #FCE7F3; border-color: #EC4899; }
+.meal-lunch { background: #DBEAFE; border-color: #3B82F6; }
+.meal-dinner { background: #EDE9FE; border-color: #7C3AED; }
+.meal-snack { background: #F3E8FF; border-color: #A855F7; }

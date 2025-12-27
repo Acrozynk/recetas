@@ -59,7 +59,7 @@ export default function HomePage() {
         {/* Search bar */}
         <div className="relative mb-4">
           <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--color-warm-gray-light)]"
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--color-slate-light)]"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -73,7 +73,7 @@ export default function HomePage() {
           </svg>
           <input
             type="search"
-            placeholder="Search recipes..."
+            placeholder="Buscar recetas..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="input pl-10"
@@ -87,11 +87,11 @@ export default function HomePage() {
               onClick={() => setSelectedTag(null)}
               className={`tag whitespace-nowrap transition-colors ${
                 !selectedTag
-                  ? "bg-[var(--color-amber)] text-white"
+                  ? "bg-[var(--color-purple)] text-white"
                   : "hover:bg-[var(--border-color)]"
               }`}
             >
-              All
+              Todas
             </button>
             {allTags.map((tag) => (
               <button
@@ -99,7 +99,7 @@ export default function HomePage() {
                 onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
                 className={`tag whitespace-nowrap transition-colors ${
                   tag === selectedTag
-                    ? "bg-[var(--color-amber)] text-white"
+                    ? "bg-[var(--color-purple)] text-white"
                     : "hover:bg-[var(--border-color)]"
                 }`}
               >
@@ -113,10 +113,10 @@ export default function HomePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {[...Array(6)].map((_, i) => (
               <div key={i} className="recipe-card animate-pulse">
-                <div className="aspect-[4/3] bg-[var(--color-cream-dark)]" />
+                <div className="aspect-[4/3] bg-[var(--color-purple-bg-dark)]" />
                 <div className="p-4">
-                  <div className="h-6 bg-[var(--color-cream-dark)] rounded w-3/4 mb-2" />
-                  <div className="h-4 bg-[var(--color-cream-dark)] rounded w-1/2" />
+                  <div className="h-6 bg-[var(--color-purple-bg-dark)] rounded w-3/4 mb-2" />
+                  <div className="h-4 bg-[var(--color-purple-bg-dark)] rounded w-1/2" />
                 </div>
               </div>
             ))}
@@ -135,9 +135,9 @@ export default function HomePage() {
           </div>
         ) : (
           <div className="text-center py-12">
-            <div className="w-20 h-20 mx-auto mb-4 bg-[var(--color-cream-dark)] rounded-full flex items-center justify-center">
+            <div className="w-20 h-20 mx-auto mb-4 bg-[var(--color-purple-bg-dark)] rounded-full flex items-center justify-center">
               <svg
-                className="w-10 h-10 text-[var(--color-warm-gray-light)]"
+                className="w-10 h-10 text-[var(--color-slate-light)]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -151,25 +151,25 @@ export default function HomePage() {
               </svg>
             </div>
             <h2 className="font-display text-xl font-semibold text-[var(--foreground)] mb-2">
-              {search || selectedTag ? "No recipes found" : "No recipes yet"}
+              {search || selectedTag ? "No se encontraron recetas" : "Aún no hay recetas"}
             </h2>
-            <p className="text-[var(--color-warm-gray-light)] mb-6">
+            <p className="text-[var(--color-slate-light)] mb-6">
               {search || selectedTag
-                ? "Try a different search or filter"
-                : "Add your first recipe to get started"}
+                ? "Prueba con otra búsqueda o filtro"
+                : "Añade tu primera receta para empezar"}
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Link href="/recipes/new" className="btn-primary inline-flex items-center justify-center gap-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Add Recipe
+                Añadir Receta
               </Link>
               <Link href="/recipes/import" className="btn-secondary inline-flex items-center justify-center gap-2">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
-                Import Recipes
+                Importar Recetas
               </Link>
             </div>
           </div>

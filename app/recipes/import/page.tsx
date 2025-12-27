@@ -34,14 +34,14 @@ export default function ImportPage() {
       const recipes = parseCopyMeThatExport(text);
 
       if (recipes.length === 0) {
-        setError("No recipes found in this file. Make sure it's a valid CopyMeThat export.");
+        setError("No se encontraron recetas en este archivo. Asegúrate de que sea una exportación válida de CopyMeThat.");
       } else {
         setParsedRecipes(recipes);
         setSelectedRecipes(new Set(recipes.map((_, i) => i)));
       }
     } catch (err) {
       console.error("Error parsing file:", err);
-      setError("Failed to parse the file. Please make sure it's a valid HTML file.");
+      setError("Error al analizar el archivo. Asegúrate de que sea un archivo HTML válido.");
     } finally {
       setLoading(false);
     }
@@ -121,7 +121,7 @@ export default function ImportPage() {
       router.refresh();
     } catch (err) {
       console.error("Error during import:", err);
-      setError("Some recipes failed to import. Please try again.");
+      setError("Algunas recetas no se pudieron importar. Por favor, inténtalo de nuevo.");
     } finally {
       setLoading(false);
       setImportProgress(null);
@@ -130,55 +130,55 @@ export default function ImportPage() {
 
   return (
     <div className="min-h-screen pb-20">
-      <Header title="Import Recipes" showBack />
+      <Header title="Importar Recetas" showBack />
 
       <main className="max-w-2xl mx-auto p-4">
         {/* Mode Selector */}
         {parsedRecipes.length === 0 && (
           <>
-            <div className="flex rounded-lg bg-[var(--color-cream-dark)] p-1 mb-6">
+            <div className="flex rounded-lg bg-[var(--color-purple-bg-dark)] p-1 mb-6">
               <button
                 onClick={() => setMode("file")}
                 className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
                   mode === "file"
                     ? "bg-white text-[var(--foreground)] shadow-sm"
-                    : "text-[var(--color-warm-gray)]"
+                    : "text-[var(--color-slate)]"
                 }`}
               >
-                From File
+                Desde Archivo
               </button>
               <button
                 onClick={() => setMode("url")}
                 className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-colors ${
                   mode === "url"
                     ? "bg-white text-[var(--foreground)] shadow-sm"
-                    : "text-[var(--color-warm-gray)]"
+                    : "text-[var(--color-slate)]"
                 }`}
               >
-                From URL
+                Desde URL
               </button>
             </div>
 
             {mode === "file" ? (
               <div className="bg-white rounded-xl p-6 border border-[var(--border-color)]">
                 <h2 className="font-display text-lg font-semibold mb-2">
-                  Import from CopyMeThat
+                  Importar desde CopyMeThat
                 </h2>
-                <p className="text-[var(--color-warm-gray)] text-sm mb-4">
-                  Export your recipes from CopyMeThat as HTML and upload the file here.
+                <p className="text-[var(--color-slate)] text-sm mb-4">
+                  Exporta tus recetas de CopyMeThat como HTML y sube el archivo aquí.
                 </p>
 
-                <ol className="list-decimal list-inside text-sm text-[var(--color-warm-gray-light)] mb-6 space-y-1">
-                  <li>Open CopyMeThat and go to Settings</li>
-                  <li>Select &quot;Export Recipes&quot;</li>
-                  <li>Choose HTML format and download</li>
-                  <li>Upload the file below</li>
+                <ol className="list-decimal list-inside text-sm text-[var(--color-slate-light)] mb-6 space-y-1">
+                  <li>Abre CopyMeThat y ve a Configuración</li>
+                  <li>Selecciona &quot;Exportar Recetas&quot;</li>
+                  <li>Elige formato HTML y descarga</li>
+                  <li>Sube el archivo abajo</li>
                 </ol>
 
                 <label className="block">
-                  <div className="border-2 border-dashed border-[var(--border-color)] rounded-lg p-8 text-center cursor-pointer hover:border-[var(--color-amber)] transition-colors">
+                  <div className="border-2 border-dashed border-[var(--border-color)] rounded-lg p-8 text-center cursor-pointer hover:border-[var(--color-purple)] transition-colors">
                     <svg
-                      className="w-12 h-12 mx-auto text-[var(--color-warm-gray-light)] mb-3"
+                      className="w-12 h-12 mx-auto text-[var(--color-slate-light)] mb-3"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -190,11 +190,11 @@ export default function ImportPage() {
                         d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
                       />
                     </svg>
-                    <p className="text-[var(--color-warm-gray)] font-medium">
-                      Click to upload HTML file
+                    <p className="text-[var(--color-slate)] font-medium">
+                      Haz clic para subir archivo HTML
                     </p>
-                    <p className="text-sm text-[var(--color-warm-gray-light)] mt-1">
-                      or drag and drop
+                    <p className="text-sm text-[var(--color-slate-light)] mt-1">
+                      o arrastra y suelta
                     </p>
                   </div>
                   <input
@@ -209,10 +209,10 @@ export default function ImportPage() {
             ) : (
               <div className="bg-white rounded-xl p-6 border border-[var(--border-color)]">
                 <h2 className="font-display text-lg font-semibold mb-2">
-                  Import from URL
+                  Importar desde URL
                 </h2>
-                <p className="text-[var(--color-warm-gray)] text-sm mb-4">
-                  Paste a recipe URL and we&apos;ll extract the recipe details automatically.
+                <p className="text-[var(--color-slate)] text-sm mb-4">
+                  Pega una URL de receta y extraeremos los detalles automáticamente.
                 </p>
 
                 <div className="flex gap-2">
@@ -229,7 +229,7 @@ export default function ImportPage() {
                     disabled={loading || !url.trim()}
                     className="btn-primary disabled:opacity-50"
                   >
-                    {loading ? "..." : "Import"}
+                    {loading ? "..." : "Importar"}
                   </button>
                 </div>
               </div>
@@ -247,9 +247,9 @@ export default function ImportPage() {
         {/* Loading */}
         {loading && !importProgress && (
           <div className="mt-6 text-center">
-            <div className="inline-block w-8 h-8 border-4 border-[var(--color-amber)] border-t-transparent rounded-full animate-spin" />
-            <p className="mt-2 text-[var(--color-warm-gray)]">
-              {mode === "file" ? "Parsing recipes..." : "Fetching recipe..."}
+            <div className="inline-block w-8 h-8 border-4 border-[var(--color-purple)] border-t-transparent rounded-full animate-spin" />
+            <p className="mt-2 text-[var(--color-slate)]">
+              {mode === "file" ? "Analizando recetas..." : "Obteniendo receta..."}
             </p>
           </div>
         )}
@@ -257,16 +257,16 @@ export default function ImportPage() {
         {/* Import Progress */}
         {importProgress && (
           <div className="mt-6 text-center">
-            <div className="w-full bg-[var(--color-cream-dark)] rounded-full h-2 mb-2">
+            <div className="w-full bg-[var(--color-purple-bg-dark)] rounded-full h-2 mb-2">
               <div
-                className="bg-[var(--color-amber)] h-2 rounded-full transition-all"
+                className="bg-[var(--color-purple)] h-2 rounded-full transition-all"
                 style={{
                   width: `${(importProgress.current / importProgress.total) * 100}%`,
                 }}
               />
             </div>
-            <p className="text-[var(--color-warm-gray)]">
-              Importing {importProgress.current} of {importProgress.total} recipes...
+            <p className="text-[var(--color-slate)]">
+              Importando {importProgress.current} de {importProgress.total} recetas...
             </p>
           </div>
         )}
@@ -276,16 +276,16 @@ export default function ImportPage() {
           <div className="mt-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-display text-lg font-semibold">
-                Found {parsedRecipes.length} recipe{parsedRecipes.length !== 1 ? "s" : ""}
+                {parsedRecipes.length === 1 ? "Se encontró 1 receta" : `Se encontraron ${parsedRecipes.length} recetas`}
               </h2>
               {parsedRecipes.length > 1 && (
                 <button
                   onClick={toggleAll}
-                  className="text-sm text-[var(--color-amber)] hover:underline"
+                  className="text-sm text-[var(--color-purple)] hover:underline"
                 >
                   {selectedRecipes.size === parsedRecipes.length
-                    ? "Deselect all"
-                    : "Select all"}
+                    ? "Deseleccionar todo"
+                    : "Seleccionar todo"}
                 </button>
               )}
             </div>
@@ -296,8 +296,8 @@ export default function ImportPage() {
                   key={index}
                   className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                     selectedRecipes.has(index)
-                      ? "bg-amber-50 border-[var(--color-amber)]"
-                      : "bg-white border-[var(--border-color)] hover:border-[var(--color-warm-gray-light)]"
+                      ? "bg-purple-50 border-[var(--color-purple)]"
+                      : "bg-white border-[var(--border-color)] hover:border-[var(--color-slate-light)]"
                   }`}
                 >
                   <input
@@ -310,9 +310,9 @@ export default function ImportPage() {
                     <h3 className="font-medium text-[var(--foreground)] truncate">
                       {recipe.title}
                     </h3>
-                    <p className="text-sm text-[var(--color-warm-gray-light)]">
-                      {recipe.ingredients.length} ingredients •{" "}
-                      {recipe.instructions.length} steps
+                    <p className="text-sm text-[var(--color-slate-light)]">
+                      {recipe.ingredients.length} ingredientes •{" "}
+                      {recipe.instructions.length} pasos
                       {recipe.tags.length > 0 && ` • ${recipe.tags.join(", ")}`}
                     </p>
                   </div>
@@ -329,14 +329,14 @@ export default function ImportPage() {
                 }}
                 className="btn-secondary flex-1"
               >
-                Cancel
+                Cancelar
               </button>
               <button
                 onClick={handleImport}
                 disabled={selectedRecipes.size === 0}
                 className="btn-primary flex-1 disabled:opacity-50"
               >
-                Import {selectedRecipes.size} Recipe{selectedRecipes.size !== 1 ? "s" : ""}
+                Importar {selectedRecipes.size} {selectedRecipes.size === 1 ? "Receta" : "Recetas"}
               </button>
             </div>
           </div>

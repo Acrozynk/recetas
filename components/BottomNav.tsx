@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 const navItems = [
   {
     href: "/",
-    label: "Recipes",
+    label: "Recetas",
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
@@ -20,7 +20,7 @@ const navItems = [
   },
   {
     href: "/planner",
-    label: "Planner",
+    label: "Planificador",
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
@@ -34,7 +34,7 @@ const navItems = [
   },
   {
     href: "/shopping",
-    label: "Shopping",
+    label: "Compras",
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
@@ -66,8 +66,8 @@ export default function BottomNav() {
               href={item.href}
               className={`flex flex-col items-center justify-center w-full h-full transition-colors ${
                 isActive
-                  ? "text-[var(--color-amber)]"
-                  : "text-[var(--color-warm-gray-light)] hover:text-[var(--color-warm-gray)]"
+                  ? "text-[var(--color-purple)]"
+                  : "text-[var(--color-slate-light)] hover:text-[var(--color-slate)]"
               }`}
             >
               {item.icon}
