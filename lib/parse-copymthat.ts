@@ -71,10 +71,10 @@ export function parseCopyMeThatExport(html: string): ParsedRecipe[] {
       if (ratingText) {
         const originalRating = parseInt(ratingText);
         if (!isNaN(originalRating) && originalRating >= 1 && originalRating <= 5) {
-          // Map: 1-2 → 1, 3 → 2, 4-5 → 3
-          if (originalRating <= 2) rating = 1;
-          else if (originalRating === 3) rating = 2;
-          else rating = 3;
+          // Map: 1-3 → 1, 4 → 2, 5 → 3
+          if (originalRating <= 3) rating = 1;
+          else if (originalRating === 4) rating = 2;
+          else rating = 3; // 5 stars
         }
       }
 
