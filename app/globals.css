@@ -205,16 +205,18 @@ body {
   /* Hide navigation and interactive elements */
   header,
   nav,
-  .print\\:hidden,
-  button,
-  .checkbox {
+  button {
+    display: none !important;
+  }
+  
+  /* Hide elements with data-print-hide attribute */
+  [data-print-hide="true"] {
     display: none !important;
   }
   
   /* Remove bottom padding for nav */
-  .min-h-screen {
+  main {
     padding-bottom: 0 !important;
-    min-height: auto !important;
   }
   
   /* Ensure images print nicely */
@@ -246,14 +248,9 @@ body {
     color: #333 !important;
   }
   
-  /* Make text readable */
-  .text-\\[var\\(--color-slate\\)\\],
-  .text-\\[var\\(--color-slate-light\\)\\] {
-    color: #444 !important;
-  }
-  
-  .text-\\[var\\(--color-purple\\)\\] {
-    color: #c2410c !important;
+  /* Make slate text readable in print */
+  p, span, div {
+    color: inherit;
   }
   
   /* Keep ingredients and instructions side by side if room */
@@ -267,24 +264,15 @@ body {
   }
   
   /* Ingredient list styling */
-  ul.space-y-2 li {
+  ul li {
     padding: 0.25rem 0 !important;
     border-bottom: 1px dotted #ddd;
   }
   
   /* Instructions list */
-  ol.space-y-4 li {
+  ol li {
     padding: 0.5rem 0 !important;
     page-break-inside: avoid;
-  }
-  
-  /* Step numbers in print */
-  ol.space-y-4 li .w-8.h-8 {
-    display: inline-flex !important;
-    background: #f97316 !important;
-    color: white !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
   }
   
   /* Notes section */
