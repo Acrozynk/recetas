@@ -6,14 +6,14 @@ import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import Link from "next/link";
 
-const MEAL_TYPES = ["breakfast", "lunch", "dinner", "snack"] as const;
+const MEAL_TYPES = ["breakfast", "lunch", "snack", "dinner"] as const;
 type MealType = (typeof MEAL_TYPES)[number];
 
 const MEAL_LABELS: Record<MealType, string> = {
   breakfast: "Desayuno",
-  lunch: "Almuerzo",
-  dinner: "Cena",
+  lunch: "Comida",
   snack: "Merienda",
+  dinner: "Cena",
 };
 
 function getWeekDates(offset: number = 0): Date[] {

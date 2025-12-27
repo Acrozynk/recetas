@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <rect width="32" height="32" rx="6" fill="#D97706"/>
+  <g transform="translate(16, 16)">
+    <!-- Chef hat (toque) -->
+    <!-- Hat puffs (top cloud shape) -->
+    <circle cx="0" cy="-4.5" r="4" fill="#FBF7F4"/>
+    <circle cx="-3.6" cy="-3" r="3.3" fill="#FBF7F4"/>
+    <circle cx="3.6" cy="-3" r="3.3" fill="#FBF7F4"/>
+    <circle cx="-4.6" cy="0" r="3" fill="#FBF7F4"/>
+    <circle cx="4.6" cy="0" r="3" fill="#FBF7F4"/>
+    <!-- Hat body -->
+    <path d="M-6 0.5 L-6 6.5 L6 6.5 L6 0.5" fill="#FBF7F4"/>
+    <!-- Hat band -->
+    <rect x="-6" y="5.5" width="12" height="2" rx="0.5" fill="#FBF7F4"/>
+  </g>
+</svg>
+

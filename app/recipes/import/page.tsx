@@ -296,7 +296,7 @@ export default function ImportPage() {
                   key={index}
                   className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
                     selectedRecipes.has(index)
-                      ? "bg-purple-50 border-[var(--color-purple)]"
+                      ? "bg-orange-50 border-[var(--color-purple)]"
                       : "bg-white border-[var(--border-color)] hover:border-[var(--color-slate-light)]"
                   }`}
                 >

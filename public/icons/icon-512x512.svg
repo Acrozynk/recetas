@@ -1,25 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
   <rect width="512" height="512" rx="96" fill="#D97706"/>
-  <g transform="translate(80, 72)">
-    <!-- Book shape -->
-    <path d="M176 24C128 24 80 40 56 64V336C80 304 128 288 176 288C224 288 272 304 296 336V64C272 40 224 24 176 24Z" fill="#FBF7F4" stroke="#FBF7F4" stroke-width="8"/>
-    <!-- Center spine -->
-    <line x1="176" y1="72" x2="176" y2="288" stroke="#D97706" stroke-width="4" opacity="0.3"/>
-    <!-- Left page lines -->
-    <line x1="80" y1="104" x2="152" y2="104" stroke="#D97706" stroke-width="4" opacity="0.2"/>
-    <line x1="80" y1="136" x2="152" y2="136" stroke="#D97706" stroke-width="4" opacity="0.2"/>
-    <line x1="80" y1="168" x2="152" y2="168" stroke="#D97706" stroke-width="4" opacity="0.2"/>
-    <line x1="80" y1="200" x2="136" y2="200" stroke="#D97706" stroke-width="4" opacity="0.2"/>
-    <line x1="80" y1="232" x2="144" y2="232" stroke="#D97706" stroke-width="4" opacity="0.2"/>
-    <!-- Right page lines -->
-    <line x1="200" y1="104" x2="272" y2="104" stroke="#D97706" stroke-width="4" opacity="0.2"/>
-    <line x1="200" y1="136" x2="272" y2="136" stroke="#D97706" stroke-width="4" opacity="0.2"/>
-    <line x1="200" y1="168" x2="272" y2="168" stroke="#D97706" stroke-width="4" opacity="0.2"/>
-    <line x1="200" y1="200" x2="256" y2="200" stroke="#D97706" stroke-width="4" opacity="0.2"/>
-    <line x1="200" y1="232" x2="264" y2="232" stroke="#D97706" stroke-width="4" opacity="0.2"/>
-    <!-- Spoon accent -->
-    <ellipse cx="272" cy="328" rx="20" ry="32" fill="#FBF7F4" opacity="0.8"/>
-    <rect x="264" y="356" width="16" height="44" rx="8" fill="#FBF7F4" opacity="0.8"/>
+  <g transform="translate(256, 256)">
+    <!-- Chef hat (toque) -->
+    <!-- Hat puffs (top cloud shape) -->
+    <circle cx="0" cy="-75" r="64" fill="#FBF7F4"/>
+    <circle cx="-58" cy="-48" r="54" fill="#FBF7F4"/>
+    <circle cx="58" cy="-48" r="54" fill="#FBF7F4"/>
+    <circle cx="-75" cy="0" r="48" fill="#FBF7F4"/>
+    <circle cx="75" cy="0" r="48" fill="#FBF7F4"/>
+    <!-- Hat body -->
+    <path d="M-96 10 L-96 106 L96 106 L96 10" fill="#FBF7F4"/>
+    <!-- Hat band -->
+    <rect x="-96" y="90" width="192" height="32" rx="4" fill="#FBF7F4"/>
+    <rect x="-96" y="100" width="192" height="12" fill="#D97706" opacity="0.2"/>
+    <!-- Pleats on hat body -->
+    <line x1="-48" y1="16" x2="-48" y2="90" stroke="#D97706" stroke-width="3" opacity="0.15"/>
+    <line x1="0" y1="16" x2="0" y2="90" stroke="#D97706" stroke-width="3" opacity="0.15"/>
+    <line x1="48" y1="16" x2="48" y2="90" stroke="#D97706" stroke-width="3" opacity="0.15"/>
   </g>
 </svg>
-

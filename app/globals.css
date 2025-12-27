@@ -1,30 +1,29 @@
 @import "tailwindcss";
 
 :root {
-  /* Purple, Blue & Pink palette */
-  --color-purple: #7C3AED;
-  --color-purple-dark: #6D28D9;
-  --color-purple-light: #A78BFA;
-  --color-purple-muted: #C4B5FD;
-  --color-purple-bg: #F5F3FF;
-  --color-purple-bg-dark: #EDE9FE;
+  /* Red & Orange palette */
+  --color-purple: #F97316;
+  --color-purple-dark: #EA580C;
+  --color-purple-light: #FDBA74;
+  --color-purple-muted: #FED7AA;
+  --color-purple-bg: #FFF7ED;
+  --color-purple-bg-dark: #FFEDD5;
   
-  --color-blue: #3B82F6;
-  --color-blue-dark: #2563EB;
-  --color-blue-light: #93C5FD;
+  --color-red: #DC2626;
+  --color-red-dark: #B91C1C;
+  --color-red-light: #F87171;
   
-  --color-pink: #EC4899;
-  --color-pink-dark: #DB2777;
-  --color-pink-light: #F9A8D4;
-  --color-pink-bg: #FCE7F3;
+  --color-orange: #F97316;
+  --color-orange-dark: #EA580C;
+  --color-orange-light: #FDBA74;
   
   --color-slate: #64748B;
   --color-slate-light: #94A3B8;
   
   --background: var(--color-purple-bg);
-  --foreground: #1E1B4B;
+  --foreground: #451A03;
   --card-background: #FFFFFF;
-  --border-color: #DDD6FE;
+  --border-color: #FED7AA;
 }
 
 @theme inline {
@@ -90,23 +89,23 @@ body {
 
 .recipe-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(124, 58, 237, 0.15);
+  box-shadow: 0 8px 24px rgba(249, 115, 22, 0.15);
 }
 
 /* Button styles */
 .btn-primary {
-  background: linear-gradient(135deg, var(--color-purple), var(--color-purple-dark));
+  background: linear-gradient(135deg, var(--color-orange), var(--color-red));
   color: white;
   font-weight: 600;
   padding: 0.75rem 1.5rem;
   border-radius: 8px;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.25);
+  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.25);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, var(--color-purple-dark), #5B21B6);
-  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.35);
+  background: linear-gradient(135deg, var(--color-red), var(--color-red-dark));
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.35);
   transform: translateY(-1px);
 }
 
@@ -126,10 +125,7 @@ body {
 /* Input styles */
 .input {
   width: 100%;
-  padding-top: 0.75rem;
-  padding-bottom: 0.75rem;
-  padding-left: 1rem;
-  padding-right: 1rem;
+  padding: 0.75rem 1rem;
   border: 1px solid var(--border-color);
   border-radius: 8px;
   background: white;
@@ -137,10 +133,14 @@ body {
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.input.pl-10 {
+  padding-left: 2.5rem;
+}
+
 .input:focus {
   outline: none;
   border-color: var(--color-purple);
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
 }
 
 /* Tag styles */
@@ -187,7 +187,7 @@ body {
 .animate-fade-in-delay-3 { animation-delay: 0.3s; opacity: 0; }
 
 /* Meal type colors */
-.meal-breakfast { background: #FCE7F3; border-color: #EC4899; }
-.meal-lunch { background: #DBEAFE; border-color: #3B82F6; }
-.meal-dinner { background: #EDE9FE; border-color: #7C3AED; }
-.meal-snack { background: #F3E8FF; border-color: #A855F7; }
+.meal-breakfast { background: #FEF3C7; border-color: #F59E0B; }
+.meal-lunch { background: #FFEDD5; border-color: #F97316; }
+.meal-dinner { background: #FEE2E2; border-color: #DC2626; }
+.meal-snack { background: #FFF7ED; border-color: #EA580C; }

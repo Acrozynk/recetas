@@ -1,20 +1,10 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { supabase, type ShoppingItem, type MealPlan, type Ingredient } from "@/lib/supabase";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { supabase, type ShoppingItem, type MealPlan, type Ingredient, type SupermarketName, type SupermarketCategoryOrder, SUPERMARKETS, SUPERMARKET_COLORS, DEFAULT_CATEGORIES } from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
-
-const CATEGORIES = [
-  "Frutas y Verduras",
-  "Lácteos",
-  "Carnes y Mariscos",
-  "Panadería",
-  "Despensa",
-  "Congelados",
-  "Bebidas",
-  "Otros",
-];
+import { searchGroceries, type GroceryProduct, GROCERY_CATEGORIES } from "@/lib/spanish-groceries";
 
 function getWeekStart(): string {
   const today = new Date();
@@ -78,14 +68,484 @@ function categorizeIngredient(name: string): string {
   return "Otros";
 }
 
+// Category Order Editor Modal
+function CategoryOrderModal({
+  isOpen,
+  onClose,
+  supermarket,
+  categoryOrder,
+  onSave,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  supermarket: SupermarketName;
+  categoryOrder: string[];
+  onSave: (newOrder: string[]) => void;
+}) {
+  const [categories, setCategories] = useState<string[]>([]);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setCategories([...categoryOrder]);
+  }, [categoryOrder, isOpen]);
+
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+
+    const newCategories = [...categories];
+    const draggedItem = newCategories[draggedIndex];
+    newCategories.splice(draggedIndex, 1);
+    newCategories.splice(index, 0, draggedItem);
+    setCategories(newCategories);
+    setDraggedIndex(index);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+  };
+
+  const moveCategory = (index: number, direction: "up" | "down") => {
+    if (
+      (direction === "up" && index === 0) ||
+      (direction === "down" && index === categories.length - 1)
+    ) {
+      return;
+    }
+
+    const newCategories = [...categories];
+    const newIndex = direction === "up" ? index - 1 : index + 1;
+    [newCategories[index], newCategories[newIndex]] = [
+      newCategories[newIndex],
+      newCategories[index],
+    ];
+    setCategories(newCategories);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(categories);
+    setSaving(false);
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  const supermarketColor = SUPERMARKET_COLORS[supermarket];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <div className="relative bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[85vh] flex flex-col shadow-2xl animate-fade-in">
+        {/* Header */}
+        <div className={`p-4 border-b border-[var(--border-color)] ${supermarketColor.bg}`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-display text-xl font-semibold text-[var(--foreground)]">
+                Orden de Categorías
+              </h2>
+              <p className={`text-sm ${supermarketColor.text} font-medium mt-1`}>
+                {supermarket}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/50 rounded-full transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Instructions */}
+        <div className="px-4 py-3 bg-[var(--color-purple-bg)] border-b border-[var(--border-color)]">
+          <p className="text-sm text-[var(--color-slate)]">
+            📍 Arrastra las categorías para ordenarlas según aparecen en <strong>{supermarket}</strong>
+          </p>
+        </div>
+
+        {/* Category List */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="space-y-2">
+            {categories.map((category, index) => (
+              <div
+                key={category}
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragEnd={handleDragEnd}
+                className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-move ${
+                  draggedIndex === index
+                    ? "border-[var(--color-purple)] bg-[var(--color-purple-bg)] scale-[1.02] shadow-lg"
+                    : "border-[var(--border-color)] bg-white hover:border-[var(--color-purple-light)]"
+                }`}
+              >
+                {/* Drag Handle */}
+                <div className="text-[var(--color-slate-light)]">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                  </svg>
+                </div>
+
+                {/* Order Number */}
+                <span className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-bold ${supermarketColor.bg} ${supermarketColor.text}`}>
+                  {index + 1}
+                </span>
+
+                {/* Category Name */}
+                <span className="flex-1 font-medium text-[var(--foreground)]">
+                  {category}
+                </span>
+
+                {/* Up/Down Buttons */}
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => moveCategory(index, "up")}
+                    disabled={index === 0}
+                    className="p-1.5 rounded-lg hover:bg-[var(--color-purple-bg)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => moveCategory(index, "down")}
+                    disabled={index === categories.length - 1}
+                    className="p-1.5 rounded-lg hover:bg-[var(--color-purple-bg)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-[var(--border-color)] flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 btn-secondary"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 btn-primary flex items-center justify-center gap-2"
+          >
+            {saving ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Guardando...
+              </>
+            ) : (
+              "Guardar Orden"
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Grocery Search Modal Component
+function GrocerySearchModal({
+  isOpen,
+  onClose,
+  onSelectProduct,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelectProduct: (product: GroceryProduct) => void;
+}) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<GroceryProduct[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (searchQuery.trim().length >= 2) {
+      const results = searchGroceries(searchQuery, 30);
+      setSearchResults(results);
+      setSelectedCategory(null);
+    } else if (searchQuery.trim().length === 0) {
+      setSearchResults([]);
+    }
+  }, [searchQuery]);
+
+  const handleCategoryClick = (category: string) => {
+    setSelectedCategory(category === selectedCategory ? null : category);
+    setSearchQuery("");
+  };
+
+  const handleProductSelect = (product: GroceryProduct) => {
+    onSelectProduct(product);
+    setSearchQuery("");
+    setSearchResults([]);
+    setSelectedCategory(null);
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <div className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl max-h-[85vh] flex flex-col shadow-2xl animate-fade-in">
+        {/* Header */}
+        <div className="p-4 border-b border-[var(--border-color)]">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-display text-xl font-semibold text-[var(--foreground)]">
+              Base de Productos
+            </h2>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-[var(--color-purple-bg-dark)] rounded-full transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          {/* Search Input */}
+          <div className="relative">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--color-slate-light)]"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              ref={inputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar productos españoles..."
+              className="input pl-10"
+            />
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {searchQuery.trim().length >= 2 ? (
+            // Search Results
+            <div>
+              {searchResults.length > 0 ? (
+                <>
+                  <p className="text-sm text-[var(--color-slate)] mb-3">
+                    {searchResults.length} producto{searchResults.length !== 1 ? 's' : ''} encontrado{searchResults.length !== 1 ? 's' : ''}
+                  </p>
+                  <div className="space-y-1">
+                    {searchResults.map((product, index) => (
+                      <button
+                        key={`${product.name}-${index}`}
+                        onClick={() => handleProductSelect(product)}
+                        className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-[var(--color-purple-bg)] transition-colors text-left group"
+                      >
+                        <div>
+                          <span className="font-medium text-[var(--foreground)] group-hover:text-[var(--color-purple-dark)]">
+                            {product.name}
+                          </span>
+                          {product.subcategory && (
+                            <span className="text-sm text-[var(--color-slate-light)] ml-2">
+                              · {product.subcategory}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-xs px-2 py-1 bg-[var(--color-purple-bg-dark)] text-[var(--color-purple-dark)] rounded-full">
+                          {product.category}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 mx-auto mb-3 bg-[var(--color-purple-bg-dark)] rounded-full flex items-center justify-center">
+                    <svg className="w-8 h-8 text-[var(--color-slate-light)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 12h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <p className="text-[var(--color-slate)]">No se encontraron productos</p>
+                  <p className="text-sm text-[var(--color-slate-light)] mt-1">
+                    Prueba con otra búsqueda
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            // Category Browse
+            <div>
+              <p className="text-sm text-[var(--color-slate)] mb-3">
+                Busca o explora por categoría
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {GROCERY_CATEGORIES.map((category) => {
+                  const icons: Record<string, string> = {
+                    "Frutas y Verduras": "🥬",
+                    "Lácteos": "🥛",
+                    "Carnes y Mariscos": "🥩",
+                    "Panadería": "🥖",
+                    "Despensa": "🫙",
+                    "Congelados": "🧊",
+                    "Bebidas": "🥤",
+                    "Otros": "🛒",
+                  };
+                  
+                  return (
+                    <button
+                      key={category}
+                      onClick={() => handleCategoryClick(category)}
+                      className={`p-3 rounded-xl text-left transition-all ${
+                        selectedCategory === category
+                          ? "bg-[var(--color-purple)] text-white shadow-lg scale-[0.98]"
+                          : "bg-[var(--color-purple-bg)] hover:bg-[var(--color-purple-bg-dark)] text-[var(--foreground)]"
+                      }`}
+                    >
+                      <span className="text-xl mb-1 block">{icons[category]}</span>
+                      <span className="font-medium text-sm">{category}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Category Products */}
+              {selectedCategory && (
+                <div className="mt-4 pt-4 border-t border-[var(--border-color)]">
+                  <h3 className="font-semibold text-[var(--foreground)] mb-3">
+                    {selectedCategory}
+                  </h3>
+                  <div className="space-y-1 max-h-64 overflow-y-auto">
+                    {searchGroceries("", 500)
+                      .filter((p) => p.category === selectedCategory)
+                      .map((product, index) => (
+                        <button
+                          key={`${product.name}-${index}`}
+                          onClick={() => handleProductSelect(product)}
+                          className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-[var(--color-purple-bg)] transition-colors text-left text-sm"
+                        >
+                          <span className="text-[var(--foreground)]">{product.name}</span>
+                          {product.subcategory && (
+                            <span className="text-xs text-[var(--color-slate-light)]">
+                              {product.subcategory}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer hint */}
+        <div className="p-4 border-t border-[var(--border-color)] bg-[var(--color-purple-bg)]">
+          <p className="text-xs text-center text-[var(--color-slate)]">
+            💡 Escribe al menos 2 letras para buscar entre más de 500 productos españoles
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ShoppingPage() {
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [newItemName, setNewItemName] = useState("");
   const [newItemCategory, setNewItemCategory] = useState("Otros");
+  const [isGroceryModalOpen, setIsGroceryModalOpen] = useState(false);
+  const [isCategoryOrderModalOpen, setIsCategoryOrderModalOpen] = useState(false);
+  
+  // Supermarket state
+  const [selectedSupermarket, setSelectedSupermarket] = useState<SupermarketName>("Mercadona");
+  const [categoryOrder, setCategoryOrder] = useState<string[]>([...DEFAULT_CATEGORIES]);
+  const [loadingCategoryOrder, setLoadingCategoryOrder] = useState(true);
 
   const weekStart = getWeekStart();
+
+  // Load category order for selected supermarket
+  const loadCategoryOrder = useCallback(async () => {
+    setLoadingCategoryOrder(true);
+    try {
+      const response = await fetch(`/api/category-order?supermarket=${selectedSupermarket}`);
+      if (response.ok) {
+        const data: SupermarketCategoryOrder[] = await response.json();
+        if (data && data.length > 0) {
+          // Sort by sort_order and extract category names
+          const sortedCategories = data
+            .sort((a, b) => a.sort_order - b.sort_order)
+            .map((item) => item.category);
+          setCategoryOrder(sortedCategories);
+        } else {
+          // Use default order if no custom order exists
+          setCategoryOrder([...DEFAULT_CATEGORIES]);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading category order:", error);
+      setCategoryOrder([...DEFAULT_CATEGORIES]);
+    } finally {
+      setLoadingCategoryOrder(false);
+    }
+  }, [selectedSupermarket]);
+
+  useEffect(() => {
+    loadCategoryOrder();
+  }, [loadCategoryOrder]);
+
+  const saveCategoryOrder = async (newOrder: string[]) => {
+    try {
+      const response = await fetch("/api/category-order", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          supermarket: selectedSupermarket,
+          categories: newOrder,
+        }),
+      });
+
+      if (response.ok) {
+        setCategoryOrder(newOrder);
+      }
+    } catch (error) {
+      console.error("Error saving category order:", error);
+    }
+  };
 
   const loadItems = useCallback(async () => {
     try {
@@ -237,6 +697,26 @@ export default function ShoppingPage() {
     }
   };
 
+  const addProductFromDatabase = async (product: GroceryProduct) => {
+    try {
+      const { error } = await supabase.from("shopping_items").insert([
+        {
+          name: product.name,
+          category: product.category,
+          checked: false,
+          week_start: weekStart,
+          recipe_id: null,
+        },
+      ]);
+
+      if (error) throw error;
+
+      loadItems();
+    } catch (error) {
+      console.error("Error adding product:", error);
+    }
+  };
+
   const deleteItem = async (id: string) => {
     try {
       const { error } = await supabase
@@ -282,6 +762,8 @@ export default function ShoppingPage() {
   const checkedCount = items.filter((i) => i.checked).length;
   const totalCount = items.length;
 
+  const supermarketColor = SUPERMARKET_COLORS[selectedSupermarket];
+
   return (
     <div className="min-h-screen pb-20">
       <Header
@@ -302,26 +784,76 @@ export default function ShoppingPage() {
       />
 
       <main className="max-w-2xl mx-auto p-4">
-        {/* Generate Button */}
-        <button
-          onClick={generateFromMealPlan}
-          disabled={generating}
-          className="w-full btn-primary mb-6 flex items-center justify-center gap-2 disabled:opacity-50"
-        >
-          {generating ? (
-            <>
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Generando...
-            </>
-          ) : (
-            <>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        {/* Supermarket Selector */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-medium text-[var(--color-slate)]">
+              Supermercado
+            </label>
+            <button
+              onClick={() => setIsCategoryOrderModalOpen(true)}
+              className="text-sm text-[var(--color-purple)] hover:text-[var(--color-purple-dark)] flex items-center gap-1 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
               </svg>
-              Generar desde Planificador
-            </>
-          )}
-        </button>
+              Editar orden de categorías
+            </button>
+          </div>
+          <div className="flex gap-2">
+            {SUPERMARKETS.map((market) => {
+              const colors = SUPERMARKET_COLORS[market];
+              const isSelected = selectedSupermarket === market;
+              return (
+                <button
+                  key={market}
+                  onClick={() => setSelectedSupermarket(market)}
+                  className={`flex-1 py-2.5 px-4 rounded-xl font-medium text-sm transition-all border-2 ${
+                    isSelected
+                      ? `${colors.bg} ${colors.text} ${colors.border} shadow-sm`
+                      : "bg-white border-[var(--border-color)] text-[var(--color-slate)] hover:border-[var(--color-purple-light)]"
+                  }`}
+                >
+                  {market}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-3 mb-6">
+          <button
+            onClick={generateFromMealPlan}
+            disabled={generating}
+            className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {generating ? (
+              <>
+                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Generando...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Desde Planificador
+              </>
+            )}
+          </button>
+          
+          <button
+            onClick={() => setIsGroceryModalOpen(true)}
+            className="btn-secondary flex items-center justify-center gap-2 px-4"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <span className="hidden sm:inline">Buscar Producto</span>
+            <span className="sm:hidden">Buscar</span>
+          </button>
+        </div>
 
         {/* Add Item Form */}
         <form onSubmit={addItem} className="flex gap-2 mb-6">
@@ -330,14 +862,14 @@ export default function ShoppingPage() {
             value={newItemName}
             onChange={(e) => setNewItemName(e.target.value)}
             className="input flex-1"
-            placeholder="Añadir artículo..."
+            placeholder="Añadir artículo manual..."
           />
           <select
             value={newItemCategory}
             onChange={(e) => setNewItemCategory(e.target.value)}
             className="input w-auto"
           >
-            {CATEGORIES.map((cat) => (
+            {categoryOrder.map((cat) => (
               <option key={cat} value={cat}>
                 {cat}
               </option>
@@ -348,7 +880,9 @@ export default function ShoppingPage() {
             disabled={!newItemName.trim()}
             className="btn-primary px-4 disabled:opacity-50"
           >
-            Añadir
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
           </button>
         </form>
 
@@ -370,7 +904,7 @@ export default function ShoppingPage() {
           </div>
         )}
 
-        {loading ? (
+        {loading || loadingCategoryOrder ? (
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="animate-pulse">
@@ -385,10 +919,14 @@ export default function ShoppingPage() {
           </div>
         ) : totalCount > 0 ? (
           <div className="space-y-6">
-            {CATEGORIES.filter((cat) => groupedItems[cat]?.length > 0).map(
+            {/* Use custom category order for this supermarket */}
+            {categoryOrder.filter((cat) => groupedItems[cat]?.length > 0).map(
               (category) => (
                 <div key={category}>
-                  <h3 className="font-display text-lg font-semibold text-[var(--foreground)] mb-2">
+                  <h3 className="font-display text-lg font-semibold text-[var(--foreground)] mb-2 flex items-center gap-2">
+                    <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${supermarketColor.bg} ${supermarketColor.text}`}>
+                      {categoryOrder.indexOf(category) + 1}
+                    </span>
                     {category}
                   </h3>
                   <div className="bg-white rounded-xl border border-[var(--border-color)] divide-y divide-[var(--border-color)]">
@@ -459,12 +997,36 @@ export default function ShoppingPage() {
             <p className="text-[var(--color-slate-light)] mb-4">
               Genera una lista desde tu planificador o añade artículos manualmente
             </p>
+            <button
+              onClick={() => setIsGroceryModalOpen(true)}
+              className="btn-secondary inline-flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              Buscar en Base de Productos
+            </button>
           </div>
         )}
       </main>
 
       <BottomNav />
+
+      {/* Grocery Search Modal */}
+      <GrocerySearchModal
+        isOpen={isGroceryModalOpen}
+        onClose={() => setIsGroceryModalOpen(false)}
+        onSelectProduct={addProductFromDatabase}
+      />
+
+      {/* Category Order Modal */}
+      <CategoryOrderModal
+        isOpen={isCategoryOrderModalOpen}
+        onClose={() => setIsCategoryOrderModalOpen(false)}
+        supermarket={selectedSupermarket}
+        categoryOrder={categoryOrder}
+        onSave={saveCategoryOrder}
+      />
     </div>
   );
 }
-

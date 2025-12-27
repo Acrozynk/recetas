@@ -13,13 +13,16 @@ export default function RecipeDetailPage() {
   const router = useRouter();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
-  const [servingMultiplier, setServingMultiplier] = useState(1);
+  const [adults, setAdults] = useState(0); // Will be initialized from recipe.servings
+  const [children, setChildren] = useState(0);
+  const [portionsInitialized, setPortionsInitialized] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [cookingMode, setCookingMode] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [wakeLockSupported, setWakeLockSupported] = useState(false);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+  const [showSecondaryUnits, setShowSecondaryUnits] = useState(false);
 
   // Check if Wake Lock API is supported
   useEffect(() => {
@@ -85,6 +88,14 @@ export default function RecipeDetailPage() {
     }
   }, [params.id]);
 
+  // Initialize portions when recipe loads
+  useEffect(() => {
+    if (recipe?.servings && !portionsInitialized) {
+      setAdults(recipe.servings);
+      setPortionsInitialized(true);
+    }
+  }, [recipe, portionsInitialized]);
+
   const loadRecipe = async (id: string) => {
     try {
       const { data, error } = await supabase
@@ -101,6 +112,11 @@ export default function RecipeDetailPage() {
       setLoading(false);
     }
   };
+
+  // Calculate total portions (children = 0.5 portions each)
+  const totalPortions = adults + (children * 0.5);
+  const originalServings = recipe?.servings || 1;
+  const servingMultiplier = totalPortions / originalServings;
 
   const handleDelete = async () => {
     if (!recipe) return;
@@ -120,6 +136,7 @@ export default function RecipeDetailPage() {
 
   const scaleAmount = (amount: string): string => {
     if (servingMultiplier === 1) return amount;
+    if (totalPortions === 0) return "0";
 
     // Try to parse and scale the amount
     const numMatch = amount.match(/^([\d./]+)\s*(.*)$/);
@@ -133,8 +150,30 @@ export default function RecipeDetailPage() {
       }
 
       const scaled = num * servingMultiplier;
-      const scaledStr =
-        scaled % 1 === 0 ? scaled.toString() : scaled.toFixed(2).replace(/\.?0+$/, "");
+      
+      // Format the scaled number nicely
+      let scaledStr: string;
+      if (scaled % 1 === 0) {
+        scaledStr = scaled.toString();
+      } else if (scaled === 0.25) {
+        scaledStr = "¼";
+      } else if (scaled === 0.5) {
+        scaledStr = "½";
+      } else if (scaled === 0.75) {
+        scaledStr = "¾";
+      } else if (Math.abs(scaled - 0.33) < 0.01) {
+        scaledStr = "⅓";
+      } else if (Math.abs(scaled - 0.67) < 0.01) {
+        scaledStr = "⅔";
+      } else if (scaled === 1.5) {
+        scaledStr = "1½";
+      } else if (scaled === 2.5) {
+        scaledStr = "2½";
+      } else {
+        // Round to reasonable precision
+        scaledStr = scaled.toFixed(2).replace(/\.?0+$/, "");
+      }
+      
       return `${scaledStr} ${numMatch[2]}`.trim();
     }
 
@@ -326,35 +365,97 @@ export default function RecipeDetailPage() {
 
           {/* Serving Adjuster */}
           {recipe.servings && (
-            <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-[var(--border-color)] mb-6">
-              <span className="font-medium text-[var(--color-slate)]">
-                Porciones:
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setServingMultiplier(Math.max(0.5, servingMultiplier - 0.5))}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-[var(--color-purple-bg-dark)] hover:bg-[var(--border-color)] transition-colors"
-                >
-                  −
-                </button>
-                <span className="w-12 text-center font-semibold text-[var(--color-purple)]">
-                  {Math.round(recipe.servings * servingMultiplier)}
+            <div className="p-4 bg-white rounded-xl border border-[var(--border-color)] mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <span className="font-medium text-[var(--color-slate)]">
+                  Ajustar porciones
                 </span>
-                <button
-                  onClick={() => setServingMultiplier(servingMultiplier + 0.5)}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-[var(--color-purple-bg-dark)] hover:bg-[var(--border-color)] transition-colors"
-                >
-                  +
-                </button>
+                {(adults !== recipe.servings || children !== 0) && (
+                  <button
+                    onClick={() => {
+                      setAdults(recipe.servings || 1);
+                      setChildren(0);
+                    }}
+                    className="text-sm text-[var(--color-purple)] hover:underline"
+                  >
+                    Restablecer
+                  </button>
+                )}
               </div>
-              {servingMultiplier !== 1 && (
-                <button
-                  onClick={() => setServingMultiplier(1)}
-                  className="text-sm text-[var(--color-purple)] hover:underline ml-auto"
-                >
-                  Restablecer
-                </button>
-              )}
+              
+              <div className="grid grid-cols-2 gap-4">
+                {/* Adults */}
+                <div className="flex flex-col items-center p-3 bg-[var(--color-purple-bg)] rounded-xl">
+                  <div className="flex items-center gap-1 mb-2">
+                    <svg className="w-5 h-5 text-[var(--color-purple)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    <span className="text-sm font-medium text-[var(--color-slate)]">Adultos</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setAdults(Math.max(0, adults - 1))}
+                      disabled={adults === 0 && children === 0}
+                      className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-[var(--border-color)] hover:bg-[var(--color-purple-bg-dark)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-lg font-medium"
+                    >
+                      −
+                    </button>
+                    <span className="w-8 text-center text-xl font-bold text-[var(--color-purple)]">
+                      {adults}
+                    </span>
+                    <button
+                      onClick={() => setAdults(adults + 1)}
+                      className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-[var(--border-color)] hover:bg-[var(--color-purple-bg-dark)] transition-colors text-lg font-medium"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* Children (half portions) */}
+                <div className="flex flex-col items-center p-3 bg-amber-50 rounded-xl">
+                  <div className="flex items-center gap-1 mb-2">
+                    <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <span className="text-sm font-medium text-[var(--color-slate)]">Niños</span>
+                    <span className="text-xs text-amber-600">(½)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setChildren(Math.max(0, children - 1))}
+                      disabled={children === 0}
+                      className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-amber-200 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-lg font-medium"
+                    >
+                      −
+                    </button>
+                    <span className="w-8 text-center text-xl font-bold text-amber-600">
+                      {children}
+                    </span>
+                    <button
+                      onClick={() => setChildren(children + 1)}
+                      className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-amber-200 hover:bg-amber-100 transition-colors text-lg font-medium"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Total portions summary */}
+              <div className="mt-4 pt-3 border-t border-[var(--border-color)] flex items-center justify-between">
+                <span className="text-sm text-[var(--color-slate-light)]">
+                  Total: <strong className="text-[var(--foreground)]">{totalPortions}</strong> porciones
+                  {servingMultiplier !== 1 && (
+                    <span className="text-[var(--color-purple)] ml-1">
+                      ({servingMultiplier > 1 ? '×' : '×'}{servingMultiplier.toFixed(servingMultiplier % 1 === 0 ? 0 : 1)})
+                    </span>
+                  )}
+                </span>
+                <span className="text-xs text-[var(--color-slate-light)]">
+                  Receta original: {recipe.servings} porciones
+                </span>
+              </div>
             </div>
           )}
 
@@ -398,25 +499,66 @@ export default function RecipeDetailPage() {
           <div className="grid md:grid-cols-[1fr,2fr] gap-6">
             {/* Ingredients */}
             <div>
-              <h2 className="font-display text-xl font-semibold text-[var(--foreground)] mb-4">
-                Ingredientes
-              </h2>
-              <ul className="space-y-2">
-                {(recipe.ingredients as Ingredient[]).map((ingredient, i) => (
-                  <li
-                    key={i}
-                    className="flex items-start gap-3 p-2 hover:bg-[var(--color-purple-bg-dark)] rounded-lg transition-colors"
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-display text-xl font-semibold text-[var(--foreground)]">
+                  Ingredientes
+                </h2>
+                {/* Unit toggle - only show if any ingredient has secondary units */}
+                {(recipe.ingredients as Ingredient[]).some(i => i.amount2 && i.unit2) && (
+                  <button
+                    onClick={() => setShowSecondaryUnits(!showSecondaryUnits)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                      showSecondaryUnits
+                        ? "bg-[var(--color-purple)] text-white"
+                        : "bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)]"
+                    }`}
+                    title="Cambiar entre unidades"
                   >
-                    <input type="checkbox" className="checkbox mt-0.5" />
-                    <span>
-                      <strong className="font-medium">
-                        {scaleAmount(ingredient.amount)}
-                        {ingredient.unit && ` ${ingredient.unit}`}
-                      </strong>{" "}
-                      {ingredient.name}
-                    </span>
-                  </li>
-                ))}
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                    {showSecondaryUnits ? "Alt" : "Std"}
+                  </button>
+                )}
+              </div>
+              <ul className="space-y-2">
+                {(recipe.ingredients as Ingredient[]).map((ingredient, i) => {
+                  const hasSecondary = ingredient.amount2 && ingredient.unit2;
+                  const displayAmount = showSecondaryUnits && hasSecondary 
+                    ? ingredient.amount2 
+                    : ingredient.amount;
+                  const displayUnit = showSecondaryUnits && hasSecondary 
+                    ? ingredient.unit2 
+                    : ingredient.unit;
+                  const altAmount = showSecondaryUnits && hasSecondary
+                    ? ingredient.amount
+                    : ingredient.amount2;
+                  const altUnit = showSecondaryUnits && hasSecondary
+                    ? ingredient.unit
+                    : ingredient.unit2;
+                    
+                  return (
+                    <li
+                      key={i}
+                      className="flex items-start gap-3 p-2 hover:bg-[var(--color-purple-bg-dark)] rounded-lg transition-colors group"
+                    >
+                      <input type="checkbox" className="checkbox mt-0.5" />
+                      <span className="flex-1">
+                        <strong className="font-medium">
+                          {scaleAmount(displayAmount || '')}
+                          {displayUnit && ` ${displayUnit}`}
+                        </strong>{" "}
+                        {ingredient.name}
+                        {/* Show alternative in parentheses if available */}
+                        {hasSecondary && altAmount && altUnit && (
+                          <span className="text-[var(--color-slate-light)] text-sm ml-1">
+                            ({scaleAmount(altAmount)} {altUnit})
+                          </span>
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
 
@@ -546,27 +688,48 @@ export default function RecipeDetailPage() {
                           {/* Ingredientes usados en este paso */}
                           {stepIngredients.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-2">
-                              {stepIngredients.map((ingredient, idx) => (
-                                <span
-                                  key={idx}
-                                  className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs ${
-                                    isCurrentStep
-                                      ? "bg-white border border-[var(--color-purple)] shadow-sm"
-                                      : "bg-[var(--color-purple-bg)] border border-[var(--color-purple-bg-dark)]"
-                                  }`}
-                                >
-                                  <svg className="w-3.5 h-3.5 text-[var(--color-purple)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                  </svg>
-                                  <span className="font-semibold text-[var(--color-purple)]">
-                                    {scaleAmount(ingredient.amount)}
-                                    {ingredient.unit && ` ${ingredient.unit}`}
+                              {stepIngredients.map((ingredient, idx) => {
+                                const hasSecondary = ingredient.amount2 && ingredient.unit2;
+                                const displayAmount = showSecondaryUnits && hasSecondary 
+                                  ? ingredient.amount2 
+                                  : ingredient.amount;
+                                const displayUnit = showSecondaryUnits && hasSecondary 
+                                  ? ingredient.unit2 
+                                  : ingredient.unit;
+                                const altAmount = showSecondaryUnits && hasSecondary
+                                  ? ingredient.amount
+                                  : ingredient.amount2;
+                                const altUnit = showSecondaryUnits && hasSecondary
+                                  ? ingredient.unit
+                                  : ingredient.unit2;
+                                  
+                                return (
+                                  <span
+                                    key={idx}
+                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs ${
+                                      isCurrentStep
+                                        ? "bg-white border border-[var(--color-purple)] shadow-sm"
+                                        : "bg-[var(--color-purple-bg)] border border-[var(--color-purple-bg-dark)]"
+                                    }`}
+                                  >
+                                    <svg className="w-3.5 h-3.5 text-[var(--color-purple)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                    <span className="font-semibold text-[var(--color-purple)]">
+                                      {scaleAmount(displayAmount || '')}
+                                      {displayUnit && ` ${displayUnit}`}
+                                      {hasSecondary && altAmount && altUnit && (
+                                        <span className="font-normal text-[var(--color-slate-light)]">
+                                          {" "}({scaleAmount(altAmount)} {altUnit})
+                                        </span>
+                                      )}
+                                    </span>
+                                    <span className="text-[var(--color-slate)]">
+                                      {ingredient.name}
+                                    </span>
                                   </span>
-                                  <span className="text-[var(--color-slate)]">
-                                    {ingredient.name}
-                                  </span>
-                                </span>
-                              ))}
+                                );
+                              })}
                             </div>
                           )}
                         </div>

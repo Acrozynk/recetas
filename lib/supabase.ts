@@ -47,6 +47,9 @@ export interface Ingredient {
   name: string;
   amount: string;
   unit: string;
+  // Optional secondary measurement (e.g., grams when primary is cups)
+  amount2?: string;
+  unit2?: string;
   category?: string;
 }
 
@@ -67,4 +70,70 @@ export interface ShoppingItem {
   recipe_id: string | null;
   week_start: string;
 }
+
+// Supermarket types
+export type SupermarketName = 'DIA' | 'Consum' | 'Mercadona';
+
+export const SUPERMARKETS: SupermarketName[] = ['DIA', 'Consum', 'Mercadona'];
+
+export const SUPERMARKET_COLORS: Record<SupermarketName, { bg: string; text: string; border: string }> = {
+  'DIA': { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
+  'Consum': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
+  'Mercadona': { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
+};
+
+export interface ShoppingList {
+  id: string;
+  name: string | null;
+  supermarket: SupermarketName;
+  status: 'active' | 'archived';
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+  items?: ShoppingListItem[];
+}
+
+export interface ShoppingListItem {
+  id: string;
+  list_id: string;
+  name: string;
+  quantity: string | null;
+  category: string | null;
+  checked: boolean;
+  recipe_id: string | null;
+  created_at: string;
+}
+
+export interface ItemSupermarketHistory {
+  id: string;
+  item_name: string;
+  item_name_normalized: string;
+  supermarket: SupermarketName;
+  frequency: number;
+  last_used_at: string;
+  created_at: string;
+}
+
+export interface SupermarketCategoryOrder {
+  id: string;
+  supermarket: SupermarketName;
+  category: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// Default categories in their default order
+export const DEFAULT_CATEGORIES = [
+  "Frutas y Verduras",
+  "Lácteos",
+  "Carnes y Mariscos",
+  "Panadería",
+  "Despensa",
+  "Congelados",
+  "Bebidas",
+  "Otros",
+] as const;
+
+export type CategoryName = typeof DEFAULT_CATEGORIES[number];
 

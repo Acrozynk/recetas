@@ -3,6 +3,13 @@
 import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, type Recipe, type Ingredient, type Instruction, normalizeInstructions } from "@/lib/supabase";
+import { 
+  convertIngredient, 
+  getSuggestedConversionUnit, 
+  isVolumeUnit, 
+  isWeightUnit,
+  COMMON_UNITS 
+} from "@/lib/unit-conversion";
 
 interface RecipeFormProps {
   recipe?: Recipe;
@@ -148,8 +155,9 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   const [servings, setServings] = useState(recipe?.servings?.toString() || "4");
   const [tags, setTags] = useState(recipe?.tags?.join(", ") || "");
   const [ingredients, setIngredients] = useState<Ingredient[]>(
-    (recipe?.ingredients as Ingredient[]) || Array.from({ length: 5 }, () => ({ name: "", amount: "", unit: "" }))
+    (recipe?.ingredients as Ingredient[]) || Array.from({ length: 5 }, () => ({ name: "", amount: "", unit: "", amount2: "", unit2: "" }))
   );
+  const [expandedIngredients, setExpandedIngredients] = useState<Set<number>>(new Set());
   const [instructions, setInstructions] = useState<Instruction[]>(
     recipe?.instructions 
       ? normalizeInstructions(recipe.instructions)
@@ -158,7 +166,47 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   const [notes, setNotes] = useState(recipe?.notes || "");
 
   const addIngredient = () => {
-    setIngredients([...ingredients, { name: "", amount: "", unit: "" }]);
+    setIngredients([...ingredients, { name: "", amount: "", unit: "", amount2: "", unit2: "" }]);
+  };
+
+  const toggleExpandedIngredient = (index: number) => {
+    setExpandedIngredients(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
+  const autoConvertIngredient = (index: number) => {
+    const ingredient = ingredients[index];
+    if (!ingredient.amount || !ingredient.unit) return;
+
+    // Determine target unit based on current unit
+    const targetUnit = getSuggestedConversionUnit(ingredient.unit);
+    
+    const result = convertIngredient(
+      ingredient.amount,
+      ingredient.unit,
+      targetUnit,
+      ingredient.name
+    );
+
+    if (result.success) {
+      const updated = [...ingredients];
+      updated[index] = { 
+        ...updated[index], 
+        amount2: result.amount, 
+        unit2: result.unit 
+      };
+      setIngredients(updated);
+      
+      // Expand to show the secondary measurement
+      setExpandedIngredients(prev => new Set(prev).add(index));
+    }
   };
 
   const updateIngredient = (index: number, field: keyof Ingredient, value: string) => {
@@ -479,46 +527,147 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
 
       {/* Ingredients */}
       <div className="bg-white rounded-xl p-4 border border-[var(--border-color)]">
-        <h2 className="font-display text-lg font-semibold mb-4">Ingredientes</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-display text-lg font-semibold">Ingredientes</h2>
+          <span className="text-xs text-[var(--color-slate-light)] bg-[var(--color-purple-bg)] px-2 py-1 rounded-full">
+            💡 Usa el ícono ⇄ para convertir unidades
+          </span>
+        </div>
 
         <div className="space-y-3">
-          {ingredients.map((ingredient, index) => (
-            <div key={index} className="flex gap-2 items-start">
-              <div className="flex-1 grid grid-cols-[1fr,1fr,2fr] gap-2">
-                <input
-                  type="text"
-                  value={ingredient.amount}
-                  onChange={(e) => updateIngredient(index, "amount", e.target.value)}
-                  className="input"
-                  placeholder="1"
-                />
-                <input
-                  type="text"
-                  value={ingredient.unit}
-                  onChange={(e) => updateIngredient(index, "unit", e.target.value)}
-                  className="input"
-                  placeholder="taza"
-                />
-                <input
-                  type="text"
-                  value={ingredient.name}
-                  onChange={(e) => updateIngredient(index, "name", e.target.value)}
-                  className="input"
-                  placeholder="Nombre del ingrediente"
-                />
+          {ingredients.map((ingredient, index) => {
+            const isExpanded = expandedIngredients.has(index);
+            const hasSecondary = ingredient.amount2 || ingredient.unit2;
+            const canConvert = ingredient.amount && ingredient.unit && 
+              (isVolumeUnit(ingredient.unit) || isWeightUnit(ingredient.unit));
+            
+            return (
+              <div key={index} className="space-y-2">
+                {/* Primary measurement row */}
+                <div className="flex gap-2 items-start">
+                  <div className="flex-1 grid grid-cols-[1fr,1fr,2fr] gap-2">
+                    <input
+                      type="text"
+                      value={ingredient.amount}
+                      onChange={(e) => updateIngredient(index, "amount", e.target.value)}
+                      className="input"
+                      placeholder="1"
+                    />
+                    <input
+                      type="text"
+                      value={ingredient.unit}
+                      onChange={(e) => updateIngredient(index, "unit", e.target.value)}
+                      className="input"
+                      placeholder="taza"
+                    />
+                    <input
+                      type="text"
+                      value={ingredient.name}
+                      onChange={(e) => updateIngredient(index, "name", e.target.value)}
+                      className="input"
+                      placeholder="Nombre del ingrediente"
+                    />
+                  </div>
+                  
+                  {/* Convert button */}
+                  <button
+                    type="button"
+                    onClick={() => canConvert ? autoConvertIngredient(index) : toggleExpandedIngredient(index)}
+                    className={`p-2 rounded-lg transition-colors ${
+                      canConvert 
+                        ? "text-[var(--color-purple)] hover:bg-[var(--color-purple-bg)] hover:text-[var(--color-purple)]" 
+                        : "text-[var(--color-slate-light)] hover:text-[var(--color-slate)]"
+                    }`}
+                    title={canConvert ? "Convertir unidades automáticamente" : "Añadir medida alternativa"}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                  </button>
+                  
+                  {/* Toggle expand button (show if has secondary or is expanded) */}
+                  {(hasSecondary || isExpanded) && (
+                    <button
+                      type="button"
+                      onClick={() => toggleExpandedIngredient(index)}
+                      className="p-2 text-[var(--color-slate-light)] hover:text-[var(--color-slate)] transition-colors"
+                      title={isExpanded ? "Ocultar medida alternativa" : "Mostrar medida alternativa"}
+                    >
+                      <svg className={`w-5 h-5 transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  )}
+                  
+                  <button
+                    type="button"
+                    onClick={() => removeIngredient(index)}
+                    className="p-2 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
+                    disabled={ingredients.length === 1}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                
+                {/* Secondary measurement row (collapsed by default) */}
+                {(isExpanded || hasSecondary) && (
+                  <div className={`ml-4 flex gap-2 items-center pl-2 border-l-2 border-[var(--color-purple-bg-dark)] ${!isExpanded && hasSecondary ? 'opacity-60' : ''}`}>
+                    <span className="text-xs text-[var(--color-slate-light)] font-medium whitespace-nowrap">Alt:</span>
+                    <div className="flex-1 grid grid-cols-[1fr,1fr,2fr] gap-2">
+                      <input
+                        type="text"
+                        value={ingredient.amount2 || ""}
+                        onChange={(e) => updateIngredient(index, "amount2", e.target.value)}
+                        className="input text-sm"
+                        placeholder="120"
+                      />
+                      <select
+                        value={ingredient.unit2 || ""}
+                        onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
+                        className="input text-sm"
+                      >
+                        <option value="">unidad</option>
+                        <optgroup label="Peso">
+                          {COMMON_UNITS.weight.map(u => (
+                            <option key={u.value} value={u.value}>{u.label}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Volumen">
+                          {COMMON_UNITS.volume.map(u => (
+                            <option key={u.value} value={u.value}>{u.label}</option>
+                          ))}
+                        </optgroup>
+                      </select>
+                      <span className="text-xs text-[var(--color-slate-light)] flex items-center">
+                        {ingredient.name || "—"}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = [...ingredients];
+                        updated[index] = { ...updated[index], amount2: "", unit2: "" };
+                        setIngredients(updated);
+                        setExpandedIngredients(prev => {
+                          const next = new Set(prev);
+                          next.delete(index);
+                          return next;
+                        });
+                      }}
+                      className="p-1.5 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
+                      title="Eliminar medida alternativa"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => removeIngredient(index)}
-                className="p-2 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
-                disabled={ingredients.length === 1}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <button
