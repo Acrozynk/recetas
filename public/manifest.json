@@ -1,0 +1,25 @@
+{
+  "name": "Recetas",
+  "short_name": "Recetas",
+  "description": "Personal recipe manager with meal planning and shopping lists",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FBF7F4",
+  "theme_color": "#D97706",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+

@@ -1,36 +1,105 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Recetas 🍳
 
-## Getting Started
+A personal recipe management app with meal planning and shopping lists. Built as a CopyMeThat replacement.
 
-First, run the development server:
+## Features
+
+- **Recipe Management**: Add, edit, and organize your recipes with tags
+- **Import from CopyMeThat**: Upload your HTML export file to import all recipes
+- **Import from URL**: Paste any recipe URL and auto-extract the recipe
+- **Meal Planner**: Plan your meals for the week (breakfast, lunch, dinner, snack)
+- **Shopping List**: Auto-generate shopping lists from your meal plan
+- **PWA Support**: Install on your iPhone for app-like experience
+
+## Tech Stack
+
+- **Framework**: Next.js 14 (App Router)
+- **Database**: Supabase (PostgreSQL)
+- **Styling**: Tailwind CSS
+- **PWA**: @ducanh2912/next-pwa
+- **Hosting**: Vercel
+
+## Setup
+
+### 1. Clone and Install
+
+```bash
+git clone https://github.com/YOUR_USERNAME/recetas.git
+cd recetas
+npm install
+```
+
+### 2. Set Up Supabase
+
+1. Create a new project at [supabase.com](https://supabase.com)
+2. Go to SQL Editor and run the migration:
+
+```sql
+-- Copy contents from supabase/migrations/001_initial_schema.sql
+```
+
+3. Get your project URL and anon key from Settings > API
+
+### 3. Configure Environment Variables
+
+Create a `.env.local` file:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+APP_PASSWORD=your_secure_password
+```
+
+### 4. Run Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploy to Vercel
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Push your code to GitHub (private repo)
+2. Go to [vercel.com](https://vercel.com) and import your repo
+3. Add the same environment variables in Vercel project settings
+4. Deploy!
 
-## Learn More
+## Installing on iPhone
 
-To learn more about Next.js, take a look at the following resources:
+1. Open your deployed app URL in Safari
+2. Tap the Share button
+3. Tap "Add to Home Screen"
+4. Name it and tap Add
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The app will now appear on your home screen and work like a native app!
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Importing from CopyMeThat
 
-## Deploy on Vercel
+1. In CopyMeThat, go to Settings > Export Recipes
+2. Choose HTML format and download
+3. In Recetas, go to Import > From File
+4. Upload your HTML file
+5. Select which recipes to import
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project Structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+recetas/
+├── app/                    # Next.js App Router pages
+│   ├── api/               # API routes
+│   ├── login/             # Login page
+│   ├── planner/           # Meal planner
+│   ├── recipes/           # Recipe pages
+│   └── shopping/          # Shopping list
+├── components/            # React components
+├── lib/                   # Utilities and Supabase client
+├── public/                # Static assets
+│   └── icons/            # PWA icons
+└── supabase/
+    └── migrations/        # Database schema
+```
+
+## License
+
+Personal use only.
