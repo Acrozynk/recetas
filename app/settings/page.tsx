@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
+import UnitConverter from "@/components/UnitConverter";
 import {
   markBackupCompleted,
   getLastBackupDate,
@@ -633,6 +634,31 @@ export default function SettingsPage() {
               Los recipientes te permiten escalar recetas de repostería.
               Por ejemplo: duplicar ingredientes para hacer 2 moldes pequeños.
             </p>
+          </div>
+        </section>
+
+        {/* Unit Converter Section */}
+        <section className="bg-white rounded-xl border border-[var(--border-color)] overflow-hidden">
+          <div className="p-4 border-b border-[var(--border-color)]">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-50 rounded-lg flex items-center justify-center text-green-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-[var(--foreground)]">
+                  Convertidor de Unidades
+                </h2>
+                <p className="text-sm text-[var(--color-slate)]">
+                  Convierte entre gramos, tazas, cucharadas y más
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4">
+            <UnitConverter />
           </div>
         </section>
 

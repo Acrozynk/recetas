@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, type Recipe, type Ingredient, type Instruction, type Container, normalizeInstructions } from "@/lib/supabase";
 import { 
@@ -32,6 +32,65 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   const [uploadError, setUploadError] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Fraction input state
+  const lastFocusedInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const lastCursorPositionRef = useRef<number>(0);
+  
+  // Common fractions for easy insertion
+  const FRACTIONS = [
+    { label: "⅛", value: "⅛" },
+    { label: "¼", value: "¼" },
+    { label: "⅓", value: "⅓" },
+    { label: "½", value: "½" },
+    { label: "⅔", value: "⅔" },
+    { label: "¾", value: "¾" },
+    { label: "°", value: "°" },
+  ];
+  
+  // Insert fraction at cursor position
+  const insertFraction = useCallback((fraction: string) => {
+    const input = lastFocusedInputRef.current;
+    if (!input) return;
+    
+    const start = lastCursorPositionRef.current;
+    const currentValue = input.value;
+    const newValue = currentValue.slice(0, start) + fraction + currentValue.slice(start);
+    
+    // Create and dispatch input event to trigger React's onChange
+    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value"
+    )?.set || Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype,
+      "value"
+    )?.set;
+    
+    if (nativeInputValueSetter) {
+      nativeInputValueSetter.call(input, newValue);
+      const event = new Event("input", { bubbles: true });
+      input.dispatchEvent(event);
+    }
+    
+    // Restore focus and cursor position
+    requestAnimationFrame(() => {
+      input.focus();
+      const newPosition = start + fraction.length;
+      input.setSelectionRange(newPosition, newPosition);
+      lastCursorPositionRef.current = newPosition;
+    });
+  }, []);
+  
+  // Track focus on inputs
+  const handleInputFocus = useCallback((e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    lastFocusedInputRef.current = e.target;
+    lastCursorPositionRef.current = e.target.selectionStart || 0;
+  }, []);
+  
+  const handleInputSelect = useCallback((e: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const target = e.target as HTMLInputElement | HTMLTextAreaElement;
+    lastCursorPositionRef.current = target.selectionStart || 0;
+  }, []);
 
   // Compress image before upload
   const compressImage = async (file: File): Promise<Blob> => {
@@ -162,7 +221,10 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   
   // Container-based portions (for baking)
   const [containers, setContainers] = useState<Container[]>([]);
-  const [useContainer, setUseContainer] = useState(!!recipe?.container_id);
+  // Portion type: 'personas' (just number), 'unidades' (number + custom unit), 'recipiente' (container)
+  const [portionType, setPortionType] = useState<'personas' | 'unidades' | 'recipiente'>(
+    recipe?.container_id ? 'recipiente' : recipe?.servings_unit ? 'unidades' : 'personas'
+  );
   const [containerId, setContainerId] = useState<string | null>(recipe?.container_id || null);
   const [containerQuantity, setContainerQuantity] = useState(recipe?.container_quantity?.toString() || "1");
   const [newContainerName, setNewContainerName] = useState("");
@@ -356,12 +418,12 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         prep_time_minutes: prepTime ? parseInt(prepTime) : null,
         cook_time_minutes: cookTime ? parseInt(cookTime) : null,
         // If using container, servings is null; otherwise use servings value
-        servings: useContainer ? null : (servings ? parseInt(servings) : null),
+        servings: portionType === 'recipiente' ? null : (servings ? parseInt(servings) : null),
         // Custom unit for servings (e.g., "tortitas", "galletas"). Null = personas
-        servings_unit: useContainer ? null : (servingsUnit.trim() || null),
+        servings_unit: portionType === 'unidades' ? (servingsUnit.trim() || null) : null,
         // Container fields
-        container_id: useContainer ? containerId : null,
-        container_quantity: useContainer && containerQuantity ? parseFloat(containerQuantity) : null,
+        container_id: portionType === 'recipiente' ? containerId : null,
+        container_quantity: portionType === 'recipiente' && containerQuantity ? parseFloat(containerQuantity) : null,
         tags: tags.filter((t) => t.trim()),
         ingredients: ingredients.filter((i) => i.name.trim()),
         instructions: instructions.filter((i) => i.text.trim()),
@@ -590,13 +652,13 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
               Porciones
             </label>
             
-            {/* Toggle between servings and container */}
+            {/* Toggle between personas, unidades, and container */}
             <div className="flex gap-2 mb-3">
               <button
                 type="button"
-                onClick={() => setUseContainer(false)}
+                onClick={() => setPortionType('personas')}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                  !useContainer
+                  portionType === 'personas'
                     ? "bg-[var(--color-purple)] text-white"
                     : "bg-gray-100 text-[var(--color-slate)] hover:bg-gray-200"
                 }`}
@@ -605,9 +667,20 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
               </button>
               <button
                 type="button"
-                onClick={() => setUseContainer(true)}
+                onClick={() => setPortionType('unidades')}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                  useContainer
+                  portionType === 'unidades'
+                    ? "bg-[var(--color-purple)] text-white"
+                    : "bg-gray-100 text-[var(--color-slate)] hover:bg-gray-200"
+                }`}
+              >
+                🔢 Unidades
+              </button>
+              <button
+                type="button"
+                onClick={() => setPortionType('recipiente')}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  portionType === 'recipiente'
                     ? "bg-[var(--color-purple)] text-white"
                     : "bg-gray-100 text-[var(--color-slate)] hover:bg-gray-200"
                 }`}
@@ -616,29 +689,36 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
               </button>
             </div>
             
-            {!useContainer ? (
-              /* Servings input with optional custom unit */
+            {portionType === 'personas' ? (
+              /* Servings input - just number of people */
               <div className="space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    type="number"
-                    value={servings}
-                    onChange={(e) => setServings(e.target.value)}
-                    className="input w-24"
-                    placeholder="4"
-                    min="1"
-                  />
-                  <input
-                    type="text"
-                    value={servingsUnit}
-                    onChange={(e) => setServingsUnit(e.target.value)}
-                    className="input flex-1"
-                    placeholder="personas (o tortitas, galletas...)"
-                  />
-                </div>
-                <p className="text-xs text-[var(--color-slate-light)]">
-                  💡 Deja vacío para usar &quot;personas&quot; como unidad
-                </p>
+                <input
+                  type="number"
+                  value={servings}
+                  onChange={(e) => setServings(e.target.value)}
+                  className="input w-full"
+                  placeholder="4"
+                  min="1"
+                />
+              </div>
+            ) : portionType === 'unidades' ? (
+              /* Servings input with custom unit */
+              <div className="space-y-2">
+                <input
+                  type="number"
+                  value={servings}
+                  onChange={(e) => setServings(e.target.value)}
+                  className="input w-full"
+                  placeholder="10"
+                  min="1"
+                />
+                <input
+                  type="text"
+                  value={servingsUnit}
+                  onChange={(e) => setServingsUnit(e.target.value)}
+                  className="input w-full"
+                  placeholder="tortitas, galletas, magdalenas..."
+                />
               </div>
             ) : (
               /* Container selection */
@@ -784,7 +864,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
 
       {/* Ingredients */}
       <div className="bg-white rounded-xl p-4 border border-[var(--border-color)]">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="font-display text-lg font-semibold">Ingredientes</h2>
           <div className="flex items-center gap-2">
             <button
@@ -803,6 +883,22 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
               💡 Usa ⇄ para convertir
             </span>
           </div>
+        </div>
+        
+        {/* Fraction buttons toolbar */}
+        <div className="flex items-center gap-1 mb-4 pb-3 border-b border-[var(--border-color)]">
+          <span className="text-xs text-[var(--color-slate-light)] mr-1">Fracciones:</span>
+          {FRACTIONS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => insertFraction(f.value)}
+              className="px-2.5 py-1.5 text-sm font-medium bg-[var(--color-purple-bg)] hover:bg-[var(--color-purple-bg-dark)] text-[var(--color-purple)] rounded-md transition-colors min-w-[32px]"
+              title={`Insertar ${f.label}`}
+            >
+              {f.label}
+            </button>
+          ))}
         </div>
 
         {/* Variant labels */}
@@ -883,6 +979,8 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                       type="text"
                       value={ingredient.amount}
                       onChange={(e) => updateIngredient(index, "amount", e.target.value)}
+                      onFocus={handleInputFocus}
+                      onSelect={handleInputSelect}
                       className="input"
                       placeholder="1"
                     />
@@ -890,6 +988,8 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                       type="text"
                       value={ingredient.unit}
                       onChange={(e) => updateIngredient(index, "unit", e.target.value)}
+                      onFocus={handleInputFocus}
+                      onSelect={handleInputSelect}
                       className="input"
                       placeholder="taza"
                     />
@@ -897,6 +997,8 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                       type="text"
                       value={ingredient.name}
                       onChange={(e) => updateIngredient(index, "name", e.target.value)}
+                      onFocus={handleInputFocus}
+                      onSelect={handleInputSelect}
                       className="input"
                       placeholder="Nombre del ingrediente"
                     />
@@ -958,6 +1060,8 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                         type="text"
                         value={ingredient.amount2 || ""}
                         onChange={(e) => updateIngredient(index, "amount2", e.target.value)}
+                        onFocus={handleInputFocus}
+                        onSelect={handleInputSelect}
                         className="input text-sm"
                         placeholder="120"
                       />

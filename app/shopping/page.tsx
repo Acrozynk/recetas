@@ -5,6 +5,7 @@ import { supabase, type ShoppingItem, type MealPlan, type Ingredient, type Super
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import { searchGroceries, type GroceryProduct, GROCERY_CATEGORIES } from "@/lib/spanish-groceries";
+import { combineQuantities, parseQuantity, formatQuantity } from "@/lib/unit-conversion";
 
 // Category icons mapping
 const CATEGORY_ICONS: Record<string, string> = {
@@ -624,7 +625,247 @@ function EditItemModal({
               )}
             </button>
           </div>
-        </form>
+          </form>
+      </div>
+    </div>
+  );
+}
+
+// Interface for preview ingredients
+interface PreviewIngredient {
+  id: string;
+  name: string;
+  quantity: string;
+  category: string;
+  selected: boolean;
+  recipes: string[]; // Recipe names that use this ingredient
+}
+
+// Ingredient Preview Modal - shows before adding from planner
+function IngredientPreviewModal({
+  isOpen,
+  onClose,
+  ingredients,
+  onConfirm,
+  categoryOrder,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  ingredients: PreviewIngredient[];
+  onConfirm: (selectedIngredients: PreviewIngredient[]) => void;
+  categoryOrder: string[];
+}) {
+  const [localIngredients, setLocalIngredients] = useState<PreviewIngredient[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setLocalIngredients([...ingredients]);
+  }, [ingredients, isOpen]);
+
+  const toggleIngredient = (id: string) => {
+    setLocalIngredients(prev =>
+      prev.map(ing =>
+        ing.id === id ? { ...ing, selected: !ing.selected } : ing
+      )
+    );
+  };
+
+  const toggleAll = (selected: boolean) => {
+    setLocalIngredients(prev =>
+      prev.map(ing => ({ ...ing, selected }))
+    );
+  };
+
+  const toggleCategory = (category: string, selected: boolean) => {
+    setLocalIngredients(prev =>
+      prev.map(ing =>
+        ing.category === category ? { ...ing, selected } : ing
+      )
+    );
+  };
+
+  const handleConfirm = async () => {
+    setSaving(true);
+    const selected = localIngredients.filter(ing => ing.selected);
+    await onConfirm(selected);
+    setSaving(false);
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  // Group ingredients by category
+  const groupedIngredients = localIngredients.reduce(
+    (acc, ing) => {
+      const category = ing.category || "Otros";
+      if (!acc[category]) acc[category] = [];
+      acc[category].push(ing);
+      return acc;
+    },
+    {} as Record<string, PreviewIngredient[]>
+  );
+
+  const selectedCount = localIngredients.filter(i => i.selected).length;
+  const totalCount = localIngredients.length;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <div className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl max-h-[90vh] flex flex-col shadow-2xl animate-fade-in">
+        {/* Header */}
+        <div className="p-4 border-b border-[var(--border-color)] bg-[var(--color-purple-bg)]">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-display text-xl font-semibold text-[var(--foreground)]">
+                Confirmar Ingredientes
+              </h2>
+              <p className="text-sm text-[var(--color-slate)] mt-1">
+                Selecciona los ingredientes que necesitas comprar
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/50 rounded-full transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Selection Controls */}
+        <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between bg-white">
+          <span className="text-sm text-[var(--color-slate)]">
+            {selectedCount} de {totalCount} seleccionados
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => toggleAll(true)}
+              className="text-sm px-3 py-1.5 rounded-lg bg-[var(--color-purple-bg)] text-[var(--color-purple-dark)] hover:bg-[var(--color-purple-bg-dark)] transition-colors"
+            >
+              Seleccionar todo
+            </button>
+            <button
+              onClick={() => toggleAll(false)}
+              className="text-sm px-3 py-1.5 rounded-lg bg-gray-100 text-[var(--color-slate)] hover:bg-gray-200 transition-colors"
+            >
+              Deseleccionar
+            </button>
+          </div>
+        </div>
+
+        {/* Ingredient List */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {localIngredients.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 mx-auto mb-3 bg-[var(--color-purple-bg-dark)] rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-[var(--color-slate-light)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+              </div>
+              <p className="text-[var(--color-slate)]">No hay ingredientes en las recetas planificadas</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {categoryOrder.filter(cat => groupedIngredients[cat]?.length > 0).map(category => {
+                const categoryIngredients = groupedIngredients[category];
+                const categorySelectedCount = categoryIngredients.filter(i => i.selected).length;
+                const allSelected = categorySelectedCount === categoryIngredients.length;
+
+                return (
+                  <div key={category}>
+                    {/* Category Header */}
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold text-[var(--foreground)] flex items-center gap-2">
+                        <span className="text-lg">{CATEGORY_ICONS[category] || "📦"}</span>
+                        {category}
+                        <span className="text-xs font-normal text-[var(--color-slate-light)]">
+                          ({categorySelectedCount}/{categoryIngredients.length})
+                        </span>
+                      </h3>
+                      <button
+                        onClick={() => toggleCategory(category, !allSelected)}
+                        className="text-xs text-[var(--color-purple)] hover:text-[var(--color-purple-dark)] transition-colors"
+                      >
+                        {allSelected ? "Deseleccionar" : "Seleccionar"} categoría
+                      </button>
+                    </div>
+                    
+                    {/* Category Items */}
+                    <div className="bg-white rounded-xl border border-[var(--border-color)] divide-y divide-[var(--border-color)]">
+                      {categoryIngredients.map(ing => (
+                        <label
+                          key={ing.id}
+                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors hover:bg-[var(--color-purple-bg)] ${
+                            !ing.selected ? "bg-gray-50" : ""
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={ing.selected}
+                            onChange={() => toggleIngredient(ing.id)}
+                            className="checkbox mt-1 flex-shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline gap-2">
+                              <span className={`font-medium ${!ing.selected ? "text-[var(--color-slate-light)]" : "text-[var(--foreground)]"}`}>
+                                {ing.name}
+                              </span>
+                              {ing.quantity && (
+                                <span className={`text-sm ${!ing.selected ? "text-[var(--color-slate-light)]" : "text-[var(--color-purple)]"} font-medium`}>
+                                  {ing.quantity}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-[var(--color-slate-light)] mt-0.5 truncate">
+                              {ing.recipes.join(", ")}
+                            </p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-[var(--border-color)] flex gap-3 bg-white">
+          <button
+            onClick={onClose}
+            className="flex-1 btn-secondary"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={selectedCount === 0 || saving}
+            className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {saving ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Añadiendo...
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Añadir {selectedCount} artículo{selectedCount !== 1 ? "s" : ""}
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -640,6 +881,10 @@ export default function ShoppingPage() {
   const [isGroceryModalOpen, setIsGroceryModalOpen] = useState(false);
   const [isCategoryOrderModalOpen, setIsCategoryOrderModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
+  
+  // Preview modal state
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [previewIngredients, setPreviewIngredients] = useState<PreviewIngredient[]>([]);
   
   // Supermarket state
   const [selectedSupermarket, setSelectedSupermarket] = useState<SupermarketName>("Mercadona");
@@ -741,10 +986,15 @@ export default function ShoppingPage() {
         return;
       }
 
-      // Collect all ingredients
+      // Collect and combine ingredients intelligently
       const ingredientMap = new Map<
         string,
-        { name: string; quantity: string; category: string; recipe_id: string }
+        { 
+          name: string; 
+          quantity: string; 
+          category: string; 
+          recipes: Set<string>;
+        }
       >();
 
       for (const plan of mealPlans as MealPlan[]) {
@@ -752,55 +1002,135 @@ export default function ShoppingPage() {
 
         const ingredients = plan.recipe.ingredients as Ingredient[];
         for (const ing of ingredients) {
+          // Skip section headers
+          if (ing.isHeader) continue;
+          
           const key = ing.name.toLowerCase().trim();
           const existing = ingredientMap.get(key);
+          const newQuantity = ing.amount ? `${ing.amount} ${ing.unit || ""}`.trim() : "";
 
           if (existing) {
-            // Combine quantities (simple append for now)
-            if (ing.amount) {
-              existing.quantity = existing.quantity
-                ? `${existing.quantity} + ${ing.amount} ${ing.unit || ""}`.trim()
-                : `${ing.amount} ${ing.unit || ""}`.trim();
+            // Combine quantities intelligently
+            if (newQuantity && existing.quantity) {
+              existing.quantity = combineQuantities(existing.quantity, newQuantity, ing.name);
+            } else if (newQuantity) {
+              existing.quantity = newQuantity;
             }
+            existing.recipes.add(plan.recipe.title);
           } else {
             ingredientMap.set(key, {
               name: ing.name,
-              quantity: ing.amount ? `${ing.amount} ${ing.unit || ""}`.trim() : "",
+              quantity: newQuantity,
               category: categorizeIngredient(ing.name),
-              recipe_id: plan.recipe.id,
+              recipes: new Set([plan.recipe.title]),
             });
           }
         }
       }
 
-      // Clear existing generated items for this week
-      await supabase
-        .from("shopping_items")
-        .delete()
-        .eq("week_start", weekStart)
-        .not("recipe_id", "is", null);
+      // Convert to preview ingredients array
+      const preview: PreviewIngredient[] = Array.from(ingredientMap.entries()).map(
+        ([key, value], index) => ({
+          id: `preview-${index}-${key}`,
+          name: value.name,
+          quantity: value.quantity,
+          category: value.category,
+          selected: true, // All selected by default
+          recipes: Array.from(value.recipes),
+        })
+      );
+
+      // Sort by category order
+      preview.sort((a, b) => {
+        const catIndexA = categoryOrder.indexOf(a.category);
+        const catIndexB = categoryOrder.indexOf(b.category);
+        if (catIndexA !== catIndexB) {
+          return (catIndexA === -1 ? 999 : catIndexA) - (catIndexB === -1 ? 999 : catIndexB);
+        }
+        return a.name.localeCompare(b.name);
+      });
+
+      // Show preview modal
+      setPreviewIngredients(preview);
+      setIsPreviewModalOpen(true);
+    } catch (error) {
+      console.error("Error generating shopping list:", error);
+      alert("Error al generar la lista de compras. Por favor, inténtalo de nuevo.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const confirmAddIngredients = async (selectedIngredients: PreviewIngredient[]) => {
+    try {
+      // Get existing items to combine with
+      const existingItems = items.filter(item => !item.checked);
+      
+      // Create a map of existing items by normalized name
+      const existingMap = new Map<string, ShoppingItem>();
+      for (const item of existingItems) {
+        existingMap.set(item.name.toLowerCase().trim(), item);
+      }
+
+      // Separate items to update and items to insert
+      const itemsToUpdate: { id: string; quantity: string }[] = [];
+      const itemsToInsert: { 
+        name: string; 
+        quantity: string | null; 
+        category: string; 
+        checked: boolean; 
+        week_start: string; 
+        recipe_id: string | null;
+      }[] = [];
+
+      for (const ing of selectedIngredients) {
+        const key = ing.name.toLowerCase().trim();
+        const existingItem = existingMap.get(key);
+
+        if (existingItem) {
+          // Combine quantities with existing item
+          const combinedQuantity = existingItem.quantity && ing.quantity
+            ? combineQuantities(existingItem.quantity, ing.quantity, ing.name)
+            : ing.quantity || existingItem.quantity || "";
+          
+          itemsToUpdate.push({
+            id: existingItem.id,
+            quantity: combinedQuantity,
+          });
+        } else {
+          // New item to insert
+          itemsToInsert.push({
+            name: ing.name,
+            quantity: ing.quantity || null,
+            category: ing.category,
+            checked: false,
+            week_start: weekStart,
+            recipe_id: null, // We don't track recipe_id for combined items
+          });
+        }
+      }
+
+      // Update existing items with combined quantities
+      for (const update of itemsToUpdate) {
+        await supabase
+          .from("shopping_items")
+          .update({ quantity: update.quantity })
+          .eq("id", update.id);
+      }
 
       // Insert new items
-      const newItems = Array.from(ingredientMap.values()).map((item) => ({
-        ...item,
-        checked: false,
-        week_start: weekStart,
-      }));
-
-      if (newItems.length > 0) {
+      if (itemsToInsert.length > 0) {
         const { error: insertError } = await supabase
           .from("shopping_items")
-          .insert(newItems);
+          .insert(itemsToInsert);
 
         if (insertError) throw insertError;
       }
 
       loadItems();
     } catch (error) {
-      console.error("Error generating shopping list:", error);
-      alert("Error al generar la lista de compras. Por favor, inténtalo de nuevo.");
-    } finally {
-      setGenerating(false);
+      console.error("Error adding ingredients:", error);
+      alert("Error al añadir ingredientes. Por favor, inténtalo de nuevo.");
     }
   };
 
@@ -1019,7 +1349,7 @@ export default function ShoppingPage() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Desde Planificador
+                Desde Menús
               </>
             )}
           </button>
@@ -1234,6 +1564,15 @@ export default function ShoppingPage() {
           categoryOrder={categoryOrder}
         />
       )}
+
+      {/* Ingredient Preview Modal */}
+      <IngredientPreviewModal
+        isOpen={isPreviewModalOpen}
+        onClose={() => setIsPreviewModalOpen(false)}
+        ingredients={previewIngredients}
+        onConfirm={confirmAddIngredients}
+        categoryOrder={categoryOrder}
+      />
     </div>
   );
 }

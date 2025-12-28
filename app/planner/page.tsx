@@ -191,7 +191,7 @@ export default function PlannerPage() {
   return (
     <div className="min-h-screen pb-20">
       <Header
-        title="Planificador de Comidas"
+        title="Menús"
         rightAction={
           <Link
             href="/shopping"

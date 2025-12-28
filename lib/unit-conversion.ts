@@ -415,3 +415,123 @@ export const COMMON_UNITS = {
   ],
 };
 
+// Parse quantity string to extract amount and unit
+// e.g., "2 huevos" -> { amount: 2, unit: "huevos" }
+// e.g., "500g" -> { amount: 500, unit: "g" }
+// e.g., "1/2 taza" -> { amount: 0.5, unit: "taza" }
+export function parseQuantity(quantity: string): { amount: number | null; unit: string } {
+  if (!quantity || !quantity.trim()) {
+    return { amount: null, unit: '' };
+  }
+  
+  const cleaned = quantity.trim();
+  
+  // Handle "amount + unit" pattern separated by space or attached
+  // e.g., "500g", "2 kg", "1/2 taza", "3 huevos"
+  
+  // First, try to extract number from the start
+  const mixedMatch = cleaned.match(/^(\d+)\s+(\d+)\/(\d+)\s*(.*)$/);
+  if (mixedMatch) {
+    const whole = parseInt(mixedMatch[1]);
+    const num = parseInt(mixedMatch[2]);
+    const den = parseInt(mixedMatch[3]);
+    return { amount: whole + (num / den), unit: mixedMatch[4].trim() };
+  }
+  
+  const fractionMatch = cleaned.match(/^(\d+)\/(\d+)\s*(.*)$/);
+  if (fractionMatch) {
+    return { 
+      amount: parseInt(fractionMatch[1]) / parseInt(fractionMatch[2]), 
+      unit: fractionMatch[3].trim() 
+    };
+  }
+  
+  // Match number (possibly with decimals) followed by optional unit
+  const numMatch = cleaned.match(/^([\d.,]+)\s*(.*)$/);
+  if (numMatch) {
+    const numStr = numMatch[1].replace(',', '.');
+    return { amount: parseFloat(numStr), unit: numMatch[2].trim() };
+  }
+  
+  // No number found, return the whole thing as unit
+  return { amount: null, unit: cleaned };
+}
+
+// Format combined quantity for display
+export function formatQuantity(amount: number, unit: string): string {
+  const formattedAmount = formatAmount(amount);
+  return unit ? `${formattedAmount} ${unit}` : formattedAmount;
+}
+
+// Check if two units are compatible for combining
+export function areUnitsCompatible(unit1: string, unit2: string): boolean {
+  const norm1 = normalizeUnit(unit1);
+  const norm2 = normalizeUnit(unit2);
+  
+  // Exact match
+  if (norm1 === norm2) return true;
+  
+  // Both are volume units
+  if (isVolumeUnit(unit1) && isVolumeUnit(unit2)) return true;
+  
+  // Both are weight units
+  if (isWeightUnit(unit1) && isWeightUnit(unit2)) return true;
+  
+  // Check for similar unit names (e.g., "huevo" vs "huevos")
+  const singular1 = norm1.replace(/s$/, '');
+  const singular2 = norm2.replace(/s$/, '');
+  if (singular1 === singular2) return true;
+  
+  return false;
+}
+
+// Combine two quantities with the same or compatible units
+export function combineQuantities(
+  qty1: string, 
+  qty2: string, 
+  ingredientName?: string
+): string {
+  const parsed1 = parseQuantity(qty1);
+  const parsed2 = parseQuantity(qty2);
+  
+  // If both have amounts and compatible units, sum them
+  if (parsed1.amount !== null && parsed2.amount !== null) {
+    // Check if units are compatible
+    if (areUnitsCompatible(parsed1.unit, parsed2.unit)) {
+      // If same unit type, convert to common unit and sum
+      if (isVolumeUnit(parsed1.unit) && isVolumeUnit(parsed2.unit)) {
+        const ml1 = toMilliliters(parsed1.amount, parsed1.unit);
+        const ml2 = toMilliliters(parsed2.amount, parsed2.unit);
+        if (ml1 !== null && ml2 !== null) {
+          const totalMl = ml1 + ml2;
+          // Convert back to the first unit
+          const result = fromMilliliters(totalMl, parsed1.unit);
+          if (result !== null) {
+            return formatQuantity(result, parsed1.unit);
+          }
+        }
+      } else if (isWeightUnit(parsed1.unit) && isWeightUnit(parsed2.unit)) {
+        const g1 = toGrams(parsed1.amount, parsed1.unit);
+        const g2 = toGrams(parsed2.amount, parsed2.unit);
+        if (g1 !== null && g2 !== null) {
+          const totalG = g1 + g2;
+          // Convert back to the first unit
+          const result = fromGrams(totalG, parsed1.unit);
+          if (result !== null) {
+            return formatQuantity(result, parsed1.unit);
+          }
+        }
+      } else {
+        // Same simple unit (like "huevos"), just add the amounts
+        const total = parsed1.amount + parsed2.amount;
+        // Use plural form if available
+        const unit = parsed1.unit || parsed2.unit;
+        return formatQuantity(total, unit);
+      }
+    }
+  }
+  
+  // If we can't combine, concatenate with " + "
+  return `${qty1} + ${qty2}`;
+}
+

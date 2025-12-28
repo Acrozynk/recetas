@@ -98,7 +98,7 @@ export default function RecipeCard({ recipe, onTagClick }: RecipeCardProps) {
                 {totalTime} min
               </span>
             )}
-            {/* Show container info, servings_unit, or regular servings */}
+            {/* Show container info, servings_unit, variant info, or regular servings */}
             {recipe.container ? (
               <span className="flex items-center gap-1" title={recipe.container.name}>
                 <svg
@@ -115,6 +115,24 @@ export default function RecipeCard({ recipe, onTagClick }: RecipeCardProps) {
                   />
                 </svg>
                 <span className="truncate">{recipe.container_quantity || 1} {recipe.container.name}</span>
+              </span>
+            ) : recipe.variant_1_label ? (
+              // Recipe uses variants (e.g., different mold sizes) - show mold icon instead of servings
+              <span className="flex items-center gap-1" title={`${recipe.variant_1_label} / ${recipe.variant_2_label}`}>
+                <svg
+                  className="w-4 h-4 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z"
+                  />
+                </svg>
+                <span className="truncate text-xs">2 tamaños</span>
               </span>
             ) : recipe.servings_unit ? (
               <span className="flex items-center gap-1">

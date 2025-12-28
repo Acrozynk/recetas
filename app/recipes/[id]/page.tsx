@@ -1255,9 +1255,9 @@ export default function RecipeDetailPage() {
                             {enrichedParts.map((part, partIdx) => (
                               part.type === 'ingredient' ? (
                                 <span key={partIdx}>
-                                  {part.content}
+                                  <span>{part.content}</span>
                                   <span className="text-[var(--color-purple)] font-medium">
-                                    {' '}({part.formattedIngredient})
+                                    {` (${part.formattedIngredient})`}
                                   </span>
                                 </span>
                               ) : (
