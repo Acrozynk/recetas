@@ -678,42 +678,43 @@ export default function ImportReviewPage() {
                 {isEditing ? (
                   <div className="space-y-2">
                     {editedRecipe?.ingredients.map((ing, i) => {
-                      // Debug: log each ingredient during render
-                      console.log(`Render ingredient ${i}:`, ing);
                       return (
-                      <div key={`ing-${i}-${ing.name}`} className="flex gap-2">
+                      <div key={`ing-${i}`} className="flex gap-2 items-center">
                         <input
                           type="text"
-                          value={ing.amount || ""}
-                          onChange={(e) => {
+                          defaultValue={ing.amount || ""}
+                          onBlur={(e) => {
                             const newIngredients = [...(editedRecipe?.ingredients || [])];
                             newIngredients[i] = { ...newIngredients[i], amount: e.target.value };
                             setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
                           }}
                           className="input w-16"
                           placeholder="Cant."
+                          autoComplete="off"
                         />
                         <input
                           type="text"
-                          value={ing.unit || ""}
-                          onChange={(e) => {
+                          defaultValue={ing.unit || ""}
+                          onBlur={(e) => {
                             const newIngredients = [...(editedRecipe?.ingredients || [])];
                             newIngredients[i] = { ...newIngredients[i], unit: e.target.value };
                             setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
                           }}
                           className="input w-20"
                           placeholder="Unidad"
+                          autoComplete="off"
                         />
                         <input
                           type="text"
-                          value={ing.name || ""}
-                          onChange={(e) => {
+                          defaultValue={ing.name || ""}
+                          onBlur={(e) => {
                             const newIngredients = [...(editedRecipe?.ingredients || [])];
                             newIngredients[i] = { ...newIngredients[i], name: e.target.value };
                             setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
                           }}
                           className="input flex-1"
                           placeholder="Ingrediente"
+                          autoComplete="off"
                         />
                         <button
                           onClick={() => {
