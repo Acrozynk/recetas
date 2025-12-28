@@ -158,7 +158,7 @@ export default function HomePage() {
     <div className="min-h-screen pb-20">
       <Header title="Recetas" showAdd showMascot />
 
-      <main className="max-w-4xl mx-auto p-4">
+      <main className="max-w-7xl mx-auto p-4 lg:px-8">
         {/* Active Import Session Banner */}
         {activeImportSession && (
           <Link
@@ -439,8 +439,8 @@ export default function HomePage() {
         )}
 
         {loading ? (
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {[...Array(6)].map((_, i) => (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            {[...Array(8)].map((_, i) => (
               <div key={i} className="recipe-card animate-pulse">
                 <div className="aspect-[4/3] bg-[var(--color-purple-bg-dark)]" />
                 <div className="p-4">
@@ -451,7 +451,7 @@ export default function HomePage() {
             ))}
           </div>
         ) : filteredRecipes.length > 0 ? (
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 auto-rows-fr">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4 auto-rows-fr">
             {filteredRecipes.map((recipe, i) => (
               <div
                 key={recipe.id}
