@@ -605,7 +605,7 @@ export default function ImportReviewPage() {
   if (error && !session) {
     return (
       <div className="min-h-screen pb-20">
-        <Header title="Revisar Importación" showBack />
+        <Header title="Revisar Importación" showBack backHref="/recipes/import" />
         <main className="max-w-2xl mx-auto p-4">
           <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
             {error}
@@ -624,7 +624,7 @@ export default function ImportReviewPage() {
 
   return (
     <div className="min-h-screen pb-24">
-      <Header title="Revisar Recetas" showBack />
+      <Header title="Revisar Recetas" showBack backHref="/recipes/import" />
 
       <main className="max-w-2xl mx-auto p-4">
         {/* Progress Bar */}

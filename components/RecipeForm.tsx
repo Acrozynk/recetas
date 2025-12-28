@@ -213,7 +213,6 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   const [prepTime, setPrepTime] = useState(recipe?.prep_time_minutes?.toString() || "");
   const [cookTime, setCookTime] = useState(recipe?.cook_time_minutes?.toString() || "");
   const [servings, setServings] = useState(recipe?.servings?.toString() || "4");
-  const [servingsUnit, setServingsUnit] = useState(recipe?.servings_unit || "");
   const [tags, setTags] = useState<string[]>(recipe?.tags || []);
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [rating, setRating] = useState<number | null>(recipe?.rating ?? null);
@@ -513,8 +512,8 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         cook_time_minutes: cookTime ? parseInt(cookTime) : null,
         // If using container, servings is null; otherwise use servings value
         servings: portionType === 'recipiente' ? null : (servings ? parseInt(servings) : null),
-        // Custom unit for servings (e.g., "tortitas", "galletas"). Null = personas
-        servings_unit: portionType === 'unidades' ? (servingsUnit.trim() || null) : null,
+        // "unidades" marker when using unit-based portions, null = personas
+        servings_unit: portionType === 'unidades' ? "unidades" : null,
         // Container fields
         container_id: portionType === 'recipiente' ? containerId : null,
         container_quantity: portionType === 'recipiente' && containerQuantity ? parseFloat(containerQuantity) : null,
@@ -796,7 +795,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                 />
               </div>
             ) : portionType === 'unidades' ? (
-              /* Servings input with custom unit */
+              /* Servings input - just number of units */
               <div className="space-y-2">
                 <input
                   type="number"
@@ -805,13 +804,6 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                   className="input w-full"
                   placeholder="10"
                   min="1"
-                />
-                <input
-                  type="text"
-                  value={servingsUnit}
-                  onChange={(e) => setServingsUnit(e.target.value)}
-                  className="input w-full"
-                  placeholder="tortitas, galletas, magdalenas..."
                 />
               </div>
             ) : (
@@ -1031,18 +1023,20 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         )}
 
         <div className="space-y-3">
-          {/* Drop zone at the very beginning */}
-          {draggingSectionIndex !== null && ingredients.length > 0 && !ingredients[0].isHeader && (
+          {/* Drop zone at the very beginning - show when dragging (but not if already at start) */}
+          {draggingSectionIndex !== null && draggingSectionIndex !== 0 && (
             <div
               onDragOver={(e) => handleSectionDragOver(e, 0)}
               onDragLeave={handleSectionDragLeave}
               onDrop={(e) => handleSectionDrop(e, 0)}
-              className={`h-2 rounded transition-all ${
+              className={`py-3 px-4 rounded-lg border-2 border-dashed transition-all flex items-center justify-center ${
                 dropTargetIndex === 0 
-                  ? "bg-amber-400 h-3" 
-                  : "bg-transparent hover:bg-amber-200"
+                  ? "bg-amber-100 border-amber-400 text-amber-700" 
+                  : "bg-amber-50/50 border-amber-200 text-amber-400"
               }`}
-            />
+            >
+              <span className="text-sm font-medium">↑ Soltar aquí (al principio)</span>
+            </div>
           )}
           {ingredients.map((ingredient, index) => {
             const isExpanded = expandedIngredients.has(index);
@@ -1053,26 +1047,36 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
             // Render section header differently
             if (ingredient.isHeader) {
               const isDragging = draggingSectionIndex === index;
+              // Show drop zone before this header if we're dragging a DIFFERENT section
+              const showDropZone = draggingSectionIndex !== null && 
+                draggingSectionIndex !== index && 
+                // Don't show at index 0 (already have "drop at beginning" zone)
+                index !== 0 &&
+                // Don't show if this is the item right after the one being dragged (it would be same position)
+                !(draggingSectionIndex + 1 === index || 
+                  (getSectionRange(draggingSectionIndex).end === index));
               const isDropTarget = dropTargetIndex === index;
               
               return (
                 <div key={index}>
                   {/* Drop zone before this section */}
-                  {draggingSectionIndex !== null && draggingSectionIndex !== index && (
+                  {showDropZone && (
                     <div
                       onDragOver={(e) => handleSectionDragOver(e, index)}
                       onDragLeave={handleSectionDragLeave}
                       onDrop={(e) => handleSectionDrop(e, index)}
-                      className={`h-2 -mt-1 mb-1 rounded transition-all ${
+                      className={`py-3 px-4 rounded-lg border-2 border-dashed transition-all flex items-center justify-center mb-2 ${
                         isDropTarget 
-                          ? "bg-amber-400 h-3" 
-                          : "bg-transparent hover:bg-amber-200"
+                          ? "bg-amber-100 border-amber-400 text-amber-700" 
+                          : "bg-amber-50/50 border-amber-200 text-amber-400"
                       }`}
-                    />
+                    >
+                      <span className="text-sm font-medium">↓ Soltar antes de esta sección</span>
+                    </div>
                   )}
                   <div 
                     className={`flex gap-2 items-center pt-3 first:pt-0 rounded-lg transition-all ${
-                      isDragging ? "opacity-50 bg-amber-100" : ""
+                      isDragging ? "opacity-50 bg-amber-100 scale-95" : ""
                     }`}
                     draggable
                     onDragStart={(e) => handleSectionDragStart(e, index)}
@@ -1264,18 +1268,20 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
             );
           })}
           
-          {/* Drop zone at the very end */}
-          {draggingSectionIndex !== null && (
+          {/* Drop zone at the very end - hide if dragged section is already last */}
+          {draggingSectionIndex !== null && getSectionRange(draggingSectionIndex).end < ingredients.length && (
             <div
               onDragOver={(e) => handleSectionDragOver(e, ingredients.length)}
               onDragLeave={handleSectionDragLeave}
               onDrop={(e) => handleSectionDrop(e, ingredients.length)}
-              className={`h-2 rounded transition-all ${
+              className={`py-3 px-4 rounded-lg border-2 border-dashed transition-all flex items-center justify-center mt-2 ${
                 dropTargetIndex === ingredients.length 
-                  ? "bg-amber-400 h-3" 
-                  : "bg-transparent hover:bg-amber-200"
+                  ? "bg-amber-100 border-amber-400 text-amber-700" 
+                  : "bg-amber-50/50 border-amber-200 text-amber-400"
               }`}
-            />
+            >
+              <span className="text-sm font-medium">↓ Soltar aquí (al final)</span>
+            </div>
           )}
         </div>
 

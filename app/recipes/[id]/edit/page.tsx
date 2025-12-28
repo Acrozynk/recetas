@@ -35,10 +35,12 @@ export default function EditRecipePage() {
     }
   };
 
+  const recipeBackHref = `/recipes/${params.id}`;
+
   if (loading) {
     return (
       <div className="min-h-screen pb-20">
-        <Header title="Editar Receta" showBack />
+        <Header title="Editar Receta" showBack backHref={recipeBackHref} />
         <div className="max-w-2xl mx-auto p-4">
           <div className="animate-pulse space-y-4">
             <div className="h-12 bg-[var(--color-purple-bg-dark)] rounded" />
@@ -67,7 +69,7 @@ export default function EditRecipePage() {
 
   return (
     <div className="min-h-screen pb-20">
-      <Header title="Editar Receta" showBack />
+      <Header title="Editar Receta" showBack backHref={recipeBackHref} />
 
       <main className="max-w-2xl mx-auto p-4">
         <RecipeForm recipe={recipe} mode="edit" />

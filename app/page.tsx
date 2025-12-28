@@ -273,7 +273,7 @@ export default function HomePage() {
                     placeholder="ej: pollo, tomate..."
                     value={ingredientSearch}
                     onChange={(e) => setIngredientSearch(e.target.value)}
-                    className="input pl-9 py-2 text-sm"
+                    className="input pl-10 py-2 text-sm"
                   />
                 </div>
               </div>

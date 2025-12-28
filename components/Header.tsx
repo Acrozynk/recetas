@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 
 interface HeaderProps {
   title: string;
   showBack?: boolean;
+  backHref?: string; // Si se especifica, navega a esta ruta en lugar de usar historial
   showAdd?: boolean;
   rightAction?: React.ReactNode;
   showMascot?: boolean;
@@ -15,19 +15,18 @@ interface HeaderProps {
 export default function Header({
   title,
   showBack = false,
+  backHref = "/", // Por defecto vuelve a la página principal
   showAdd = false,
   rightAction,
   showMascot = false,
 }: HeaderProps) {
-  const router = useRouter();
-
   return (
     <header className="sticky top-0 bg-[var(--background)] border-b border-[var(--border-color)] z-40">
       <div className="flex items-center justify-between h-14 px-4 max-w-4xl mx-auto">
         <div className="flex items-center gap-3">
           {showBack && (
-            <button
-              onClick={() => router.back()}
+            <Link
+              href={backHref}
               className="p-2 -ml-2 text-[var(--color-slate)] hover:text-[var(--foreground)] transition-colors"
             >
               <svg
@@ -43,7 +42,7 @@ export default function Header({
                   d="M15 19l-7-7 7-7"
                 />
               </svg>
-            </button>
+            </Link>
           )}
           {showMascot && (
             <Image
