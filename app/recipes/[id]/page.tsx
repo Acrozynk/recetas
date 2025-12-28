@@ -68,7 +68,7 @@ function findIngredientMention(stepText: string, ingredientName: string): { foun
   return { found: false, matchedWord: '' };
 }
 
-// Format ingredient for display in step
+// Format ingredient quantity for display in step (only amount and unit, no name)
 function formatIngredientForStep(
   ingredient: Ingredient, 
   scaleAmount: (amount: string) => string,
@@ -84,7 +84,6 @@ function formatIngredientForStep(
   
   let result = scaleAmount(displayAmount || '');
   if (displayUnit) result += ` ${displayUnit}`;
-  result += ` ${ingredient.name}`;
   
   return result.trim();
 }
@@ -752,8 +751,8 @@ export default function RecipeDetailPage() {
             )}
           </div>
 
-          {/* Serving Adjuster - for person-based recipes */}
-          {recipe.servings && !usesContainer && (
+          {/* Serving Adjuster - for person-based recipes (hide when using ingredient variants) */}
+          {recipe.servings && !usesContainer && !recipe.variant_1_label && (
             <div className="p-4 bg-white rounded-xl border border-[var(--border-color)] mb-6">
               <div className="flex items-center justify-between mb-4">
                 <span className="font-medium text-[var(--color-slate)]">
@@ -1007,11 +1006,31 @@ export default function RecipeDetailPage() {
               </div>
               
               {/* Variant info banner */}
-              {recipe.variant_1_label && recipe.variant_2_label && (
-                <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-                  🍰 Mostrando cantidades para: <strong>{selectedVariant === 1 ? recipe.variant_1_label : recipe.variant_2_label}</strong>
-                </div>
-              )}
+              {recipe.variant_1_label && recipe.variant_2_label && (() => {
+                const ingredientsWithVariant2 = (recipe.ingredients as Ingredient[]).filter(
+                  i => !i.isHeader && i.amount2 && i.unit2
+                ).length;
+                const totalIngredients = (recipe.ingredients as Ingredient[]).filter(
+                  i => !i.isHeader && i.name
+                ).length;
+                const missingVariant2 = selectedVariant === 2 && ingredientsWithVariant2 < totalIngredients;
+                
+                return (
+                  <div className={`mb-3 p-2 rounded-lg text-sm ${
+                    missingVariant2 
+                      ? "bg-red-50 border border-red-200 text-red-800"
+                      : "bg-amber-50 border border-amber-200 text-amber-800"
+                  }`}>
+                    🍰 Mostrando cantidades para: <strong>{selectedVariant === 1 ? recipe.variant_1_label : recipe.variant_2_label}</strong>
+                    {missingVariant2 && (
+                      <span className="block mt-1 text-xs">
+                        ⚠️ Faltan cantidades para esta variante ({ingredientsWithVariant2}/{totalIngredients} ingredientes). 
+                        <a href={`/recipes/${recipe.id}/edit`} className="underline ml-1">Editar receta</a>
+                      </span>
+                    )}
+                  </div>
+                );
+              })()}
               
               <ul className="space-y-2">
                 {(recipe.ingredients as Ingredient[]).map((ingredient, i) => {
