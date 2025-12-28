@@ -97,10 +97,20 @@ export default function SettingsPage() {
   const [newContainerName, setNewContainerName] = useState("");
   const [addingContainer, setAddingContainer] = useState(false);
   const [deletingContainerId, setDeletingContainerId] = useState<string | null>(null);
+  const [editingContainerId, setEditingContainerId] = useState<string | null>(null);
+  const [editingContainerName, setEditingContainerName] = useState("");
+  const [savingContainerId, setSavingContainerId] = useState<string | null>(null);
+  
+  // Tags management
+  const [tags, setTags] = useState<string[]>([]);
+  const [editingTag, setEditingTag] = useState<string | null>(null);
+  const [editingTagName, setEditingTagName] = useState("");
+  const [savingTag, setSavingTag] = useState<string | null>(null);
 
   useEffect(() => {
     loadRecipes();
     loadContainers();
+    loadTags();
     setLastBackup(getLastBackupDate());
     setReminderDaysState(getReminderDays());
   }, []);
@@ -130,6 +140,18 @@ export default function SettingsPage() {
       }
     } catch (error) {
       console.error("Error loading containers:", error);
+    }
+  };
+
+  const loadTags = async () => {
+    try {
+      const response = await fetch("/api/tags");
+      if (response.ok) {
+        const data = await response.json();
+        setTags(data.tags || []);
+      }
+    } catch (error) {
+      console.error("Error loading tags:", error);
     }
   };
 
@@ -176,6 +198,86 @@ export default function SettingsPage() {
       console.error("Error deleting container:", error);
     } finally {
       setDeletingContainerId(null);
+    }
+  };
+
+  const handleEditContainer = (container: Container) => {
+    setEditingContainerId(container.id);
+    setEditingContainerName(container.name);
+  };
+
+  const handleCancelEditContainer = () => {
+    setEditingContainerId(null);
+    setEditingContainerName("");
+  };
+
+  const handleSaveContainer = async (id: string) => {
+    if (!editingContainerName.trim()) return;
+    
+    setSavingContainerId(id);
+    try {
+      const response = await fetch("/api/containers", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, name: editingContainerName.trim() }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setContainers(containers.map(c => 
+          c.id === id ? data.container : c
+        ));
+        setEditingContainerId(null);
+        setEditingContainerName("");
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || "Error al guardar recipiente");
+      }
+    } catch (error) {
+      console.error("Error saving container:", error);
+    } finally {
+      setSavingContainerId(null);
+    }
+  };
+
+  const handleEditTag = (tag: string) => {
+    setEditingTag(tag);
+    setEditingTagName(tag);
+  };
+
+  const handleCancelEditTag = () => {
+    setEditingTag(null);
+    setEditingTagName("");
+  };
+
+  const handleSaveTag = async (oldTag: string) => {
+    if (!editingTagName.trim()) return;
+    if (editingTagName.trim() === oldTag) {
+      handleCancelEditTag();
+      return;
+    }
+    
+    setSavingTag(oldTag);
+    try {
+      const response = await fetch("/api/tags", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ oldTag, newTag: editingTagName.trim() }),
+      });
+      
+      if (response.ok) {
+        // Reload tags to get fresh list
+        await loadTags();
+        setEditingTag(null);
+        setEditingTagName("");
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || "Error al guardar etiqueta");
+      }
+    } catch (error) {
+      console.error("Error saving tag:", error);
+    } finally {
+      setSavingTag(null);
     }
   };
 
@@ -424,26 +526,83 @@ export default function SettingsPage() {
                     key={container.id}
                     className="flex items-center justify-between p-3 bg-[var(--color-purple-bg)] rounded-lg"
                   >
-                    <span className="text-sm font-medium text-[var(--foreground)] capitalize">
-                      {container.name}
-                    </span>
-                    <button
-                      onClick={() => handleDeleteContainer(container.id)}
-                      disabled={deletingContainerId === container.id}
-                      className="p-1.5 text-[var(--color-slate-light)] hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                      title="Eliminar recipiente"
-                    >
-                      {deletingContainerId === container.id ? (
-                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                        </svg>
-                      ) : (
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      )}
-                    </button>
+                    {editingContainerId === container.id ? (
+                      <div className="flex items-center gap-2 flex-1 mr-2">
+                        <input
+                          type="text"
+                          value={editingContainerName}
+                          onChange={(e) => setEditingContainerName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveContainer(container.id);
+                            if (e.key === "Escape") handleCancelEditContainer();
+                          }}
+                          className="input flex-1 py-1 text-sm"
+                          autoFocus
+                          disabled={savingContainerId === container.id}
+                        />
+                        <button
+                          onClick={() => handleSaveContainer(container.id)}
+                          disabled={savingContainerId === container.id || !editingContainerName.trim()}
+                          className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+                          title="Guardar"
+                        >
+                          {savingContainerId === container.id ? (
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
+                        <button
+                          onClick={handleCancelEditContainer}
+                          disabled={savingContainerId === container.id}
+                          className="p-1.5 text-[var(--color-slate-light)] hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                          title="Cancelar"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="text-sm font-medium text-[var(--foreground)] capitalize">
+                          {container.name}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleEditContainer(container)}
+                            className="p-1.5 text-[var(--color-slate-light)] hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                            title="Editar recipiente"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteContainer(container.id)}
+                            disabled={deletingContainerId === container.id}
+                            className="p-1.5 text-[var(--color-slate-light)] hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                            title="Eliminar recipiente"
+                          >
+                            {deletingContainerId === container.id ? (
+                              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))
               )}
@@ -473,6 +632,109 @@ export default function SettingsPage() {
             <p className="text-xs text-[var(--color-slate-light)]">
               Los recipientes te permiten escalar recetas de repostería.
               Por ejemplo: duplicar ingredientes para hacer 2 moldes pequeños.
+            </p>
+          </div>
+        </section>
+
+        {/* Tags Section */}
+        <section className="bg-white rounded-xl border border-[var(--border-color)] overflow-hidden">
+          <div className="p-4 border-b border-[var(--border-color)]">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-[var(--foreground)]">
+                  Etiquetas
+                </h2>
+                <p className="text-sm text-[var(--color-slate)]">
+                  Edita las etiquetas de tus recetas
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 space-y-4">
+            {/* Tag List */}
+            <div className="space-y-2">
+              {tags.length === 0 ? (
+                <p className="text-sm text-[var(--color-slate-light)] text-center py-4">
+                  No hay etiquetas aún. Añade etiquetas a tus recetas.
+                </p>
+              ) : (
+                tags.map((tag) => (
+                  <div
+                    key={tag}
+                    className="flex items-center justify-between p-3 bg-[var(--color-purple-bg)] rounded-lg"
+                  >
+                    {editingTag === tag ? (
+                      <div className="flex items-center gap-2 flex-1 mr-2">
+                        <input
+                          type="text"
+                          value={editingTagName}
+                          onChange={(e) => setEditingTagName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveTag(tag);
+                            if (e.key === "Escape") handleCancelEditTag();
+                          }}
+                          className="input flex-1 py-1 text-sm"
+                          autoFocus
+                          disabled={savingTag === tag}
+                        />
+                        <button
+                          onClick={() => handleSaveTag(tag)}
+                          disabled={savingTag === tag || !editingTagName.trim()}
+                          className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
+                          title="Guardar"
+                        >
+                          {savingTag === tag ? (
+                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
+                        <button
+                          onClick={handleCancelEditTag}
+                          disabled={savingTag === tag}
+                          className="p-1.5 text-[var(--color-slate-light)] hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                          title="Cancelar"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <>
+                        <span className="text-sm font-medium text-[var(--foreground)]">
+                          {tag}
+                        </span>
+                        <button
+                          onClick={() => handleEditTag(tag)}
+                          className="p-1.5 text-[var(--color-slate-light)] hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          title="Editar etiqueta"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Info */}
+            <p className="text-xs text-[var(--color-slate-light)]">
+              Al editar una etiqueta, se actualizará en todas las recetas que la usen.
             </p>
           </div>
         </section>

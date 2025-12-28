@@ -15,11 +15,21 @@ type MadeItFilter = "all" | "made" | "not_made";
 // Rating filter options (null = any, 0 = not rated, 1-3 = stars)
 type RatingFilter = null | 0 | 1 | 2 | 3;
 
+interface ActiveImportSession {
+  id: string;
+  total_recipes: number;
+  current_index: number;
+  recipes: {
+    status: "pending" | "accepted" | "edited" | "discarded";
+  }[];
+}
+
 export default function HomePage() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [activeImportSession, setActiveImportSession] = useState<ActiveImportSession | null>(null);
   
   // Advanced filters
   const [showFilters, setShowFilters] = useState(false);
@@ -30,7 +40,27 @@ export default function HomePage() {
 
   useEffect(() => {
     loadRecipes();
+    checkActiveImportSession();
   }, []);
+
+  const checkActiveImportSession = async () => {
+    try {
+      const response = await fetch("/api/import-session");
+      const data = await response.json();
+      if (data.session && data.session.status === "active") {
+        setActiveImportSession(data.session);
+      }
+    } catch (err) {
+      console.error("Error checking import session:", err);
+    }
+  };
+
+  const getImportProgress = () => {
+    if (!activeImportSession) return { reviewed: 0, accepted: 0, total: 0 };
+    const reviewed = activeImportSession.recipes.filter((r) => r.status !== "pending").length;
+    const accepted = activeImportSession.recipes.filter((r) => r.status === "accepted" || r.status === "edited").length;
+    return { reviewed, accepted, total: activeImportSession.total_recipes };
+  };
 
   const loadRecipes = async () => {
     try {
@@ -129,6 +159,40 @@ export default function HomePage() {
       <Header title="Recetas" showAdd showMascot />
 
       <main className="max-w-4xl mx-auto p-4">
+        {/* Active Import Session Banner */}
+        {activeImportSession && (
+          <Link
+            href="/recipes/import/review"
+            className="block mb-4 p-4 bg-amber-50 border border-amber-300 rounded-xl hover:bg-amber-100 transition-colors animate-fade-in"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0 w-10 h-10 bg-amber-200 rounded-full flex items-center justify-center">
+                <svg className="w-5 h-5 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-amber-900">
+                  Importación en progreso
+                </p>
+                <p className="text-sm text-amber-700">
+                  {getImportProgress().reviewed} de {getImportProgress().total} revisadas · {getImportProgress().accepted} aceptadas
+                </p>
+              </div>
+              <div className="flex-shrink-0 text-amber-600">
+                <span className="font-medium text-sm">Continuar →</span>
+              </div>
+            </div>
+            {/* Mini progress bar */}
+            <div className="mt-3 h-1.5 bg-amber-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-amber-500 transition-all"
+                style={{ width: `${(getImportProgress().reviewed / getImportProgress().total) * 100}%` }}
+              />
+            </div>
+          </Link>
+        )}
+
         {/* Search bar with filter toggle */}
         <div className="flex gap-2 mb-4">
           <div className="relative flex-1">

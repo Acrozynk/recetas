@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -39,6 +39,76 @@ export async function GET() {
   } catch (error) {
     console.error("Error in tags API:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+// PUT - Update a tag across all recipes
+export async function PUT(request: NextRequest) {
+  try {
+    const { oldTag, newTag } = await request.json();
+
+    if (!oldTag || typeof oldTag !== "string" || !oldTag.trim()) {
+      return NextResponse.json(
+        { error: "Old tag is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!newTag || typeof newTag !== "string" || !newTag.trim()) {
+      return NextResponse.json(
+        { error: "New tag is required" },
+        { status: 400 }
+      );
+    }
+
+    const oldTagTrimmed = oldTag.trim();
+    const newTagTrimmed = newTag.trim();
+
+    if (oldTagTrimmed === newTagTrimmed) {
+      return NextResponse.json({ success: true, updated: 0 });
+    }
+
+    // Find all recipes with the old tag
+    const { data: recipes, error: fetchError } = await supabase
+      .from("recipes")
+      .select("id, tags")
+      .contains("tags", [oldTagTrimmed]);
+
+    if (fetchError) throw fetchError;
+
+    if (!recipes || recipes.length === 0) {
+      return NextResponse.json({ success: true, updated: 0 });
+    }
+
+    // Update each recipe, replacing the old tag with the new one
+    let updatedCount = 0;
+    for (const recipe of recipes) {
+      const newTags = (recipe.tags as string[]).map((tag: string) =>
+        tag === oldTagTrimmed ? newTagTrimmed : tag
+      );
+
+      // Remove duplicates in case new tag already exists
+      const uniqueTags = [...new Set(newTags)];
+
+      const { error: updateError } = await supabase
+        .from("recipes")
+        .update({ tags: uniqueTags })
+        .eq("id", recipe.id);
+
+      if (updateError) {
+        console.error(`Error updating recipe ${recipe.id}:`, updateError);
+      } else {
+        updatedCount++;
+      }
+    }
+
+    return NextResponse.json({ success: true, updated: updatedCount });
+  } catch (error) {
+    console.error("Error updating tag:", error);
+    return NextResponse.json(
+      { error: "Failed to update tag" },
+      { status: 500 }
+    );
   }
 }
 

@@ -64,6 +64,52 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// PUT - Update a container
+export async function PUT(request: NextRequest) {
+  try {
+    const { id, name } = await request.json();
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "Container ID is required" },
+        { status: 400 }
+      );
+    }
+
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return NextResponse.json(
+        { error: "Container name is required" },
+        { status: 400 }
+      );
+    }
+
+    const { data, error } = await supabase
+      .from("containers")
+      .update({ name: name.trim().toLowerCase() })
+      .eq("id", id)
+      .select()
+      .single();
+
+    if (error) {
+      if (error.code === "23505") {
+        return NextResponse.json(
+          { error: "A container with this name already exists" },
+          { status: 409 }
+        );
+      }
+      throw error;
+    }
+
+    return NextResponse.json({ container: data });
+  } catch (error) {
+    console.error("Error updating container:", error);
+    return NextResponse.json(
+      { error: "Failed to update container" },
+      { status: 500 }
+    );
+  }
+}
+
 // DELETE - Delete a container
 export async function DELETE(request: NextRequest) {
   try {
