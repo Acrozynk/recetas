@@ -57,6 +57,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // If we have a session, find the first pending recipe to resume from
+    if (data) {
+      const recipes: ImportRecipeEntry[] = data.recipes;
+      const firstPendingIndex = recipes.findIndex((r) => r.status === "pending");
+      
+      // If there's a pending recipe and current_index is not pointing to a pending one,
+      // update the session to point to the first pending recipe
+      if (firstPendingIndex !== -1 && recipes[data.current_index]?.status !== "pending") {
+        data.current_index = firstPendingIndex;
+        
+        // Update the session in the database too
+        await supabase
+          .from("import_sessions")
+          .update({ current_index: firstPendingIndex })
+          .eq("id", data.id);
+      }
+    }
+
     return NextResponse.json({ session: data || null });
   } catch (error) {
     console.error("GET session error:", error);
