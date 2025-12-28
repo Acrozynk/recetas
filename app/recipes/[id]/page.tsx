@@ -688,11 +688,26 @@ export default function RecipeDetailPage() {
                     ))}
                   </div>
                 )}
+
+                {/* Source URL - alongside image */}
+                {recipe.source_url && (
+                  <a
+                    href={recipe.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 mt-4 text-sm text-[var(--color-purple)] hover:underline"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    Ver receta original
+                  </a>
+                )}
               </div>
 
               {/* Right side: Image */}
               {recipe.image_url && (
-                <div className="relative flex-shrink-0 w-28 h-28 sm:w-40 sm:h-40 rounded-xl overflow-hidden bg-[var(--color-purple-bg-dark)] shadow-md">
+                <div className="relative flex-shrink-0 w-36 h-36 sm:w-52 sm:h-52 rounded-xl overflow-hidden bg-[var(--color-purple-bg-dark)] shadow-md">
                   <Image
                     src={recipe.image_url}
                     alt={recipe.title}
@@ -735,20 +750,6 @@ export default function RecipeDetailPage() {
                 </span>
               )}
             </div>
-
-            {recipe.source_url && (
-              <a
-                href={recipe.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 mt-4 text-sm text-[var(--color-purple)] hover:underline"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                Ver receta original
-              </a>
-            )}
           </div>
 
           {/* Serving Adjuster - for person-based recipes (hide when using ingredient variants) */}
@@ -1351,7 +1352,7 @@ export default function RecipeDetailPage() {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
-                Notes
+                Notas
               </h2>
               <p className="text-amber-800 whitespace-pre-wrap">{recipe.notes}</p>
             </div>

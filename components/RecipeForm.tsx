@@ -884,7 +884,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                       value={ingredient.amount}
                       onChange={(e) => updateIngredient(index, "amount", e.target.value)}
                       className="input"
-                      placeholder={showVariantLabels && variant1Label ? variant1Label.substring(0, 8) + "..." : "1"}
+                      placeholder="1"
                     />
                     <input
                       type="text"
@@ -959,7 +959,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                         value={ingredient.amount2 || ""}
                         onChange={(e) => updateIngredient(index, "amount2", e.target.value)}
                         className="input text-sm"
-                        placeholder={showVariantLabels && variant2Label ? variant2Label.substring(0, 8) + "..." : "120"}
+                        placeholder="120"
                       />
                       {showVariantLabels ? (
                         <input
