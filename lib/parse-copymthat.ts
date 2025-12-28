@@ -17,6 +17,9 @@ export interface ParsedRecipe {
   notes: string | null;
   rating: number | null; // 1-3 scale (mapped from 1-5)
   made_it: boolean;
+  // Variant labels for recipes with two sets of amounts (e.g., different mold sizes)
+  variant_1_label: string | null;
+  variant_2_label: string | null;
 }
 
 /**
@@ -92,32 +95,149 @@ export function parseCopyMeThatExport(html: string): ParsedRecipe[] {
         }
       }
 
-      // Extract ingredients with subheaders
+      // Extract ingredients with subheaders and variant detection
       const ingredients: Ingredient[] = [];
+      let variant1Label: string | null = null;
+      let variant2Label: string | null = null;
+      
+      // First, collect all ingredient text to detect variants
+      const ingredientTexts: Array<{text: string, isSubheader: boolean}> = [];
       $recipe.find("#recipeIngredients").children().each((_, child) => {
         const $child = $(child);
         const text = $child.text().trim();
 
         if (!text) return;
-
-        // Skip spacer divs
         if ($child.hasClass("recipeIngredient_spacer")) return;
 
-        // Handle subheaders - add as ingredient with empty amount/unit
         if ($child.hasClass("recipeIngredient_subheader")) {
-          ingredients.push({
-            amount: "",
-            unit: "",
-            name: `**${text}**`, // Mark as subheader with bold markdown
-          });
-          return;
-        }
-
-        // Regular ingredient
-        if ($child.hasClass("recipeIngredient") && $child.is("li")) {
-          ingredients.push(parseIngredientLine(text));
+          ingredientTexts.push({ text, isSubheader: true });
+        } else if ($child.hasClass("recipeIngredient") && $child.is("li")) {
+          ingredientTexts.push({ text, isSubheader: false });
         }
       });
+      
+      // Detect if we have variant blocks (e.g., MOLDE GRANDE / MOLDE PEQUEÑO)
+      const variantPattern = /^(MOLDE|MOLD[EO]S?|PAN|BANDEJA|FUENTE|RECIPIENTE)\s+(.+):?$/i;
+      const variantBlocks: Array<{label: string, startIdx: number}> = [];
+      
+      ingredientTexts.forEach((item, idx) => {
+        if (item.isSubheader) {
+          const match = item.text.match(variantPattern);
+          if (match) {
+            variantBlocks.push({ label: item.text.replace(/:$/, ''), startIdx: idx });
+          }
+        }
+      });
+      
+      // If we have exactly 2 variant blocks, merge ingredients from both
+      if (variantBlocks.length === 2) {
+        variant1Label = variantBlocks[0].label;
+        variant2Label = variantBlocks[1].label;
+        
+        // Get ingredients from each block (between block headers)
+        const block1Start = variantBlocks[0].startIdx + 1;
+        const block1End = variantBlocks[1].startIdx;
+        const block2Start = variantBlocks[1].startIdx + 1;
+        const block2End = ingredientTexts.length;
+        
+        const block1Items = ingredientTexts.slice(block1Start, block1End);
+        const block2Items = ingredientTexts.slice(block2Start, block2End);
+        
+        // Parse both blocks and merge by ingredient name
+        const block1Ingredients = parseIngredientBlock(block1Items);
+        const block2Ingredients = parseIngredientBlock(block2Items);
+        
+        // Merge: match by name within sections
+        let currentSection = "";
+        const mergedBySection: Map<string, Map<string, {ing1?: Ingredient, ing2?: Ingredient}>> = new Map();
+        
+        // Process block 1
+        for (const ing of block1Ingredients) {
+          if (ing.isHeader) {
+            currentSection = ing.name;
+            if (!mergedBySection.has(currentSection)) {
+              mergedBySection.set(currentSection, new Map());
+            }
+          } else {
+            if (!mergedBySection.has(currentSection)) {
+              mergedBySection.set(currentSection, new Map());
+            }
+            const sectionMap = mergedBySection.get(currentSection)!;
+            const key = normalizeIngredientName(ing.name);
+            sectionMap.set(key, { ing1: ing });
+          }
+        }
+        
+        // Process block 2
+        currentSection = "";
+        for (const ing of block2Ingredients) {
+          if (ing.isHeader) {
+            currentSection = ing.name;
+            if (!mergedBySection.has(currentSection)) {
+              mergedBySection.set(currentSection, new Map());
+            }
+          } else {
+            if (!mergedBySection.has(currentSection)) {
+              mergedBySection.set(currentSection, new Map());
+            }
+            const sectionMap = mergedBySection.get(currentSection)!;
+            const key = normalizeIngredientName(ing.name);
+            const existing = sectionMap.get(key);
+            if (existing) {
+              existing.ing2 = ing;
+            } else {
+              sectionMap.set(key, { ing2: ing });
+            }
+          }
+        }
+        
+        // Build final ingredients list
+        for (const [sectionName, sectionIngredients] of mergedBySection) {
+          // Add section header if not empty
+          if (sectionName) {
+            ingredients.push({
+              amount: "",
+              unit: "",
+              name: sectionName,
+              isHeader: true,
+            });
+          }
+          
+          for (const [, pair] of sectionIngredients) {
+            const merged: Ingredient = {
+              amount: pair.ing1?.amount || pair.ing2?.amount || "",
+              unit: pair.ing1?.unit || pair.ing2?.unit || "",
+              name: pair.ing1?.name || pair.ing2?.name || "",
+            };
+            
+            // Add variant 2 amounts if different
+            if (pair.ing2) {
+              merged.amount2 = pair.ing2.amount;
+              merged.unit2 = pair.ing2.unit;
+            }
+            
+            ingredients.push(merged);
+          }
+        }
+      } else {
+        // No variant blocks - parse normally with section headers
+        for (const item of ingredientTexts) {
+          if (item.isSubheader) {
+            // Check if it looks like a section header (e.g., "Para la base:")
+            const sectionMatch = item.text.match(/^(Para\s+(?:la|el)|For\s+(?:the)?)?\s*(.+?):?$/i);
+            if (sectionMatch) {
+              ingredients.push({
+                amount: "",
+                unit: "",
+                name: sectionMatch[0].replace(/:$/, ''),
+                isHeader: true,
+              });
+            }
+          } else {
+            ingredients.push(parseIngredientLine(item.text));
+          }
+        }
+      }
 
       // Extract instructions
       const instructions: Instruction[] = [];
@@ -188,6 +308,8 @@ export function parseCopyMeThatExport(html: string): ParsedRecipe[] {
         notes: notes.length > 0 ? notes.join("\n\n") : null,
         rating,
         made_it: madeIt,
+        variant_1_label: variant1Label,
+        variant_2_label: variant2Label,
       });
     } catch (e) {
       console.error("Error parsing recipe:", e);
@@ -253,12 +375,52 @@ function parseGenericHtml(html: string): ParsedRecipe[] {
           notes: null,
           rating: null,
           made_it: false,
+          variant_1_label: null,
+          variant_2_label: null,
         });
       }
     }
   });
 
   return recipes;
+}
+
+/**
+ * Normalize ingredient name for matching across variants
+ */
+function normalizeIngredientName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove accents
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Parse a block of ingredient texts into Ingredient objects
+ */
+function parseIngredientBlock(items: Array<{text: string, isSubheader: boolean}>): Ingredient[] {
+  const result: Ingredient[] = [];
+  
+  for (const item of items) {
+    if (item.isSubheader) {
+      // Check if it looks like a section header (e.g., "Para la base:")
+      const sectionMatch = item.text.match(/^(Para\s+(?:la|el)|For\s+(?:the)?)?\s*(.+?):?$/i);
+      if (sectionMatch) {
+        result.push({
+          amount: "",
+          unit: "",
+          name: sectionMatch[0].replace(/:$/, ''),
+          isHeader: true,
+        });
+      }
+    } else {
+      result.push(parseIngredientLine(item.text));
+    }
+  }
+  
+  return result;
 }
 
 /**

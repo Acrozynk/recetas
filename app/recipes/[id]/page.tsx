@@ -26,6 +26,8 @@ export default function RecipeDetailPage() {
   const [wakeLockSupported, setWakeLockSupported] = useState(false);
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
   const [showSecondaryUnits, setShowSecondaryUnits] = useState(false);
+  // Selected variant (1 = primary amounts, 2 = secondary amounts)
+  const [selectedVariant, setSelectedVariant] = useState<1 | 2>(1);
   const [rating, setRating] = useState<number | null>(null);
   const [madeIt, setMadeIt] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
@@ -719,37 +721,100 @@ export default function RecipeDetailPage() {
                 <h2 className="font-display text-xl font-semibold text-[var(--foreground)]">
                   Ingredientes
                 </h2>
-                {/* Unit toggle - only show if any ingredient has secondary units */}
-                {(recipe.ingredients as Ingredient[]).some(i => i.amount2 && i.unit2) && (
-                  <button
-                    onClick={() => setShowSecondaryUnits(!showSecondaryUnits)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
-                      showSecondaryUnits
-                        ? "bg-[var(--color-purple)] text-white"
-                        : "bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)]"
-                    }`}
-                    title="Cambiar entre unidades"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                    </svg>
-                    {showSecondaryUnits ? "Alt" : "Std"}
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  {/* Variant selector - show when recipe has variant labels */}
+                  {recipe.variant_1_label && recipe.variant_2_label && (
+                    <div className="flex rounded-lg overflow-hidden border border-[var(--border-color)]">
+                      <button
+                        onClick={() => setSelectedVariant(1)}
+                        className={`px-2.5 py-1 text-xs font-medium transition-all ${
+                          selectedVariant === 1
+                            ? "bg-amber-500 text-white"
+                            : "bg-white text-[var(--color-slate)] hover:bg-amber-50"
+                        }`}
+                        title={recipe.variant_1_label}
+                      >
+                        {recipe.variant_1_label.length > 15 
+                          ? recipe.variant_1_label.substring(0, 15) + "..." 
+                          : recipe.variant_1_label}
+                      </button>
+                      <button
+                        onClick={() => setSelectedVariant(2)}
+                        className={`px-2.5 py-1 text-xs font-medium transition-all ${
+                          selectedVariant === 2
+                            ? "bg-amber-500 text-white"
+                            : "bg-white text-[var(--color-slate)] hover:bg-amber-50"
+                        }`}
+                        title={recipe.variant_2_label}
+                      >
+                        {recipe.variant_2_label.length > 15 
+                          ? recipe.variant_2_label.substring(0, 15) + "..." 
+                          : recipe.variant_2_label}
+                      </button>
+                    </div>
+                  )}
+                  {/* Unit toggle - only show if any ingredient has secondary units AND no variant labels */}
+                  {!recipe.variant_1_label && (recipe.ingredients as Ingredient[]).some(i => i.amount2 && i.unit2) && (
+                    <button
+                      onClick={() => setShowSecondaryUnits(!showSecondaryUnits)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                        showSecondaryUnits
+                          ? "bg-[var(--color-purple)] text-white"
+                          : "bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)]"
+                      }`}
+                      title="Cambiar entre unidades"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                      </svg>
+                      {showSecondaryUnits ? "Alt" : "Std"}
+                    </button>
+                  )}
+                </div>
               </div>
+              
+              {/* Variant info banner */}
+              {recipe.variant_1_label && recipe.variant_2_label && (
+                <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                  🍰 Mostrando cantidades para: <strong>{selectedVariant === 1 ? recipe.variant_1_label : recipe.variant_2_label}</strong>
+                </div>
+              )}
+              
               <ul className="space-y-2">
                 {(recipe.ingredients as Ingredient[]).map((ingredient, i) => {
+                  // Check if this is a section header
+                  const isHeader = ingredient.isHeader || ingredient.name.startsWith('**');
+                  const headerName = isHeader 
+                    ? ingredient.name.replace(/^\*\*|\*\*$/g, '') 
+                    : ingredient.name;
+                  
+                  if (isHeader) {
+                    return (
+                      <li key={i} className="pt-4 pb-1 first:pt-0">
+                        <span className="flex items-center gap-2 text-amber-700 font-semibold text-sm uppercase tracking-wide">
+                          <span className="flex-1 border-b border-amber-200"></span>
+                          {headerName}
+                          <span className="flex-1 border-b border-amber-200"></span>
+                        </span>
+                      </li>
+                    );
+                  }
+                  
                   const hasSecondary = ingredient.amount2 && ingredient.unit2;
-                  const displayAmount = showSecondaryUnits && hasSecondary 
+                  // Use variant selection when recipe has variant labels
+                  const useVariant2 = recipe.variant_1_label 
+                    ? selectedVariant === 2 
+                    : showSecondaryUnits;
+                  const displayAmount = useVariant2 && hasSecondary 
                     ? ingredient.amount2 
                     : ingredient.amount;
-                  const displayUnit = showSecondaryUnits && hasSecondary 
+                  const displayUnit = useVariant2 && hasSecondary 
                     ? ingredient.unit2 
                     : ingredient.unit;
-                  const altAmount = showSecondaryUnits && hasSecondary
+                  const altAmount = useVariant2 && hasSecondary
                     ? ingredient.amount
                     : ingredient.amount2;
-                  const altUnit = showSecondaryUnits && hasSecondary
+                  const altUnit = useVariant2 && hasSecondary
                     ? ingredient.unit
                     : ingredient.unit2;
                     
@@ -765,8 +830,8 @@ export default function RecipeDetailPage() {
                           {displayUnit && ` ${displayUnit}`}
                         </strong>{" "}
                         {ingredient.name}
-                        {/* Show alternative in parentheses if available */}
-                        {hasSecondary && altAmount && altUnit && (
+                        {/* Show alternative in parentheses if available (only for unit conversion, not variants) */}
+                        {!recipe.variant_1_label && hasSecondary && altAmount && altUnit && (
                           <span className="text-[var(--color-slate-light)] text-sm ml-1">
                             ({scaleAmount(altAmount)} {altUnit})
                           </span>
@@ -904,18 +969,22 @@ export default function RecipeDetailPage() {
                           {/* Ingredientes usados en este paso */}
                           {stepIngredients.length > 0 && (
                             <div className="mt-2 flex flex-wrap gap-2">
-                              {stepIngredients.map((ingredient, idx) => {
+                              {stepIngredients.filter(ing => !ing.isHeader && !ing.name.startsWith('**')).map((ingredient, idx) => {
                                 const hasSecondary = ingredient.amount2 && ingredient.unit2;
-                                const displayAmount = showSecondaryUnits && hasSecondary 
+                                // Use variant selection when recipe has variant labels
+                                const useVariant2 = recipe.variant_1_label 
+                                  ? selectedVariant === 2 
+                                  : showSecondaryUnits;
+                                const displayAmount = useVariant2 && hasSecondary 
                                   ? ingredient.amount2 
                                   : ingredient.amount;
-                                const displayUnit = showSecondaryUnits && hasSecondary 
+                                const displayUnit = useVariant2 && hasSecondary 
                                   ? ingredient.unit2 
                                   : ingredient.unit;
-                                const altAmount = showSecondaryUnits && hasSecondary
+                                const altAmount = useVariant2 && hasSecondary
                                   ? ingredient.amount
                                   : ingredient.amount2;
-                                const altUnit = showSecondaryUnits && hasSecondary
+                                const altUnit = useVariant2 && hasSecondary
                                   ? ingredient.unit
                                   : ingredient.unit2;
                                   
@@ -934,7 +1003,8 @@ export default function RecipeDetailPage() {
                                     <span className="font-semibold text-[var(--color-purple)]">
                                       {scaleAmount(displayAmount || '')}
                                       {displayUnit && ` ${displayUnit}`}
-                                      {hasSecondary && altAmount && altUnit && (
+                                      {/* Only show alt amounts for unit conversion, not variants */}
+                                      {!recipe.variant_1_label && hasSecondary && altAmount && altUnit && (
                                         <span className="font-normal text-[var(--color-slate-light)]">
                                           {" "}({scaleAmount(altAmount)} {altUnit})
                                         </span>

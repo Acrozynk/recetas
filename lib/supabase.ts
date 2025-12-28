@@ -30,6 +30,10 @@ export interface Recipe {
   container_id: string | null;
   container_quantity: number | null; // How many containers the recipe makes
   container?: Container; // Joined container data
+  // Variant labels for ingredients with two sets of amounts
+  // e.g., "Molde grande (26cm)" and "Molde pequeño (16cm)"
+  variant_1_label: string | null;
+  variant_2_label: string | null;
   created_at: string;
 }
 
@@ -59,10 +63,14 @@ export interface Ingredient {
   name: string;
   amount: string;
   unit: string;
-  // Optional secondary measurement (e.g., grams when primary is cups)
+  // Optional secondary measurement - can be used for:
+  // 1. Alternative units (e.g., grams when primary is cups)
+  // 2. Different variant amounts (e.g., "molde grande" vs "molde pequeño")
   amount2?: string;
   unit2?: string;
   category?: string;
+  // Section header (e.g., "Para la base:", "Para el relleno:")
+  isHeader?: boolean;
 }
 
 export interface MealPlan {

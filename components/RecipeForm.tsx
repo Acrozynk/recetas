@@ -170,6 +170,11 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     (recipe?.ingredients as Ingredient[]) || Array.from({ length: 5 }, () => ({ name: "", amount: "", unit: "", amount2: "", unit2: "" }))
   );
   const [expandedIngredients, setExpandedIngredients] = useState<Set<number>>(new Set());
+  
+  // Variant labels for recipes with two sets of ingredient amounts
+  const [variant1Label, setVariant1Label] = useState(recipe?.variant_1_label || "");
+  const [variant2Label, setVariant2Label] = useState(recipe?.variant_2_label || "");
+  const [showVariantLabels, setShowVariantLabels] = useState(!!recipe?.variant_1_label || !!recipe?.variant_2_label);
   const [instructions, setInstructions] = useState<Instruction[]>(
     recipe?.instructions 
       ? normalizeInstructions(recipe.instructions)
@@ -236,6 +241,10 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
 
   const addIngredient = () => {
     setIngredients([...ingredients, { name: "", amount: "", unit: "", amount2: "", unit2: "" }]);
+  };
+
+  const addSectionHeader = () => {
+    setIngredients([...ingredients, { name: "", amount: "", unit: "", isHeader: true }]);
   };
 
   const toggleExpandedIngredient = (index: number) => {
@@ -356,6 +365,9 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         notes: notes.trim() || null,
         rating: rating,
         made_it: madeIt,
+        // Variant labels
+        variant_1_label: showVariantLabels && variant1Label.trim() ? variant1Label.trim() : null,
+        variant_2_label: showVariantLabels && variant2Label.trim() ? variant2Label.trim() : null,
       };
 
       if (mode === "edit" && recipe) {
@@ -757,10 +769,59 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
       <div className="bg-white rounded-xl p-4 border border-[var(--border-color)]">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display text-lg font-semibold">Ingredientes</h2>
-          <span className="text-xs text-[var(--color-slate-light)] bg-[var(--color-purple-bg)] px-2 py-1 rounded-full">
-            💡 Usa el ícono ⇄ para convertir unidades
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowVariantLabels(!showVariantLabels)}
+              className={`text-xs px-2 py-1 rounded-full transition-colors ${
+                showVariantLabels
+                  ? "bg-[var(--color-purple)] text-white"
+                  : "bg-[var(--color-purple-bg)] text-[var(--color-slate-light)] hover:text-[var(--color-purple)]"
+              }`}
+              title="Habilitar dos variantes de cantidad (ej: molde grande/pequeño)"
+            >
+              🍰 Variantes
+            </button>
+            <span className="text-xs text-[var(--color-slate-light)] bg-[var(--color-purple-bg)] px-2 py-1 rounded-full">
+              💡 Usa ⇄ para convertir
+            </span>
+          </div>
         </div>
+
+        {/* Variant labels */}
+        {showVariantLabels && (
+          <div className="mb-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
+            <p className="text-xs text-amber-700 mb-2">
+              Define etiquetas para las dos cantidades (ej: &quot;Molde grande 26cm&quot; y &quot;Molde pequeño 16cm&quot;)
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-amber-800 mb-1">
+                  Cantidad principal
+                </label>
+                <input
+                  type="text"
+                  value={variant1Label}
+                  onChange={(e) => setVariant1Label(e.target.value)}
+                  className="input text-sm"
+                  placeholder="Molde grande (26cm)"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-amber-800 mb-1">
+                  Cantidad alternativa
+                </label>
+                <input
+                  type="text"
+                  value={variant2Label}
+                  onChange={(e) => setVariant2Label(e.target.value)}
+                  className="input text-sm"
+                  placeholder="Molde pequeño (16cm)"
+                />
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3">
           {ingredients.map((ingredient, index) => {
@@ -768,6 +829,33 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
             const hasSecondary = ingredient.amount2 || ingredient.unit2;
             const canConvert = ingredient.amount && ingredient.unit && 
               (isVolumeUnit(ingredient.unit) || isWeightUnit(ingredient.unit));
+            
+            // Render section header differently
+            if (ingredient.isHeader) {
+              return (
+                <div key={index} className="flex gap-2 items-center pt-3 first:pt-0">
+                  <div className="flex-1 flex items-center gap-2">
+                    <span className="text-amber-600">📋</span>
+                    <input
+                      type="text"
+                      value={ingredient.name.replace(/^\*\*|\*\*$/g, '')}
+                      onChange={(e) => updateIngredient(index, "name", e.target.value)}
+                      className="input flex-1 font-semibold text-amber-800 bg-amber-50 border-amber-200"
+                      placeholder="Nombre de la sección (ej: Para la base)"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeIngredient(index)}
+                    className="p-2 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              );
+            }
             
             return (
               <div key={index} className="space-y-2">
@@ -779,7 +867,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                       value={ingredient.amount}
                       onChange={(e) => updateIngredient(index, "amount", e.target.value)}
                       className="input"
-                      placeholder="1"
+                      placeholder={showVariantLabels && variant1Label ? variant1Label.substring(0, 8) + "..." : "1"}
                     />
                     <input
                       type="text"
@@ -813,8 +901,8 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                     </svg>
                   </button>
                   
-                  {/* Toggle expand button (show if has secondary or is expanded) */}
-                  {(hasSecondary || isExpanded) && (
+                  {/* Toggle expand button (show if has secondary, is expanded, or using variants) */}
+                  {(hasSecondary || isExpanded || showVariantLabels) && (
                     <button
                       type="button"
                       onClick={() => toggleExpandedIngredient(index)}
@@ -842,32 +930,44 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                 {/* Secondary measurement row (collapsed by default) */}
                 {(isExpanded || hasSecondary) && (
                   <div className={`ml-4 flex gap-2 items-center pl-2 border-l-2 border-[var(--color-purple-bg-dark)] ${!isExpanded && hasSecondary ? 'opacity-60' : ''}`}>
-                    <span className="text-xs text-[var(--color-slate-light)] font-medium whitespace-nowrap">Alt:</span>
+                    <span className="text-xs text-[var(--color-slate-light)] font-medium whitespace-nowrap">
+                      {showVariantLabels && variant2Label ? variant2Label.substring(0, 10) : "Alt"}:
+                    </span>
                     <div className="flex-1 grid grid-cols-[1fr,1fr,2fr] gap-2">
                       <input
                         type="text"
                         value={ingredient.amount2 || ""}
                         onChange={(e) => updateIngredient(index, "amount2", e.target.value)}
                         className="input text-sm"
-                        placeholder="120"
+                        placeholder={showVariantLabels && variant2Label ? variant2Label.substring(0, 8) + "..." : "120"}
                       />
-                      <select
-                        value={ingredient.unit2 || ""}
-                        onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
-                        className="input text-sm"
-                      >
-                        <option value="">unidad</option>
-                        <optgroup label="Peso">
-                          {COMMON_UNITS.weight.map(u => (
-                            <option key={u.value} value={u.value}>{u.label}</option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Volumen">
-                          {COMMON_UNITS.volume.map(u => (
-                            <option key={u.value} value={u.value}>{u.label}</option>
-                          ))}
-                        </optgroup>
-                      </select>
+                      {showVariantLabels ? (
+                        <input
+                          type="text"
+                          value={ingredient.unit2 || ""}
+                          onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
+                          className="input text-sm"
+                          placeholder="unidad"
+                        />
+                      ) : (
+                        <select
+                          value={ingredient.unit2 || ""}
+                          onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
+                          className="input text-sm"
+                        >
+                          <option value="">unidad</option>
+                          <optgroup label="Peso">
+                            {COMMON_UNITS.weight.map(u => (
+                              <option key={u.value} value={u.value}>{u.label}</option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Volumen">
+                            {COMMON_UNITS.volume.map(u => (
+                              <option key={u.value} value={u.value}>{u.label}</option>
+                            ))}
+                          </optgroup>
+                        </select>
+                      )}
                       <span className="text-xs text-[var(--color-slate-light)] flex items-center">
                         {ingredient.name || "—"}
                       </span>
@@ -898,16 +998,28 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
           })}
         </div>
 
-        <button
-          type="button"
-          onClick={addIngredient}
-          className="mt-3 text-[var(--color-purple)] font-medium text-sm flex items-center gap-1 hover:underline"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Añadir ingrediente
-        </button>
+        <div className="mt-3 flex gap-4">
+          <button
+            type="button"
+            onClick={addIngredient}
+            className="text-[var(--color-purple)] font-medium text-sm flex items-center gap-1 hover:underline"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Añadir ingrediente
+          </button>
+          <button
+            type="button"
+            onClick={addSectionHeader}
+            className="text-amber-600 font-medium text-sm flex items-center gap-1 hover:underline"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+            </svg>
+            Añadir sección
+          </button>
+        </div>
       </div>
 
       {/* Instructions */}

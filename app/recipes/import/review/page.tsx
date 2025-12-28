@@ -303,6 +303,8 @@ export default function ImportReviewPage() {
         notes: recipe.notes,
         rating: recipe.rating,
         made_it: recipe.made_it,
+        variant_1_label: recipe.variant_1_label,
+        variant_2_label: recipe.variant_2_label,
       };
 
       const { data, error: insertError } = await supabase
@@ -409,6 +411,8 @@ export default function ImportReviewPage() {
         notes: editedRecipe.notes?.trim() || null,
         rating: editedRecipe.rating || null,
         made_it: editedRecipe.made_it || false,
+        variant_1_label: editedRecipe.variant_1_label || null,
+        variant_2_label: editedRecipe.variant_2_label || null,
       };
 
       console.log("Saving recipe data:", recipeData);
@@ -755,6 +759,16 @@ export default function ImportReviewPage() {
                 <p className="text-[var(--color-slate)] mb-4">{displayRecipe.description}</p>
               )}
 
+              {/* Variant labels indicator */}
+              {displayRecipe.variant_1_label && displayRecipe.variant_2_label && (
+                <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-lg text-sm">
+                  <span className="text-amber-800">🍰 Receta con variantes:</span>
+                  <span className="font-medium ml-1">{displayRecipe.variant_1_label}</span>
+                  <span className="text-amber-600"> / </span>
+                  <span className="font-medium">{displayRecipe.variant_2_label}</span>
+                </div>
+              )}
+
               {/* Ingredients */}
               <div className="mb-4">
                 <h3 className="font-semibold mb-2">Ingredientes ({displayRecipe.ingredients.length})</h3>
@@ -835,19 +849,30 @@ export default function ImportReviewPage() {
                   </div>
                 ) : (
                   <ul className="space-y-1 text-sm max-h-48 overflow-y-auto">
-                    {displayRecipe.ingredients.map((ing, i) => (
-                      <li key={i} className={ing.name.startsWith("**") ? "font-semibold mt-2" : ""}>
-                        {ing.name.startsWith("**") ? (
-                          ing.name.replace(/\*\*/g, "")
-                        ) : (
-                          <>
-                            {ing.amount && <span className="font-medium">{ing.amount}</span>}
-                            {ing.unit && <span className="text-[var(--color-slate)]"> {ing.unit}</span>}
-                            <span> {ing.name}</span>
-                          </>
-                        )}
-                      </li>
-                    ))}
+                    {displayRecipe.ingredients.map((ing, i) => {
+                      const isHeader = ing.isHeader || ing.name.startsWith("**");
+                      const headerName = isHeader ? ing.name.replace(/^\*\*|\*\*$/g, '') : ing.name;
+                      
+                      return (
+                        <li key={i} className={isHeader ? "font-semibold mt-3 text-amber-700 border-b border-amber-200 pb-1" : ""}>
+                          {isHeader ? (
+                            headerName
+                          ) : (
+                            <>
+                              {ing.amount && <span className="font-medium">{ing.amount}</span>}
+                              {ing.unit && <span className="text-[var(--color-slate)]"> {ing.unit}</span>}
+                              <span> {ing.name}</span>
+                              {/* Show variant 2 amounts if they exist */}
+                              {ing.amount2 && (
+                                <span className="text-[var(--color-slate-light)] text-xs ml-2">
+                                  (alt: {ing.amount2} {ing.unit2})
+                                </span>
+                              )}
+                            </>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>
