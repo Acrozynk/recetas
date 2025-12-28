@@ -414,7 +414,8 @@ export default function RecipeDetailPage() {
 
   const scaleAmount = (amount: string): string => {
     if (servingMultiplier === 1) return amount;
-    if (totalPortions === 0) return "0";
+    // If no portions configured, show original amounts instead of 0
+    if (totalPortions === 0 || servingMultiplier === 0) return amount;
 
     // Try to parse and scale the amount
     const numMatch = amount.match(/^([\d./]+)\s*(.*)$/);
@@ -963,29 +964,25 @@ export default function RecipeDetailPage() {
                     <div className="flex rounded-lg overflow-hidden border border-[var(--border-color)]">
                       <button
                         onClick={() => setSelectedVariant(1)}
-                        className={`px-2.5 py-1 text-xs font-medium transition-all ${
+                        className={`px-3 py-1.5 text-sm font-medium transition-all whitespace-nowrap ${
                           selectedVariant === 1
                             ? "bg-amber-500 text-white"
                             : "bg-white text-[var(--color-slate)] hover:bg-amber-50"
                         }`}
                         title={recipe.variant_1_label}
                       >
-                        {recipe.variant_1_label.length > 15 
-                          ? recipe.variant_1_label.substring(0, 15) + "..." 
-                          : recipe.variant_1_label}
+                        {recipe.variant_1_label}
                       </button>
                       <button
                         onClick={() => setSelectedVariant(2)}
-                        className={`px-2.5 py-1 text-xs font-medium transition-all ${
+                        className={`px-3 py-1.5 text-sm font-medium transition-all whitespace-nowrap ${
                           selectedVariant === 2
                             ? "bg-amber-500 text-white"
                             : "bg-white text-[var(--color-slate)] hover:bg-amber-50"
                         }`}
                         title={recipe.variant_2_label}
                       >
-                        {recipe.variant_2_label.length > 15 
-                          ? recipe.variant_2_label.substring(0, 15) + "..." 
-                          : recipe.variant_2_label}
+                        {recipe.variant_2_label}
                       </button>
                     </div>
                   )}

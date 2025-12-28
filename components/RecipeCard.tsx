@@ -12,8 +12,8 @@ export default function RecipeCard({ recipe, onTagClick }: RecipeCardProps) {
     (recipe.prep_time_minutes || 0) + (recipe.cook_time_minutes || 0);
 
   return (
-    <Link href={`/recipes/${recipe.id}`} className="block">
-      <article className="recipe-card group">
+    <Link href={`/recipes/${recipe.id}`} className="block h-full">
+      <article className="recipe-card group h-full flex flex-col">
         <div className="relative aspect-[4/3] bg-[var(--color-purple-bg-dark)]">
           {/* Made it badge */}
           {recipe.made_it && (
@@ -74,7 +74,7 @@ export default function RecipeCard({ recipe, onTagClick }: RecipeCardProps) {
           )}
         </div>
 
-        <div className="p-4">
+        <div className="p-4 flex flex-col flex-1">
           <h3 className="font-display text-lg font-semibold text-[var(--foreground)] line-clamp-2 group-hover:text-[var(--color-purple)] transition-colors">
             {recipe.title}
           </h3>
@@ -98,10 +98,45 @@ export default function RecipeCard({ recipe, onTagClick }: RecipeCardProps) {
                 {totalTime} min
               </span>
             )}
-            {recipe.servings && (
+            {/* Show container info, servings_unit, or regular servings */}
+            {recipe.container ? (
+              <span className="flex items-center gap-1" title={recipe.container.name}>
+                <svg
+                  className="w-4 h-4 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+                  />
+                </svg>
+                <span className="truncate">{recipe.container_quantity || 1} {recipe.container.name}</span>
+              </span>
+            ) : recipe.servings_unit ? (
               <span className="flex items-center gap-1">
                 <svg
-                  className="w-4 h-4"
+                  className="w-4 h-4 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                  />
+                </svg>
+                <span className="truncate">{recipe.servings} {recipe.servings_unit}</span>
+              </span>
+            ) : recipe.servings ? (
+              <span className="flex items-center gap-1">
+                <svg
+                  className="w-4 h-4 flex-shrink-0"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -115,8 +150,11 @@ export default function RecipeCard({ recipe, onTagClick }: RecipeCardProps) {
                 </svg>
                 {recipe.servings}
               </span>
-            )}
+            ) : null}
           </div>
+
+          {/* Spacer to push tags to bottom */}
+          <div className="flex-1" />
 
           {recipe.tags && recipe.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-3">

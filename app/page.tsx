@@ -66,7 +66,7 @@ export default function HomePage() {
     try {
       const { data, error } = await supabase
         .from("recipes")
-        .select("*")
+        .select("*, container:containers(*)")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -451,11 +451,11 @@ export default function HomePage() {
             ))}
           </div>
         ) : filteredRecipes.length > 0 ? (
-          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 auto-rows-fr">
             {filteredRecipes.map((recipe, i) => (
               <div
                 key={recipe.id}
-                className="animate-fade-in"
+                className="animate-fade-in h-full"
                 style={{ animationDelay: `${i * 50}ms` }}
               >
                 <RecipeCard recipe={recipe} onTagClick={toggleTag} />
