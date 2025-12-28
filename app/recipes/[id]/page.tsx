@@ -120,29 +120,26 @@ function enrichStepWithIngredients(
       const sortedKeywords = keywords.sort((a, b) => b.length - a.length);
       
       for (const keyword of sortedKeywords) {
-        const normalizedStep = normalizeText(stepText);
-        const regex = new RegExp(`\\b${keyword}s?\\b`, 'i');
-        const match = normalizedStep.match(regex);
+        // Search in lowercase original text directly
+        const lowerStep = stepText.toLowerCase();
+        const lowerKeyword = keyword.toLowerCase();
+        let pos = lowerStep.indexOf(lowerKeyword);
         
-        if (match && match.index !== undefined) {
-          // Find the position in the original text by finding similar word boundary
-          const originalLower = stepText.toLowerCase();
-          const searchStart = Math.max(0, match.index - 5);
-          let pos = -1;
+        // Find a position that matches word boundaries
+        while (pos >= 0) {
+          const beforeChar = pos > 0 ? lowerStep[pos - 1] : ' ';
+          const afterPos = pos + lowerKeyword.length;
+          const afterChar = afterPos < lowerStep.length ? lowerStep[afterPos] : ' ';
           
-          // Search for the matched word in original text
-          for (let i = searchStart; i < stepText.length - keyword.length + 3; i++) {
-            const substr = normalizeText(stepText.substring(i, i + keyword.length + 5));
-            if (substr.startsWith(keyword)) {
-              pos = i;
-              break;
-            }
-          }
+          // Check word boundaries (not alphanumeric or Spanish accented chars)
+          const isWordBoundaryBefore = !/[\wáéíóúüñ]/i.test(beforeChar);
+          const isWordBoundaryAfter = !/[\wáéíóúüñ]/i.test(afterChar);
           
-          if (pos >= 0) {
-            // Find the end of the matched word in original text
-            let endPos = pos;
-            while (endPos < stepText.length && /[\wáéíóúüñÁÉÍÓÚÜÑ]/.test(stepText[endPos])) {
+          if (isWordBoundaryBefore && isWordBoundaryAfter) {
+            // Found valid word boundary match, now extend to capture full word in original
+            let endPos = pos + lowerKeyword.length;
+            // Extend to include any remaining word characters (for plurals, etc.)
+            while (endPos < stepText.length && /[\wáéíóúüñÁÉÍÓÚÜÑ]/i.test(stepText[endPos])) {
               endPos++;
             }
             
@@ -151,7 +148,15 @@ function enrichStepWithIngredients(
               position: pos,
               length: endPos - pos
             });
+            break;
           }
+          
+          // Try next occurrence
+          pos = lowerStep.indexOf(lowerKeyword, pos + 1);
+        }
+        
+        // If we found a mention, don't try other keywords
+        if (mentions.some(m => m.ingredient === ingredient)) {
           break;
         }
       }
@@ -185,12 +190,22 @@ function enrichStepWithIngredients(
     
     // Add the ingredient mention with quantity
     const matchedText = stepText.substring(mention.position, mention.position + mention.length);
-    parts.push({
-      type: 'ingredient',
-      content: matchedText,
-      ingredient: mention.ingredient,
-      formattedIngredient: formatIngredientForStep(mention.ingredient, scaleAmount, useVariant2)
-    });
+    
+    // Only add as ingredient part if we actually captured a word
+    if (matchedText.trim()) {
+      parts.push({
+        type: 'ingredient',
+        content: matchedText,
+        ingredient: mention.ingredient,
+        formattedIngredient: formatIngredientForStep(mention.ingredient, scaleAmount, useVariant2)
+      });
+    } else {
+      // If somehow we didn't capture the word, just add as text
+      parts.push({
+        type: 'text',
+        content: matchedText
+      });
+    }
     
     lastIndex = mention.position + mention.length;
   }

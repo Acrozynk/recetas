@@ -234,6 +234,10 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   );
   const [expandedIngredients, setExpandedIngredients] = useState<Set<number>>(new Set());
   
+  // Drag and drop state for section headers
+  const [draggingSectionIndex, setDraggingSectionIndex] = useState<number | null>(null);
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+  
   // Variant labels for recipes with two sets of ingredient amounts
   const [variant1Label, setVariant1Label] = useState(recipe?.variant_1_label || "");
   const [variant2Label, setVariant2Label] = useState(recipe?.variant_2_label || "");
@@ -319,56 +323,69 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     return { start: headerIndex, end };
   };
 
-  // Get the previous section range (or beginning of list)
-  const getPreviousSectionRange = (headerIndex: number): { start: number; end: number } | null => {
-    // Find where the previous section starts
-    let prevStart = headerIndex - 1;
-    while (prevStart >= 0 && !ingredients[prevStart].isHeader) {
-      prevStart--;
-    }
-    if (prevStart < 0) {
-      // No header found, previous section is from start to headerIndex
-      return { start: 0, end: headerIndex };
-    }
-    return { start: prevStart, end: headerIndex };
+  // Handle section drag start
+  const handleSectionDragStart = (e: React.DragEvent, headerIndex: number) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', headerIndex.toString());
+    setDraggingSectionIndex(headerIndex);
   };
 
-  const moveSectionUp = (headerIndex: number) => {
-    const prevRange = getPreviousSectionRange(headerIndex);
-    if (!prevRange || prevRange.start === headerIndex) return; // Already at top
+  // Handle section drag end
+  const handleSectionDragEnd = () => {
+    setDraggingSectionIndex(null);
+    setDropTargetIndex(null);
+  };
+
+  // Handle drag over a drop zone
+  const handleSectionDragOver = (e: React.DragEvent, targetPosition: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggingSectionIndex !== null && targetPosition !== draggingSectionIndex) {
+      setDropTargetIndex(targetPosition);
+    }
+  };
+
+  // Handle drag leave
+  const handleSectionDragLeave = () => {
+    setDropTargetIndex(null);
+  };
+
+  // Move section to a specific position
+  const moveSectionToPosition = (sourceHeaderIndex: number, targetPosition: number) => {
+    if (sourceHeaderIndex === targetPosition) return;
     
-    const currentRange = getSectionRange(headerIndex);
-    const updated = [...ingredients];
+    const sourceRange = getSectionRange(sourceHeaderIndex);
+    const sectionToMove = ingredients.slice(sourceRange.start, sourceRange.end);
     
-    // Extract current section
-    const currentSection = updated.slice(currentRange.start, currentRange.end);
-    // Extract previous section
-    const prevSection = updated.slice(prevRange.start, prevRange.end);
+    // Create new array without the source section
+    const withoutSource = [
+      ...ingredients.slice(0, sourceRange.start),
+      ...ingredients.slice(sourceRange.end)
+    ];
     
-    // Rebuild: everything before prev section + current section + prev section + everything after current
-    const before = updated.slice(0, prevRange.start);
-    const after = updated.slice(currentRange.end);
+    // Adjust target position if it's after the removed section
+    let adjustedTarget = targetPosition;
+    if (targetPosition > sourceRange.start) {
+      adjustedTarget = targetPosition - (sourceRange.end - sourceRange.start);
+    }
     
-    const newIngredients = [...before, ...currentSection, ...prevSection, ...after];
-    setIngredients(newIngredients);
+    // Insert section at new position
+    const newIngredients = [
+      ...withoutSource.slice(0, adjustedTarget),
+      ...sectionToMove,
+      ...withoutSource.slice(adjustedTarget)
+    ];
     
-    // Update ingredient indices in instructions
+    // Build index mapping for instruction updates
     const indexMapping = new Map<number, number>();
-    // Map old indices to new indices
-    let newIndex = 0;
-    for (let i = 0; i < before.length; i++) {
-      indexMapping.set(i, newIndex++);
-    }
-    for (let i = currentRange.start; i < currentRange.end; i++) {
-      indexMapping.set(i, newIndex++);
-    }
-    for (let i = prevRange.start; i < prevRange.end; i++) {
-      indexMapping.set(i, newIndex++);
-    }
-    for (let i = currentRange.end; i < ingredients.length; i++) {
-      indexMapping.set(i, newIndex++);
-    }
+    newIngredients.forEach((ing, newIdx) => {
+      const oldIdx = ingredients.indexOf(ing);
+      if (oldIdx !== -1) {
+        indexMapping.set(oldIdx, newIdx);
+      }
+    });
     
+    setIngredients(newIngredients);
     setInstructions(instructions.map(instruction => ({
       ...instruction,
       ingredientIndices: instruction.ingredientIndices
@@ -377,63 +394,14 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     })));
   };
 
-  const moveSectionDown = (headerIndex: number) => {
-    const currentRange = getSectionRange(headerIndex);
-    if (currentRange.end >= ingredients.length) return; // Already at bottom
-    
-    // The next section starts at currentRange.end
-    const nextRange = getSectionRange(currentRange.end);
-    if (!nextRange || nextRange.start === currentRange.end && !ingredients[currentRange.end]?.isHeader) {
-      // If no header at next position, take remaining items
-      nextRange.end = ingredients.length;
+  // Handle drop
+  const handleSectionDrop = (e: React.DragEvent, targetPosition: number) => {
+    e.preventDefault();
+    if (draggingSectionIndex !== null) {
+      moveSectionToPosition(draggingSectionIndex, targetPosition);
     }
-    
-    const updated = [...ingredients];
-    
-    // Extract sections
-    const currentSection = updated.slice(currentRange.start, currentRange.end);
-    const nextSection = updated.slice(currentRange.end, nextRange.end);
-    
-    // Rebuild
-    const before = updated.slice(0, currentRange.start);
-    const after = updated.slice(nextRange.end);
-    
-    const newIngredients = [...before, ...nextSection, ...currentSection, ...after];
-    setIngredients(newIngredients);
-    
-    // Update ingredient indices in instructions
-    const indexMapping = new Map<number, number>();
-    let newIndex = 0;
-    for (let i = 0; i < before.length; i++) {
-      indexMapping.set(i, newIndex++);
-    }
-    for (let i = currentRange.end; i < nextRange.end; i++) {
-      indexMapping.set(i, newIndex++);
-    }
-    for (let i = currentRange.start; i < currentRange.end; i++) {
-      indexMapping.set(i, newIndex++);
-    }
-    for (let i = nextRange.end; i < ingredients.length; i++) {
-      indexMapping.set(i, newIndex++);
-    }
-    
-    setInstructions(instructions.map(instruction => ({
-      ...instruction,
-      ingredientIndices: instruction.ingredientIndices
-        .map(i => indexMapping.get(i) ?? i)
-        .sort((a, b) => a - b)
-    })));
-  };
-
-  // Check if section can move up (there's content before it)
-  const canMoveSectionUp = (headerIndex: number): boolean => {
-    return headerIndex > 0;
-  };
-
-  // Check if section can move down (there's content after it)
-  const canMoveSectionDown = (headerIndex: number): boolean => {
-    const range = getSectionRange(headerIndex);
-    return range.end < ingredients.length;
+    setDraggingSectionIndex(null);
+    setDropTargetIndex(null);
   };
 
   const toggleExpandedIngredient = (index: number) => {
@@ -1063,6 +1031,19 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         )}
 
         <div className="space-y-3">
+          {/* Drop zone at the very beginning */}
+          {draggingSectionIndex !== null && ingredients.length > 0 && !ingredients[0].isHeader && (
+            <div
+              onDragOver={(e) => handleSectionDragOver(e, 0)}
+              onDragLeave={handleSectionDragLeave}
+              onDrop={(e) => handleSectionDrop(e, 0)}
+              className={`h-2 rounded transition-all ${
+                dropTargetIndex === 0 
+                  ? "bg-amber-400 h-3" 
+                  : "bg-transparent hover:bg-amber-200"
+              }`}
+            />
+          )}
           {ingredients.map((ingredient, index) => {
             const isExpanded = expandedIngredients.has(index);
             const hasSecondary = ingredient.amount2 || ingredient.unit2;
@@ -1071,65 +1052,63 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
             
             // Render section header differently
             if (ingredient.isHeader) {
-              const canMoveUp = canMoveSectionUp(index);
-              const canMoveDown = canMoveSectionDown(index);
+              const isDragging = draggingSectionIndex === index;
+              const isDropTarget = dropTargetIndex === index;
               
               return (
-                <div key={index} className="flex gap-2 items-center pt-3 first:pt-0">
-                  <div className="flex-1 flex items-center gap-2">
-                    <span className="text-amber-600">📋</span>
-                    <input
-                      type="text"
-                      value={ingredient.name.replace(/^\*\*|\*\*$/g, '')}
-                      onChange={(e) => updateIngredient(index, "name", e.target.value)}
-                      className="input flex-1 font-semibold text-amber-800 bg-amber-50 border-amber-200"
-                      placeholder="Nombre de la sección (ej: Para la base)"
+                <div key={index}>
+                  {/* Drop zone before this section */}
+                  {draggingSectionIndex !== null && draggingSectionIndex !== index && (
+                    <div
+                      onDragOver={(e) => handleSectionDragOver(e, index)}
+                      onDragLeave={handleSectionDragLeave}
+                      onDrop={(e) => handleSectionDrop(e, index)}
+                      className={`h-2 -mt-1 mb-1 rounded transition-all ${
+                        isDropTarget 
+                          ? "bg-amber-400 h-3" 
+                          : "bg-transparent hover:bg-amber-200"
+                      }`}
                     />
+                  )}
+                  <div 
+                    className={`flex gap-2 items-center pt-3 first:pt-0 rounded-lg transition-all ${
+                      isDragging ? "opacity-50 bg-amber-100" : ""
+                    }`}
+                    draggable
+                    onDragStart={(e) => handleSectionDragStart(e, index)}
+                    onDragEnd={handleSectionDragEnd}
+                  >
+                    {/* Drag handle */}
+                    <div 
+                      className="cursor-grab active:cursor-grabbing p-1 text-amber-400 hover:text-amber-600 transition-colors"
+                      title="Arrastra para mover la sección"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                      </svg>
+                    </div>
+                    
+                    <div className="flex-1 flex items-center gap-2">
+                      <span className="text-amber-600">📋</span>
+                      <input
+                        type="text"
+                        value={ingredient.name.replace(/^\*\*|\*\*$/g, '')}
+                        onChange={(e) => updateIngredient(index, "name", e.target.value)}
+                        className="input flex-1 font-semibold text-amber-800 bg-amber-50 border-amber-200"
+                        placeholder="Nombre de la sección (ej: Para la base)"
+                      />
+                    </div>
+                    
+                    <button
+                      type="button"
+                      onClick={() => removeIngredient(index)}
+                      className="p-2 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
-                  
-                  {/* Move section up button */}
-                  <button
-                    type="button"
-                    onClick={() => moveSectionUp(index)}
-                    disabled={!canMoveUp}
-                    className={`p-2 transition-colors rounded-lg ${
-                      canMoveUp 
-                        ? "text-amber-600 hover:bg-amber-50 hover:text-amber-700" 
-                        : "text-gray-300 cursor-not-allowed"
-                    }`}
-                    title="Mover sección arriba"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 15l7-7 7 7" />
-                    </svg>
-                  </button>
-                  
-                  {/* Move section down button */}
-                  <button
-                    type="button"
-                    onClick={() => moveSectionDown(index)}
-                    disabled={!canMoveDown}
-                    className={`p-2 transition-colors rounded-lg ${
-                      canMoveDown 
-                        ? "text-amber-600 hover:bg-amber-50 hover:text-amber-700" 
-                        : "text-gray-300 cursor-not-allowed"
-                    }`}
-                    title="Mover sección abajo"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  
-                  <button
-                    type="button"
-                    onClick={() => removeIngredient(index)}
-                    className="p-2 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
                 </div>
               );
             }
@@ -1284,6 +1263,20 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
               </div>
             );
           })}
+          
+          {/* Drop zone at the very end */}
+          {draggingSectionIndex !== null && (
+            <div
+              onDragOver={(e) => handleSectionDragOver(e, ingredients.length)}
+              onDragLeave={handleSectionDragLeave}
+              onDrop={(e) => handleSectionDrop(e, ingredients.length)}
+              className={`h-2 rounded transition-all ${
+                dropTargetIndex === ingredients.length 
+                  ? "bg-amber-400 h-3" 
+                  : "bg-transparent hover:bg-amber-200"
+              }`}
+            />
+          )}
         </div>
 
         <div className="mt-3 flex gap-4">
