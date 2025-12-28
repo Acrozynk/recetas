@@ -317,6 +317,15 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   const handleSectionDragStart = (e: React.DragEvent, headerIndex: number) => {
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', headerIndex.toString());
+    
+    // Create a custom drag image
+    const dragImage = document.createElement('div');
+    dragImage.textContent = `📋 ${ingredients[headerIndex].name || 'Sección'}`;
+    dragImage.style.cssText = 'position: absolute; top: -1000px; padding: 8px 16px; background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; font-weight: 600; color: #92400e; font-size: 14px;';
+    document.body.appendChild(dragImage);
+    e.dataTransfer.setDragImage(dragImage, 0, 0);
+    setTimeout(() => document.body.removeChild(dragImage), 0);
+    
     setDraggingSectionIndex(headerIndex);
   };
 
@@ -1086,13 +1095,13 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                     className={`flex gap-2 items-center pt-3 first:pt-0 rounded-lg transition-all ${
                       isDragging ? "opacity-50 bg-amber-100 scale-95" : ""
                     }`}
-                    draggable
-                    onDragStart={(e) => handleSectionDragStart(e, index)}
-                    onDragEnd={handleSectionDragEnd}
                   >
-                    {/* Drag handle */}
+                    {/* Drag handle - this is the draggable element */}
                     <div 
-                      className="cursor-grab active:cursor-grabbing p-1 text-amber-400 hover:text-amber-600 transition-colors"
+                      draggable={true}
+                      onDragStart={(e) => handleSectionDragStart(e, index)}
+                      onDragEnd={handleSectionDragEnd}
+                      className="cursor-grab active:cursor-grabbing p-2 -m-1 text-amber-400 hover:text-amber-600 hover:bg-amber-100 rounded transition-colors"
                       title="Arrastra para mover la sección"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1108,6 +1117,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                         onChange={(e) => updateIngredient(index, "name", e.target.value)}
                         className="input flex-1 font-semibold text-amber-800 bg-amber-50 border-amber-200"
                         placeholder="Nombre de la sección (ej: Para la base)"
+                        draggable={false}
                       />
                     </div>
                     
