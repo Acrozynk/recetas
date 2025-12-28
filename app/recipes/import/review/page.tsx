@@ -122,27 +122,71 @@ export default function ImportReviewPage() {
 
       const { recipe: translatedRecipe, translated, message, method } = await response.json();
       
+      console.log("Translation response:", { translated, method });
+      console.log("Translated ingredients:", translatedRecipe?.ingredients);
+      console.log("Original ingredients:", currentRecipe.original.ingredients);
+      
       if (translated) {
-        // Ensure all ingredients have valid names (fallback to original if empty)
-        const originalIngredients = currentRecipe.original.ingredients;
-        const validatedIngredients = translatedRecipe.ingredients.map(
-          (ing: Ingredient, i: number) => ({
-            ...ing,
-            name: (ing.name && ing.name.trim().length > 0) 
-              ? ing.name 
-              : (originalIngredients[i]?.name || ""),
-            unit: ing.unit || originalIngredients[i]?.unit || "",
-            amount: ing.amount || originalIngredients[i]?.amount || "",
-          })
-        );
+        // Get original ingredients for fallback
+        const originalIngredients = currentRecipe.original.ingredients || [];
+        const translatedIngs = translatedRecipe?.ingredients || [];
+        
+        // Build validated ingredients with explicit fallbacks
+        const validatedIngredients: Ingredient[] = [];
+        
+        // Use the longer array length to handle all cases
+        const maxLength = Math.max(originalIngredients.length, translatedIngs.length);
+        
+        for (let i = 0; i < maxLength; i++) {
+          const original = originalIngredients[i];
+          const translated = translatedIngs[i];
+          
+          // Get name with multiple fallbacks
+          let name = "";
+          if (translated?.name && typeof translated.name === "string" && translated.name.trim().length > 0) {
+            name = translated.name;
+          } else if (original?.name && typeof original.name === "string" && original.name.trim().length > 0) {
+            name = original.name;
+          }
+          
+          // Get amount with fallback
+          const amount = translated?.amount || original?.amount || "";
+          
+          // Get unit with fallback
+          const unit = translated?.unit || original?.unit || "";
+          
+          console.log(`Ingredient ${i}: name="${name}", amount="${amount}", unit="${unit}"`);
+          
+          validatedIngredients.push({
+            name,
+            amount,
+            unit,
+          });
+        }
         
         // Check if we have valid data after fallback
         const hasValidData = validatedIngredients.length > 0 && 
-          validatedIngredients.every((ing: Ingredient) => ing.name && ing.name.trim().length > 0);
+          validatedIngredients.every((ing) => ing.name && ing.name.trim().length > 0);
         
         if (!hasValidData) {
           console.error("Translation still has invalid data:", validatedIngredients);
-          throw new Error("Translation returned invalid data");
+          console.error("Will use original ingredients instead");
+          
+          // Last resort: use original ingredients directly
+          const finalRecipe = {
+            ...translatedRecipe,
+            ingredients: originalIngredients.map((ing: Ingredient) => ({
+              name: ing.name || "",
+              amount: ing.amount || "",
+              unit: ing.unit || "",
+            })),
+          };
+          
+          setEditedRecipe(finalRecipe);
+          setIsEditing(true);
+          setDetectedLanguage("es");
+          setError("ℹ️ Los ingredientes no se pudieron traducir, se mantienen en original");
+          return;
         }
         
         // Create final recipe with validated ingredients
@@ -150,6 +194,8 @@ export default function ImportReviewPage() {
           ...translatedRecipe,
           ingredients: validatedIngredients,
         };
+        
+        console.log("Final recipe ingredients:", finalRecipe.ingredients);
         
         // Switch to edit mode with the translated recipe
         setEditedRecipe(finalRecipe);

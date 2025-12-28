@@ -15,27 +15,58 @@ function ensureValidIngredients(
   translatedIngredients: ParsedRecipe["ingredients"], 
   originalIngredients: ParsedRecipe["ingredients"]
 ): ParsedRecipe["ingredients"] {
+  console.log("ensureValidIngredients called with:", {
+    translatedCount: translatedIngredients?.length,
+    originalCount: originalIngredients?.length,
+  });
+  
+  // Handle edge cases
+  if (!translatedIngredients || translatedIngredients.length === 0) {
+    console.log("No translated ingredients, returning original");
+    return originalIngredients || [];
+  }
+  
   return translatedIngredients.map((ing, i) => {
-    const original = originalIngredients[i];
+    const original = originalIngredients?.[i];
     
-    // Ensure name is never empty
-    let name = ing.name;
-    if (!name || name.trim().length === 0) {
-      // Try dictionary translation of original
-      name = translateWithDictionary(original?.name || "") || original?.name || "";
+    console.log(`Processing ingredient ${i}:`, {
+      translatedName: ing?.name,
+      originalName: original?.name,
+    });
+    
+    // Ensure name is never empty - multiple fallbacks
+    let name = "";
+    
+    // First try: translated name
+    if (ing?.name && typeof ing.name === "string" && ing.name.trim().length > 0) {
+      name = ing.name;
+    }
+    // Second try: dictionary translation of original
+    else if (original?.name) {
+      const dictTranslation = translateWithDictionary(original.name);
+      if (dictTranslation && dictTranslation.trim().length > 0) {
+        name = dictTranslation;
+      } else {
+        // Third try: original name as-is
+        name = original.name;
+      }
     }
     
     // Ensure unit is valid
-    let unit = ing.unit;
+    let unit = ing?.unit || "";
     if (!unit && original?.unit) {
       unit = translateWithDictionary(original.unit) || original.unit;
     }
     
+    // Ensure amount is valid
+    const amount = ing?.amount || original?.amount || "";
+    
+    console.log(`Final ingredient ${i}:`, { name, amount, unit });
+    
     return {
-      ...ing,
-      name: name || original?.name || "",
-      unit: unit || "",
-      amount: ing.amount || original?.amount || "",
+      name,
+      amount,
+      unit,
     };
   });
 }
@@ -160,15 +191,21 @@ export async function POST(request: NextRequest) {
       };
 
       // Final validation - ensure all ingredients have valid names
+      console.log("Before ensureValidIngredients:", translatedRecipe.ingredients);
+      
       translatedRecipe.ingredients = ensureValidIngredients(
         translatedRecipe.ingredients,
         recipe.ingredients
       );
+      
+      console.log("After ensureValidIngredients:", translatedRecipe.ingredients);
 
       // Verify translation worked (check if at least title changed or ingredients have values)
       const hasValidIngredients = translatedRecipe.ingredients.every(
         ing => ing.name && ing.name.trim().length > 0
       );
+      
+      console.log("Has valid ingredients:", hasValidIngredients);
 
       if (!hasValidIngredients) {
         console.warn("Translation still has empty ingredients after fallback, using full dictionary");
