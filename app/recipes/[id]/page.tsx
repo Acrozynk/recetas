@@ -1059,10 +1059,8 @@ export default function RecipeDetailPage() {
                   if (isHeader) {
                     return (
                       <li key={i} className="pt-4 pb-1 first:pt-0">
-                        <span className="flex items-center gap-2 text-amber-700 font-semibold text-sm uppercase tracking-wide">
-                          <span className="flex-1 border-b border-amber-200"></span>
-                          {headerName}
-                          <span className="flex-1 border-b border-amber-200"></span>
+                        <span className="text-amber-700 font-semibold text-sm uppercase tracking-wide">
+                          {headerName}:
                         </span>
                       </li>
                     );
@@ -1224,9 +1222,13 @@ export default function RecipeDetailPage() {
                     : showSecondaryUnits;
                   
                   // Enrich step text with ingredient quantities
+                  // If step has specific ingredients linked, use only those; otherwise use all
+                  const ingredientsToMatch = stepIngredients.length > 0 
+                    ? stepIngredients 
+                    : (recipe.ingredients as Ingredient[]);
                   const enrichedParts = enrichStepWithIngredients(
                     step.text,
-                    recipe.ingredients as Ingredient[],
+                    ingredientsToMatch,
                     scaleAmount,
                     useVariant2ForStep
                   );
