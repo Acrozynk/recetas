@@ -583,7 +583,7 @@ export default function ImportReviewPage() {
           <div className="bg-white rounded-xl border border-[var(--border-color)] overflow-hidden">
             {/* Recipe Image */}
             {getImagePreview(displayRecipe) && (
-              <div className="aspect-video relative bg-gray-100">
+              <div className="aspect-square relative bg-gray-100">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={getImagePreview(displayRecipe)!}
