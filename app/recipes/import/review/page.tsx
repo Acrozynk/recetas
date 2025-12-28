@@ -701,67 +701,79 @@ export default function ImportReviewPage() {
               <div className="mb-4">
                 <h3 className="font-semibold mb-2">Ingredientes ({displayRecipe.ingredients.length})</h3>
                 {isEditing ? (
-                  <div className="space-y-2">
-                    {editedRecipe?.ingredients.map((ing, i) => {
-                      return (
-                      <div key={`ing-${i}`} className="flex gap-2 items-center">
-                        <input
-                          type="text"
-                          defaultValue={ing.amount || ""}
-                          onBlur={(e) => {
-                            const newIngredients = [...(editedRecipe?.ingredients || [])];
-                            newIngredients[i] = { ...newIngredients[i], amount: e.target.value };
-                            setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
-                          }}
-                          className="input !w-16 flex-shrink-0"
-                          placeholder="Cant."
-                          autoComplete="off"
-                        />
-                        <input
-                          type="text"
-                          defaultValue={ing.unit || ""}
-                          onBlur={(e) => {
-                            const newIngredients = [...(editedRecipe?.ingredients || [])];
-                            newIngredients[i] = { ...newIngredients[i], unit: e.target.value };
-                            setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
-                          }}
-                          className="input !w-24 flex-shrink-0"
-                          placeholder="Unidad"
-                          autoComplete="off"
-                        />
-                        <input
-                          type="text"
-                          defaultValue={ing.name || ""}
-                          onBlur={(e) => {
-                            const newIngredients = [...(editedRecipe?.ingredients || [])];
-                            newIngredients[i] = { ...newIngredients[i], name: e.target.value };
-                            setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
-                          }}
-                          className="input flex-1 min-w-0 !w-auto"
-                          placeholder="Ingrediente"
-                          autoComplete="off"
-                        />
-                        <button
-                          onClick={() => {
-                            const newIngredients = editedRecipe?.ingredients.filter((_, idx) => idx !== i) || [];
-                            setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
-                          }}
-                          className="text-red-500 hover:text-red-700 px-2"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    );
-                    })}
+                  <div className="space-y-1">
+                    {/* Button to add at the beginning */}
                     <button
                       onClick={() => {
-                        const newIngredients = [...(editedRecipe?.ingredients || []), { amount: "", unit: "", name: "" }];
+                        const newIngredients = [{ amount: "", unit: "", name: "" }, ...(editedRecipe?.ingredients || [])];
                         setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
                       }}
-                      className="text-sm text-[var(--color-purple)] hover:underline"
+                      className="w-full py-1 text-xs text-[var(--color-slate-light)] hover:text-[var(--color-purple)] hover:bg-[var(--color-purple-bg)] rounded transition-colors"
                     >
-                      + Añadir ingrediente
+                      + insertar aquí
                     </button>
+                    {editedRecipe?.ingredients.map((ing, i) => (
+                      <div key={`ing-${i}`}>
+                        <div className="flex gap-2 items-center">
+                          <input
+                            type="text"
+                            defaultValue={ing.amount || ""}
+                            onBlur={(e) => {
+                              const newIngredients = [...(editedRecipe?.ingredients || [])];
+                              newIngredients[i] = { ...newIngredients[i], amount: e.target.value };
+                              setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                            }}
+                            className="input !w-16 flex-shrink-0"
+                            placeholder="Cant."
+                            autoComplete="off"
+                          />
+                          <input
+                            type="text"
+                            defaultValue={ing.unit || ""}
+                            onBlur={(e) => {
+                              const newIngredients = [...(editedRecipe?.ingredients || [])];
+                              newIngredients[i] = { ...newIngredients[i], unit: e.target.value };
+                              setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                            }}
+                            className="input !w-24 flex-shrink-0"
+                            placeholder="Unidad"
+                            autoComplete="off"
+                          />
+                          <input
+                            type="text"
+                            defaultValue={ing.name || ""}
+                            onBlur={(e) => {
+                              const newIngredients = [...(editedRecipe?.ingredients || [])];
+                              newIngredients[i] = { ...newIngredients[i], name: e.target.value };
+                              setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                            }}
+                            className="input flex-1 min-w-0 !w-auto"
+                            placeholder="Ingrediente"
+                            autoComplete="off"
+                          />
+                          <button
+                            onClick={() => {
+                              const newIngredients = editedRecipe?.ingredients.filter((_, idx) => idx !== i) || [];
+                              setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                            }}
+                            className="text-red-500 hover:text-red-700 px-2"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        {/* Button to add after this ingredient */}
+                        <button
+                          onClick={() => {
+                            const newIngredients = [...(editedRecipe?.ingredients || [])];
+                            newIngredients.splice(i + 1, 0, { amount: "", unit: "", name: "" });
+                            setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                          }}
+                          className="w-full py-1 text-xs text-[var(--color-slate-light)] hover:text-[var(--color-purple)] hover:bg-[var(--color-purple-bg)] rounded transition-colors"
+                        >
+                          + insertar aquí
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <ul className="space-y-1 text-sm max-h-48 overflow-y-auto">
@@ -786,40 +798,54 @@ export default function ImportReviewPage() {
               <div className="mb-4">
                 <h3 className="font-semibold mb-2">Instrucciones ({displayRecipe.instructions.length})</h3>
                 {isEditing ? (
-                  <div className="space-y-2">
+                  <div className="space-y-1">
+                    {/* Button to add at the beginning */}
+                    <button
+                      onClick={() => {
+                        const newInstructions = [{ text: "", ingredientIndices: [] }, ...(editedRecipe?.instructions || [])];
+                        setEditedRecipe(prev => prev ? { ...prev, instructions: newInstructions } : null);
+                      }}
+                      className="w-full py-1 text-xs text-[var(--color-slate-light)] hover:text-[var(--color-purple)] hover:bg-[var(--color-purple-bg)] rounded transition-colors"
+                    >
+                      + insertar paso aquí
+                    </button>
                     {editedRecipe?.instructions.map((inst, i) => (
-                      <div key={i} className="flex gap-2">
-                        <span className="text-[var(--color-slate)] w-6 flex-shrink-0">{i + 1}.</span>
-                        <textarea
-                          value={typeof inst === "string" ? inst : inst.text}
-                          onChange={(e) => {
-                            const newInstructions = [...(editedRecipe?.instructions || [])];
-                            newInstructions[i] = { text: e.target.value, ingredientIndices: [] };
-                            setEditedRecipe(prev => prev ? { ...prev, instructions: newInstructions } : null);
-                          }}
-                          className="input flex-1"
-                          rows={2}
-                        />
+                      <div key={i}>
+                        <div className="flex gap-2">
+                          <span className="text-[var(--color-slate)] w-6 flex-shrink-0">{i + 1}.</span>
+                          <textarea
+                            value={typeof inst === "string" ? inst : inst.text}
+                            onChange={(e) => {
+                              const newInstructions = [...(editedRecipe?.instructions || [])];
+                              newInstructions[i] = { text: e.target.value, ingredientIndices: [] };
+                              setEditedRecipe(prev => prev ? { ...prev, instructions: newInstructions } : null);
+                            }}
+                            className="input flex-1"
+                            rows={2}
+                          />
+                          <button
+                            onClick={() => {
+                              const newInstructions = editedRecipe?.instructions.filter((_, idx) => idx !== i) || [];
+                              setEditedRecipe(prev => prev ? { ...prev, instructions: newInstructions } : null);
+                            }}
+                            className="text-red-500 hover:text-red-700 px-2"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                        {/* Button to add after this instruction */}
                         <button
                           onClick={() => {
-                            const newInstructions = editedRecipe?.instructions.filter((_, idx) => idx !== i) || [];
+                            const newInstructions = [...(editedRecipe?.instructions || [])];
+                            newInstructions.splice(i + 1, 0, { text: "", ingredientIndices: [] });
                             setEditedRecipe(prev => prev ? { ...prev, instructions: newInstructions } : null);
                           }}
-                          className="text-red-500 hover:text-red-700 px-2"
+                          className="w-full py-1 text-xs text-[var(--color-slate-light)] hover:text-[var(--color-purple)] hover:bg-[var(--color-purple-bg)] rounded transition-colors"
                         >
-                          ✕
+                          + insertar paso aquí
                         </button>
                       </div>
                     ))}
-                    <button
-                      onClick={() => {
-                        const newInstructions = [...(editedRecipe?.instructions || []), { text: "", ingredientIndices: [] }];
-                        setEditedRecipe(prev => prev ? { ...prev, instructions: newInstructions } : null);
-                      }}
-                      className="text-sm text-[var(--color-purple)] hover:underline"
-                    >
-                      + Añadir paso
-                    </button>
                   </div>
                 ) : (
                   <ol className="space-y-2 text-sm max-h-48 overflow-y-auto">
