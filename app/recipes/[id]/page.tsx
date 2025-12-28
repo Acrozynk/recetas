@@ -506,12 +506,18 @@ export default function RecipeDetailPage() {
         <Header title="Cargando..." showBack />
         <div className="animate-pulse p-4 max-w-4xl mx-auto">
           <div className="flex gap-4 sm:gap-6 items-start mb-6">
-            <div className="w-24 h-24 sm:w-32 sm:h-32 bg-[var(--color-purple-bg-dark)] rounded-xl flex-shrink-0" />
             <div className="flex-1">
               <div className="h-8 bg-[var(--color-purple-bg-dark)] rounded w-3/4 mb-3" />
-              <div className="h-4 bg-[var(--color-purple-bg-dark)] rounded w-full mb-2" />
-              <div className="h-4 bg-[var(--color-purple-bg-dark)] rounded w-2/3" />
+              <div className="flex gap-2 mb-3">
+                <div className="h-6 w-20 bg-[var(--color-purple-bg-dark)] rounded" />
+                <div className="h-6 w-16 bg-[var(--color-purple-bg-dark)] rounded-full" />
+              </div>
+              <div className="flex gap-2">
+                <div className="h-6 w-14 bg-[var(--color-purple-bg-dark)] rounded-full" />
+                <div className="h-6 w-16 bg-[var(--color-purple-bg-dark)] rounded-full" />
+              </div>
             </div>
+            <div className="w-24 h-24 sm:w-32 sm:h-32 bg-[var(--color-purple-bg-dark)] rounded-xl flex-shrink-0" />
           </div>
           <div className="space-y-2">
             {[...Array(5)].map((_, i) => (
@@ -600,7 +606,91 @@ export default function RecipeDetailPage() {
           {/* Title, Meta and Image */}
           <div className="mb-6">
             <div className="flex gap-4 sm:gap-6 items-start">
-              {/* Image - small and square on the side */}
+              {/* Left side: Title, Rating, Tags */}
+              <div className="flex-1 min-w-0">
+                {/* Title */}
+                <h1 className="font-display text-2xl sm:text-3xl font-semibold text-[var(--foreground)] mb-3">
+                  {recipe.title}
+                </h1>
+
+                {/* Rating and Made It */}
+                <div className="flex flex-wrap items-center gap-3 mb-3">
+                  {/* Interactive Rating */}
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => updateRating(rating === star ? null : star)}
+                        disabled={savingStatus}
+                        className="p-0.5 transition-transform hover:scale-110 focus:outline-none disabled:opacity-50"
+                        title={rating === star ? "Quitar valoración" : `${star} estrella${star > 1 ? 's' : ''}`}
+                      >
+                        <svg
+                          className={`w-6 h-6 transition-colors ${
+                            rating && star <= rating
+                              ? "text-amber-400 fill-amber-400"
+                              : "text-gray-300 hover:text-amber-200"
+                          }`}
+                          fill={rating && star <= rating ? "currentColor" : "none"}
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1.5}
+                            d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                          />
+                        </svg>
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Made It Toggle */}
+                  <button
+                    onClick={toggleMadeIt}
+                    disabled={savingStatus}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all disabled:opacity-50 ${
+                      madeIt
+                        ? "bg-green-100 text-green-700 border border-green-300"
+                        : "bg-gray-100 text-[var(--color-slate)] border border-gray-200 hover:border-green-300 hover:text-green-600"
+                    }`}
+                  >
+                    <span className={`flex items-center justify-center w-4 h-4 rounded-full transition-colors ${
+                      madeIt
+                        ? "bg-green-500"
+                        : "border border-current"
+                    }`}>
+                      {madeIt && (
+                        <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </span>
+                    {madeIt ? "¡Lo hice!" : "¿Lo hiciste?"}
+                  </button>
+
+                  {/* Saving indicator */}
+                  {savingStatus && (
+                    <span className="text-xs text-[var(--color-slate-light)] animate-pulse">
+                      Guardando...
+                    </span>
+                  )}
+                </div>
+
+                {/* Tags */}
+                {recipe.tags && recipe.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {recipe.tags.map((tag) => (
+                      <span key={tag} className="tag">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Right side: Image */}
               {recipe.image_url && (
                 <div className="relative flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 rounded-xl overflow-hidden bg-[var(--color-purple-bg-dark)] shadow-md">
                   <Image
@@ -612,87 +702,17 @@ export default function RecipeDetailPage() {
                   />
                 </div>
               )}
-              
-              {/* Title and Description */}
-              <div className="flex-1 min-w-0">
-                <h1 className="font-display text-2xl sm:text-3xl font-semibold text-[var(--foreground)] mb-2">
-                  {recipe.title}
-                </h1>
-
-                {recipe.description && (
-                  <p className="text-[var(--color-slate)] line-clamp-3">
-                    {recipe.description}
-                  </p>
-                )}
-              </div>
             </div>
 
-            {/* Rating and Made It */}
-            <div className="flex flex-wrap items-center gap-4 mt-4 mb-4">
-              {/* Interactive Rating */}
-              <div className="flex items-center gap-1">
-                {[1, 2, 3].map((star) => (
-                  <button
-                    key={star}
-                    onClick={() => updateRating(rating === star ? null : star)}
-                    disabled={savingStatus}
-                    className="p-0.5 transition-transform hover:scale-110 focus:outline-none disabled:opacity-50"
-                    title={rating === star ? "Quitar valoración" : `${star} estrella${star > 1 ? 's' : ''}`}
-                  >
-                    <svg
-                      className={`w-6 h-6 transition-colors ${
-                        rating && star <= rating
-                          ? "text-amber-400 fill-amber-400"
-                          : "text-gray-300 hover:text-amber-200"
-                      }`}
-                      fill={rating && star <= rating ? "currentColor" : "none"}
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
-                      />
-                    </svg>
-                  </button>
-                ))}
-              </div>
+            {/* Description */}
+            {recipe.description && (
+              <p className="text-[var(--color-slate)] mt-4">
+                {recipe.description}
+              </p>
+            )}
 
-              {/* Made It Toggle */}
-              <button
-                onClick={toggleMadeIt}
-                disabled={savingStatus}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all disabled:opacity-50 ${
-                  madeIt
-                    ? "bg-green-100 text-green-700 border border-green-300"
-                    : "bg-gray-100 text-[var(--color-slate)] border border-gray-200 hover:border-green-300 hover:text-green-600"
-                }`}
-              >
-                <span className={`flex items-center justify-center w-4 h-4 rounded-full transition-colors ${
-                  madeIt
-                    ? "bg-green-500"
-                    : "border border-current"
-                }`}>
-                  {madeIt && (
-                    <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </span>
-                {madeIt ? "¡Lo hice!" : "¿Lo hiciste?"}
-              </button>
-
-              {/* Saving indicator */}
-              {savingStatus && (
-                <span className="text-xs text-[var(--color-slate-light)] animate-pulse">
-                  Guardando...
-                </span>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-4 text-sm text-[var(--color-slate-light)]">
+            {/* Time info */}
+            <div className="flex flex-wrap items-center gap-4 text-sm text-[var(--color-slate-light)] mt-4">
               {recipe.prep_time_minutes && (
                 <span className="flex items-center gap-1">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -715,16 +735,6 @@ export default function RecipeDetailPage() {
                 </span>
               )}
             </div>
-
-            {recipe.tags && recipe.tags.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-4">
-                {recipe.tags.map((tag) => (
-                  <span key={tag} className="tag">
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            )}
 
             {recipe.source_url && (
               <a
