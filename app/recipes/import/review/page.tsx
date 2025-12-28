@@ -352,25 +352,66 @@ export default function ImportReviewPage() {
     setError(""); // Clear any previous errors
 
     try {
+      // Validate and clean ingredients - remove empty ones
+      const cleanedIngredients = (editedRecipe.ingredients || [])
+        .filter(ing => ing.name && ing.name.trim().length > 0)
+        .map(ing => ({
+          name: ing.name.trim(),
+          amount: ing.amount?.trim() || "",
+          unit: ing.unit?.trim() || "",
+        }));
+
+      if (cleanedIngredients.length === 0) {
+        setError("La receta debe tener al menos un ingrediente");
+        setSaving(false);
+        return;
+      }
+
+      // Validate and clean instructions - remove empty ones
+      const cleanedInstructions = (editedRecipe.instructions || [])
+        .filter(inst => {
+          const text = typeof inst === "string" ? inst : inst.text;
+          return text && text.trim().length > 0;
+        })
+        .map(inst => ({
+          text: (typeof inst === "string" ? inst : inst.text).trim(),
+          ingredientIndices: [],
+        }));
+
+      if (cleanedInstructions.length === 0) {
+        setError("La receta debe tener al menos una instrucción");
+        setSaving(false);
+        return;
+      }
+
+      // Validate title
+      if (!editedRecipe.title || editedRecipe.title.trim().length === 0) {
+        setError("La receta debe tener un título");
+        setSaving(false);
+        return;
+      }
+
       // Upload image if needed
       const imageUrl = await uploadImage(editedRecipe);
 
       // Insert edited recipe into database
       const recipeData = {
-        title: editedRecipe.title,
-        description: editedRecipe.description,
-        source_url: editedRecipe.source_url,
+        title: editedRecipe.title.trim(),
+        description: editedRecipe.description?.trim() || null,
+        source_url: editedRecipe.source_url || null,
         image_url: imageUrl,
-        prep_time_minutes: editedRecipe.prep_time_minutes,
-        cook_time_minutes: editedRecipe.cook_time_minutes,
-        servings: editedRecipe.servings,
-        tags: editedRecipe.tags,
-        ingredients: editedRecipe.ingredients,
-        instructions: editedRecipe.instructions,
-        notes: editedRecipe.notes,
-        rating: editedRecipe.rating,
-        made_it: editedRecipe.made_it,
+        prep_time_minutes: editedRecipe.prep_time_minutes || null,
+        cook_time_minutes: editedRecipe.cook_time_minutes || null,
+        servings: editedRecipe.servings || null,
+        tags: editedRecipe.tags || [],
+        ingredients: cleanedIngredients,
+        instructions: cleanedInstructions,
+        notes: editedRecipe.notes?.trim() || null,
+        rating: editedRecipe.rating || null,
+        made_it: editedRecipe.made_it || false,
       };
+
+      console.log("Saving recipe data:", recipeData);
 
       const { data, error: insertError } = await supabase
         .from("recipes")
@@ -378,7 +419,10 @@ export default function ImportReviewPage() {
         .select("id")
         .single();
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        console.error("Supabase insert error:", insertError);
+        throw new Error(insertError.message || "Error al insertar en base de datos");
+      }
 
       // Update session
       const response = await fetch("/api/import-session", {
@@ -413,7 +457,10 @@ export default function ImportReviewPage() {
       }
     } catch (err) {
       console.error("Error saving edited recipe:", err);
-      setError("Error al guardar la receta editada");
+      const errorMessage = err instanceof Error ? err.message : "Error desconocido";
+      setError(`Error al guardar: ${errorMessage}`);
+      // Scroll to top to show error
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setSaving(false);
     }
@@ -587,6 +634,17 @@ export default function ImportReviewPage() {
             </button>
           ))}
         </div>
+
+        {/* Error message - shown at top when editing */}
+        {error && isEditing && (
+          <div className={`mb-4 p-3 rounded-lg text-sm ${
+            error.startsWith("ℹ️") 
+              ? "bg-blue-50 border border-blue-200 text-blue-700"
+              : "bg-red-50 border border-red-200 text-red-700"
+          }`}>
+            {error}
+          </div>
+        )}
 
         {/* Current Recipe Card */}
         {displayRecipe && (
