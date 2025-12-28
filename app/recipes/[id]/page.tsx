@@ -517,7 +517,7 @@ export default function RecipeDetailPage() {
                 <div className="h-6 w-16 bg-[var(--color-purple-bg-dark)] rounded-full" />
               </div>
             </div>
-            <div className="w-24 h-24 sm:w-32 sm:h-32 bg-[var(--color-purple-bg-dark)] rounded-xl flex-shrink-0" />
+            <div className="w-28 h-28 sm:w-40 sm:h-40 bg-[var(--color-purple-bg-dark)] rounded-xl flex-shrink-0" />
           </div>
           <div className="space-y-2">
             {[...Array(5)].map((_, i) => (
@@ -692,7 +692,7 @@ export default function RecipeDetailPage() {
 
               {/* Right side: Image */}
               {recipe.image_url && (
-                <div className="relative flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 rounded-xl overflow-hidden bg-[var(--color-purple-bg-dark)] shadow-md">
+                <div className="relative flex-shrink-0 w-28 h-28 sm:w-40 sm:h-40 rounded-xl overflow-hidden bg-[var(--color-purple-bg-dark)] shadow-md">
                   <Image
                     src={recipe.image_url}
                     alt={recipe.title}
@@ -1132,6 +1132,16 @@ export default function RecipeDetailPage() {
                           Reiniciar
                         </button>
                       )}
+                      <span className="text-[var(--color-slate-light)]">·</span>
+                      <button
+                        onClick={() => {
+                          resetCookingProgress();
+                          setCookingMode(false);
+                        }}
+                        className="text-xs text-red-500 hover:underline"
+                      >
+                        Terminar
+                      </button>
                     </div>
                   </div>
                   <div className="w-full h-2 bg-[var(--color-purple-bg-dark)] rounded-full overflow-hidden">

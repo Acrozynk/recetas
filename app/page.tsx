@@ -375,7 +375,7 @@ export default function HomePage() {
         )}
 
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {[...Array(6)].map((_, i) => (
               <div key={i} className="recipe-card animate-pulse">
                 <div className="aspect-[4/3] bg-[var(--color-purple-bg-dark)]" />
@@ -387,7 +387,7 @@ export default function HomePage() {
             ))}
           </div>
         ) : filteredRecipes.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {filteredRecipes.map((recipe, i) => (
               <div
                 key={recipe.id}
