@@ -688,7 +688,7 @@ export default function ImportReviewPage() {
                             newIngredients[i] = { ...newIngredients[i], amount: e.target.value };
                             setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
                           }}
-                          className="input w-16"
+                          className="input !w-16 flex-shrink-0"
                           placeholder="Cant."
                           autoComplete="off"
                         />
@@ -700,7 +700,7 @@ export default function ImportReviewPage() {
                             newIngredients[i] = { ...newIngredients[i], unit: e.target.value };
                             setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
                           }}
-                          className="input w-20"
+                          className="input !w-24 flex-shrink-0"
                           placeholder="Unidad"
                           autoComplete="off"
                         />
@@ -712,7 +712,7 @@ export default function ImportReviewPage() {
                             newIngredients[i] = { ...newIngredients[i], name: e.target.value };
                             setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
                           }}
-                          className="input flex-1"
+                          className="input flex-1 min-w-0 !w-auto"
                           placeholder="Ingrediente"
                           autoComplete="off"
                         />
