@@ -24,6 +24,7 @@ export default function ImportPage() {
   const [mode, setMode] = useState<ImportMode>("folder");
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingStatus, setLoadingStatus] = useState("");
   const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState("");
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
@@ -60,6 +61,7 @@ export default function ImportPage() {
 
     setError("");
     setLoading(true);
+    setLoadingStatus("Buscando archivos...");
 
     try {
       // Find the HTML file
@@ -85,8 +87,11 @@ export default function ImportPage() {
       if (!htmlFile) {
         setError("No se encontró el archivo recipes.html en la carpeta.");
         setLoading(false);
+        setLoadingStatus("");
         return;
       }
+
+      setLoadingStatus(`Encontradas ${imageFiles.size} imágenes. Analizando recetas...`);
 
       // Create session via API
       const formData = new FormData();
@@ -107,12 +112,14 @@ export default function ImportPage() {
       // Upload local images to storage so they're available during review
       if (imageFiles.size > 0) {
         const imageMapping: Record<string, string> = {};
+        let uploadedCount = 0;
         
         // Upload images in parallel (batch of 5 at a time to avoid overwhelming the server)
         const imageEntries = Array.from(imageFiles.entries());
         const batchSize = 5;
         
         for (let i = 0; i < imageEntries.length; i += batchSize) {
+          setLoadingStatus(`Subiendo imágenes... ${uploadedCount}/${imageFiles.size}`);
           const batch = imageEntries.slice(i, i + batchSize);
           const uploadPromises = batch.map(async ([localPath, file]) => {
             try {
@@ -126,6 +133,7 @@ export default function ImportPage() {
               
               if (uploadResponse.ok) {
                 const { url } = await uploadResponse.json();
+                uploadedCount++;
                 return { localPath, url };
               }
             } catch (err) {
@@ -142,6 +150,8 @@ export default function ImportPage() {
           });
         }
         
+        setLoadingStatus(`Subidas ${Object.keys(imageMapping).length} de ${imageFiles.size} imágenes`);
+        
         // Update session with image mappings
         if (Object.keys(imageMapping).length > 0) {
           await fetch("/api/import-session", {
@@ -154,6 +164,8 @@ export default function ImportPage() {
             }),
           });
         }
+      } else {
+        setLoadingStatus("No se encontraron imágenes en la carpeta");
       }
 
       // Navigate to review page
@@ -163,6 +175,7 @@ export default function ImportPage() {
       setError(err instanceof Error ? err.message : "Error al procesar la carpeta");
     } finally {
       setLoading(false);
+      setLoadingStatus("");
     }
   };
 
@@ -490,7 +503,7 @@ export default function ImportPage() {
           <div className="mt-6 text-center">
             <div className="inline-block w-8 h-8 border-4 border-[var(--color-purple)] border-t-transparent rounded-full animate-spin" />
             <p className="mt-2 text-[var(--color-slate)]">
-              {mode === "folder" ? "Procesando carpeta y subiendo imágenes..." : mode === "file" ? "Analizando recetas..." : "Obteniendo receta..."}
+              {loadingStatus || (mode === "folder" ? "Procesando carpeta..." : mode === "file" ? "Analizando recetas..." : "Obteniendo receta...")}
             </p>
           </div>
         )}
