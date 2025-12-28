@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { supabase, type Recipe, type Ingredient, type Instruction, normalizeInstructions } from "@/lib/supabase";
+import { supabase, type Recipe, type Ingredient, type Instruction, type Container, normalizeInstructions } from "@/lib/supabase";
 import { 
   convertIngredient, 
   getSuggestedConversionUnit, 
@@ -158,6 +158,14 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [rating, setRating] = useState<number | null>(recipe?.rating ?? null);
   const [madeIt, setMadeIt] = useState(recipe?.made_it ?? false);
+  
+  // Container-based portions (for baking)
+  const [containers, setContainers] = useState<Container[]>([]);
+  const [useContainer, setUseContainer] = useState(!!recipe?.container_id);
+  const [containerId, setContainerId] = useState<string | null>(recipe?.container_id || null);
+  const [containerQuantity, setContainerQuantity] = useState(recipe?.container_quantity?.toString() || "1");
+  const [newContainerName, setNewContainerName] = useState("");
+  const [addingContainer, setAddingContainer] = useState(false);
   const [ingredients, setIngredients] = useState<Ingredient[]>(
     (recipe?.ingredients as Ingredient[]) || Array.from({ length: 5 }, () => ({ name: "", amount: "", unit: "", amount2: "", unit2: "" }))
   );
@@ -169,7 +177,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   );
   const [notes, setNotes] = useState(recipe?.notes || "");
 
-  // Fetch tag suggestions on mount
+  // Fetch tag suggestions and containers on mount
   useEffect(() => {
     const fetchTags = async () => {
       try {
@@ -182,8 +190,49 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         console.error("Error fetching tags:", error);
       }
     };
+    
+    const fetchContainers = async () => {
+      try {
+        const response = await fetch("/api/containers");
+        if (response.ok) {
+          const data = await response.json();
+          setContainers(data.containers || []);
+        }
+      } catch (error) {
+        console.error("Error fetching containers:", error);
+      }
+    };
+    
     fetchTags();
+    fetchContainers();
   }, []);
+
+  const handleAddContainer = async () => {
+    if (!newContainerName.trim()) return;
+    
+    setAddingContainer(true);
+    try {
+      const response = await fetch("/api/containers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newContainerName.trim() }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setContainers([...containers, data.container]);
+        setContainerId(data.container.id);
+        setNewContainerName("");
+      } else {
+        const errorData = await response.json();
+        console.error("Error adding container:", errorData.error);
+      }
+    } catch (error) {
+      console.error("Error adding container:", error);
+    } finally {
+      setAddingContainer(false);
+    }
+  };
 
   const addIngredient = () => {
     setIngredients([...ingredients, { name: "", amount: "", unit: "", amount2: "", unit2: "" }]);
@@ -296,7 +345,11 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         source_url: sourceUrl.trim() || null,
         prep_time_minutes: prepTime ? parseInt(prepTime) : null,
         cook_time_minutes: cookTime ? parseInt(cookTime) : null,
-        servings: servings ? parseInt(servings) : null,
+        // If using container, servings is null; otherwise use servings value
+        servings: useContainer ? null : (servings ? parseInt(servings) : null),
+        // Container fields
+        container_id: useContainer ? containerId : null,
+        container_quantity: useContainer && containerQuantity ? parseFloat(containerQuantity) : null,
         tags: tags.filter((t) => t.trim()),
         ingredients: ingredients.filter((i) => i.name.trim()),
         instructions: instructions.filter((i) => i.text.trim()),
@@ -487,7 +540,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-[var(--color-slate)] mb-1">
                 Prep. (min)
@@ -514,10 +567,42 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                 min="0"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-[var(--color-slate)] mb-1">
-                Porciones
-              </label>
+          </div>
+
+          {/* Portions: servings or container */}
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-slate)] mb-2">
+              Porciones
+            </label>
+            
+            {/* Toggle between servings and container */}
+            <div className="flex gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => setUseContainer(false)}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  !useContainer
+                    ? "bg-[var(--color-purple)] text-white"
+                    : "bg-gray-100 text-[var(--color-slate)] hover:bg-gray-200"
+                }`}
+              >
+                👥 Personas
+              </button>
+              <button
+                type="button"
+                onClick={() => setUseContainer(true)}
+                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                  useContainer
+                    ? "bg-[var(--color-purple)] text-white"
+                    : "bg-gray-100 text-[var(--color-slate)] hover:bg-gray-200"
+                }`}
+              >
+                🍰 Recipiente
+              </button>
+            </div>
+            
+            {!useContainer ? (
+              /* Servings input */
               <input
                 type="number"
                 value={servings}
@@ -526,7 +611,55 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                 placeholder="4"
                 min="1"
               />
-            </div>
+            ) : (
+              /* Container selection */
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={containerQuantity}
+                    onChange={(e) => setContainerQuantity(e.target.value)}
+                    className="input w-20"
+                    placeholder="1"
+                    min="0.5"
+                    step="0.5"
+                  />
+                  <select
+                    value={containerId || ""}
+                    onChange={(e) => setContainerId(e.target.value || null)}
+                    className="input flex-1"
+                  >
+                    <option value="">Selecciona recipiente...</option>
+                    {containers.map((container) => (
+                      <option key={container.id} value={container.id}>
+                        {container.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Add new container inline */}
+                <div className="flex gap-2 items-center">
+                  <input
+                    type="text"
+                    value={newContainerName}
+                    onChange={(e) => setNewContainerName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddContainer())}
+                    className="input flex-1 text-sm"
+                    placeholder="Añadir nuevo recipiente..."
+                    disabled={addingContainer}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddContainer}
+                    disabled={!newContainerName.trim() || addingContainer}
+                    className="px-3 py-2 text-sm bg-[var(--color-purple-bg)] text-[var(--color-purple)] rounded-lg hover:bg-[var(--color-purple-bg-dark)] transition-colors disabled:opacity-50"
+                  >
+                    {addingContainer ? "..." : "+ Añadir"}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div>

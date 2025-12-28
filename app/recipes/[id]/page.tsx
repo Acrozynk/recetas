@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { supabase, type Recipe, type Ingredient, type Instruction, normalizeInstructions } from "@/lib/supabase";
+import { supabase, type Recipe, type Ingredient, type Instruction, type Container, normalizeInstructions } from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 
@@ -16,6 +16,9 @@ export default function RecipeDetailPage() {
   const [adults, setAdults] = useState(0); // Will be initialized from recipe.servings
   const [children, setChildren] = useState(0);
   const [portionsInitialized, setPortionsInitialized] = useState(false);
+  // Container-based scaling
+  const [containerQuantity, setContainerQuantity] = useState(1);
+  const [container, setContainer] = useState<Container | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [cookingMode, setCookingMode] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
@@ -111,12 +114,18 @@ export default function RecipeDetailPage() {
     try {
       const { data, error } = await supabase
         .from("recipes")
-        .select("*")
+        .select("*, container:containers(*)")
         .eq("id", id)
         .single();
 
       if (error) throw error;
       setRecipe(data);
+      
+      // Initialize container state if recipe uses containers
+      if (data.container_id && data.container) {
+        setContainer(data.container);
+        setContainerQuantity(data.container_quantity || 1);
+      }
     } catch (error) {
       console.error("Error loading recipe:", error);
     } finally {
@@ -125,8 +134,14 @@ export default function RecipeDetailPage() {
   };
 
   // Calculate total portions (children = 0.5 portions each)
-  const totalPortions = adults + (children * 0.5);
-  const originalServings = recipe?.servings || 1;
+  // For container-based recipes, use containerQuantity instead
+  const usesContainer = !!recipe?.container_id;
+  const totalPortions = usesContainer 
+    ? containerQuantity 
+    : adults + (children * 0.5);
+  const originalServings = usesContainer 
+    ? (recipe?.container_quantity || 1) 
+    : (recipe?.servings || 1);
   const servingMultiplier = totalPortions / originalServings;
 
   const handleDelete = async () => {
@@ -498,8 +513,8 @@ export default function RecipeDetailPage() {
             )}
           </div>
 
-          {/* Serving Adjuster */}
-          {recipe.servings && (
+          {/* Serving Adjuster - for person-based recipes */}
+          {recipe.servings && !usesContainer && (
             <div className="p-4 bg-white rounded-xl border border-[var(--border-color)] mb-6">
               <div className="flex items-center justify-between mb-4">
                 <span className="font-medium text-[var(--color-slate)]">
@@ -589,6 +604,72 @@ export default function RecipeDetailPage() {
                 </span>
                 <span className="text-xs text-[var(--color-slate-light)]">
                   Receta original: {recipe.servings} porciones
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Container Adjuster - for container-based recipes (baking) */}
+          {usesContainer && container && (
+            <div className="p-4 bg-white rounded-xl border border-[var(--border-color)] mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <span className="font-medium text-[var(--color-slate)]">
+                  Ajustar cantidad
+                </span>
+                {containerQuantity !== (recipe.container_quantity || 1) && (
+                  <button
+                    onClick={() => setContainerQuantity(recipe.container_quantity || 1)}
+                    className="text-sm text-[var(--color-purple)] hover:underline"
+                  >
+                    Restablecer
+                  </button>
+                )}
+              </div>
+              
+              {/* Container quantity selector */}
+              <div className="flex flex-col items-center p-4 bg-amber-50 rounded-xl">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-2xl">🍰</span>
+                  <span className="font-medium text-[var(--color-slate)] capitalize">
+                    {container.name}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setContainerQuantity(Math.max(0.5, containerQuantity - 0.5))}
+                    disabled={containerQuantity <= 0.5}
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white border border-amber-200 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xl font-medium"
+                  >
+                    −
+                  </button>
+                  <span className="w-16 text-center text-2xl font-bold text-amber-700">
+                    {containerQuantity % 1 === 0 ? containerQuantity : containerQuantity.toFixed(1)}
+                  </span>
+                  <button
+                    onClick={() => setContainerQuantity(containerQuantity + 0.5)}
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white border border-amber-200 hover:bg-amber-100 transition-colors text-xl font-medium"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Summary */}
+              <div className="mt-4 pt-3 border-t border-[var(--border-color)] flex items-center justify-between">
+                <span className="text-sm text-[var(--color-slate-light)]">
+                  {servingMultiplier !== 1 && (
+                    <span className="text-amber-600 font-medium">
+                      Ingredientes ×{servingMultiplier.toFixed(servingMultiplier % 1 === 0 ? 0 : 1)}
+                    </span>
+                  )}
+                  {servingMultiplier === 1 && (
+                    <span className="text-[var(--color-slate-light)]">
+                      Cantidad original
+                    </span>
+                  )}
+                </span>
+                <span className="text-xs text-[var(--color-slate-light)]">
+                  Receta original: {recipe.container_quantity || 1} {container.name}
                 </span>
               </div>
             </div>

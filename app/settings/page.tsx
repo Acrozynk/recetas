@@ -9,7 +9,7 @@ import {
   getReminderDays,
   setReminderDays,
 } from "@/components/BackupReminder";
-import { supabase } from "@/lib/supabase";
+import { supabase, type Container } from "@/lib/supabase";
 
 type ExportFormat = "json" | "csv" | "markdown" | "html";
 
@@ -91,9 +91,16 @@ export default function SettingsPage() {
   const [lastBackup, setLastBackup] = useState<Date | null>(null);
   const [reminderDays, setReminderDaysState] = useState(14);
   const [showRecipeSelector, setShowRecipeSelector] = useState(false);
+  
+  // Container management
+  const [containers, setContainers] = useState<Container[]>([]);
+  const [newContainerName, setNewContainerName] = useState("");
+  const [addingContainer, setAddingContainer] = useState(false);
+  const [deletingContainerId, setDeletingContainerId] = useState<string | null>(null);
 
   useEffect(() => {
     loadRecipes();
+    loadContainers();
     setLastBackup(getLastBackupDate());
     setReminderDaysState(getReminderDays());
   }, []);
@@ -111,6 +118,64 @@ export default function SettingsPage() {
       setSelectedRecipes(new Set((data || []).map((r) => r.id)));
     } catch (error) {
       console.error("Error loading recipes:", error);
+    }
+  };
+
+  const loadContainers = async () => {
+    try {
+      const response = await fetch("/api/containers");
+      if (response.ok) {
+        const data = await response.json();
+        setContainers(data.containers || []);
+      }
+    } catch (error) {
+      console.error("Error loading containers:", error);
+    }
+  };
+
+  const handleAddContainer = async () => {
+    if (!newContainerName.trim()) return;
+    
+    setAddingContainer(true);
+    try {
+      const response = await fetch("/api/containers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newContainerName.trim() }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setContainers([...containers, data.container]);
+        setNewContainerName("");
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || "Error al añadir recipiente");
+      }
+    } catch (error) {
+      console.error("Error adding container:", error);
+    } finally {
+      setAddingContainer(false);
+    }
+  };
+
+  const handleDeleteContainer = async (id: string) => {
+    setDeletingContainerId(id);
+    try {
+      const response = await fetch(`/api/containers?id=${id}`, {
+        method: "DELETE",
+      });
+      
+      if (response.ok) {
+        setContainers(containers.filter(c => c.id !== id));
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || "Error al eliminar recipiente");
+      }
+    } catch (error) {
+      console.error("Error deleting container:", error);
+    } finally {
+      setDeletingContainerId(null);
     }
   };
 
@@ -325,6 +390,90 @@ export default function SettingsPage() {
                 </>
               )}
             </button>
+          </div>
+        </section>
+
+        {/* Containers Section */}
+        <section className="bg-white rounded-xl border border-[var(--border-color)] overflow-hidden">
+          <div className="p-4 border-b border-[var(--border-color)]">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-amber-50 rounded-lg flex items-center justify-center text-amber-600">
+                <span className="text-xl">🍰</span>
+              </div>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-[var(--foreground)]">
+                  Recipientes de Repostería
+                </h2>
+                <p className="text-sm text-[var(--color-slate)]">
+                  Moldes y bandejas para escalar recetas
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 space-y-4">
+            {/* Container List */}
+            <div className="space-y-2">
+              {containers.length === 0 ? (
+                <p className="text-sm text-[var(--color-slate-light)] text-center py-4">
+                  No hay recipientes añadidos aún
+                </p>
+              ) : (
+                containers.map((container) => (
+                  <div
+                    key={container.id}
+                    className="flex items-center justify-between p-3 bg-[var(--color-purple-bg)] rounded-lg"
+                  >
+                    <span className="text-sm font-medium text-[var(--foreground)] capitalize">
+                      {container.name}
+                    </span>
+                    <button
+                      onClick={() => handleDeleteContainer(container.id)}
+                      disabled={deletingContainerId === container.id}
+                      className="p-1.5 text-[var(--color-slate-light)] hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                      title="Eliminar recipiente"
+                    >
+                      {deletingContainerId === container.id ? (
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Add New Container */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newContainerName}
+                onChange={(e) => setNewContainerName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddContainer()}
+                placeholder="Nuevo recipiente (ej: molde rectangular)"
+                className="input flex-1"
+                disabled={addingContainer}
+              />
+              <button
+                onClick={handleAddContainer}
+                disabled={!newContainerName.trim() || addingContainer}
+                className="px-4 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors disabled:opacity-50 font-medium"
+              >
+                {addingContainer ? "..." : "+ Añadir"}
+              </button>
+            </div>
+
+            {/* Info */}
+            <p className="text-xs text-[var(--color-slate-light)]">
+              Los recipientes te permiten escalar recetas de repostería.
+              Por ejemplo: duplicar ingredientes para hacer 2 moldes pequeños.
+            </p>
           </div>
         </section>
 

@@ -26,6 +26,16 @@ export interface Recipe {
   notes: string | null;
   rating: number | null; // 1-3 stars, null = not rated
   made_it: boolean; // Whether user has made this recipe
+  // Container-based portions (for baking recipes)
+  container_id: string | null;
+  container_quantity: number | null; // How many containers the recipe makes
+  container?: Container; // Joined container data
+  created_at: string;
+}
+
+export interface Container {
+  id: string;
+  name: string;
   created_at: string;
 }
 

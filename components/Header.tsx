@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 interface HeaderProps {
@@ -8,6 +9,7 @@ interface HeaderProps {
   showBack?: boolean;
   showAdd?: boolean;
   rightAction?: React.ReactNode;
+  showMascot?: boolean;
 }
 
 export default function Header({
@@ -15,6 +17,7 @@ export default function Header({
   showBack = false,
   showAdd = false,
   rightAction,
+  showMascot = false,
 }: HeaderProps) {
   const router = useRouter();
 
@@ -41,6 +44,15 @@ export default function Header({
                 />
               </svg>
             </button>
+          )}
+          {showMascot && (
+            <Image
+              src="/remy.png"
+              alt="Remy"
+              width={36}
+              height={36}
+              className="object-contain"
+            />
           )}
           <h1 className="font-display text-xl font-semibold text-[var(--foreground)]">
             {title}
