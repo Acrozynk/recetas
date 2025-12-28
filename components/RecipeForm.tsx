@@ -947,8 +947,11 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                 {/* Secondary measurement row (collapsed by default) */}
                 {(isExpanded || hasSecondary) && (
                   <div className={`ml-4 flex gap-2 items-center pl-2 border-l-2 border-[var(--color-purple-bg-dark)] ${!isExpanded && hasSecondary ? 'opacity-60' : ''}`}>
-                    <span className="text-xs text-[var(--color-slate-light)] font-medium whitespace-nowrap">
-                      {showVariantLabels && variant2Label ? variant2Label.substring(0, 10) : "Alt"}:
+                    <span 
+                      className="text-xs text-[var(--color-slate-light)] font-medium truncate max-w-[120px]"
+                      title={showVariantLabels && variant2Label ? variant2Label : "Alternativo"}
+                    >
+                      {showVariantLabels && variant2Label ? variant2Label : "Alt"}:
                     </span>
                     <div className="flex-1 grid grid-cols-[1fr,1fr,2fr] gap-2">
                       <input

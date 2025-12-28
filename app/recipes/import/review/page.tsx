@@ -51,6 +51,7 @@ export default function ImportReviewPage() {
 
   // Edit form state
   const [editedRecipe, setEditedRecipe] = useState<ParsedRecipe | null>(null);
+  const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
 
   // Calculate stats
   const stats: Stats = session
@@ -66,10 +67,23 @@ export default function ImportReviewPage() {
   const currentRecipe = session?.recipes[session.current_index];
   const displayRecipe = isEditing && editedRecipe ? editedRecipe : currentRecipe?.original;
 
-  // Load session on mount
+  // Load session and tag suggestions on mount
   useEffect(() => {
     loadSession();
+    loadTagSuggestions();
   }, []);
+
+  const loadTagSuggestions = async () => {
+    try {
+      const response = await fetch("/api/tags");
+      if (response.ok) {
+        const data = await response.json();
+        setTagSuggestions(data.tags || []);
+      }
+    } catch (error) {
+      console.error("Error fetching tags:", error);
+    }
+  };
 
   // Detect language when current recipe changes
   useEffect(() => {
@@ -722,13 +736,14 @@ export default function ImportReviewPage() {
                 )}
               </div>
 
-              {/* Tags */}
+              {/* Etiquetas */}
               {isEditing ? (
                 <div className="mb-4">
-                  <label className="block text-sm font-medium mb-1">Tags</label>
+                  <label className="block text-sm font-medium mb-1">Etiquetas</label>
                   <TagInput
                     tags={editedRecipe?.tags || []}
                     onChange={(tags) => setEditedRecipe(prev => prev ? { ...prev, tags } : null)}
+                    suggestions={tagSuggestions}
                   />
                 </div>
               ) : displayRecipe.tags.length > 0 && (
