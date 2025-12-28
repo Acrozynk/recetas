@@ -617,7 +617,7 @@ export default function ImportReviewPage() {
               )}
 
               {/* Meta info */}
-              <div className="flex flex-wrap gap-2 mb-4 text-sm text-[var(--color-slate)]">
+              <div className="flex flex-wrap gap-2 mb-4 text-sm text-[var(--color-slate)] items-center">
                 {detectedLanguage === "en" && !isEditing && (
                   <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
                     🇬🇧 English
@@ -627,7 +627,22 @@ export default function ImportReviewPage() {
                   <span>{"★".repeat(displayRecipe.rating)}{"☆".repeat(3 - displayRecipe.rating)}</span>
                 )}
                 {displayRecipe.made_it && <span className="text-green-600">✓ Hecho</span>}
-                {displayRecipe.servings && <span>• {displayRecipe.servings} porciones</span>}
+                {isEditing ? (
+                  <span className="flex items-center gap-1">
+                    •
+                    <input
+                      type="number"
+                      value={editedRecipe?.servings || ""}
+                      onChange={(e) => setEditedRecipe(prev => prev ? { ...prev, servings: e.target.value ? parseInt(e.target.value) : null } : null)}
+                      className="input !w-16 !py-0.5 !px-2 text-center"
+                      min="1"
+                      placeholder="—"
+                    />
+                    porciones
+                  </span>
+                ) : (
+                  displayRecipe.servings && <span>• {displayRecipe.servings} porciones</span>
+                )}
                 {displayRecipe.source_url && (
                   <a href={displayRecipe.source_url} target="_blank" rel="noopener noreferrer" className="text-[var(--color-purple)] hover:underline">
                     • Ver original
