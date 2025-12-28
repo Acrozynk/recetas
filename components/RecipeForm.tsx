@@ -233,9 +233,8 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   );
   const [expandedIngredients, setExpandedIngredients] = useState<Set<number>>(new Set());
   
-  // Drag and drop state for section headers
-  const [draggingSectionIndex, setDraggingSectionIndex] = useState<number | null>(null);
-  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+  // State for moving section headers (click-based, more reliable than drag & drop)
+  const [movingSectionIndex, setMovingSectionIndex] = useState<number | null>(null);
   
   // Variant labels for recipes with two sets of ingredient amounts
   const [variant1Label, setVariant1Label] = useState(recipe?.variant_1_label || "");
@@ -313,40 +312,22 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     setIngredients([...ingredients, { name: "", amount: "", unit: "", isHeader: true }]);
   };
 
-  // Handle section drag start
-  const handleSectionDragStart = (e: React.DragEvent, headerIndex: number) => {
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', headerIndex.toString());
-    
-    // Create a custom drag image
-    const dragImage = document.createElement('div');
-    dragImage.textContent = `📋 ${ingredients[headerIndex].name || 'Sección'}`;
-    dragImage.style.cssText = 'position: absolute; top: -1000px; padding: 8px 16px; background: #fef3c7; border: 2px solid #f59e0b; border-radius: 8px; font-weight: 600; color: #92400e; font-size: 14px;';
-    document.body.appendChild(dragImage);
-    e.dataTransfer.setDragImage(dragImage, 0, 0);
-    setTimeout(() => document.body.removeChild(dragImage), 0);
-    
-    setDraggingSectionIndex(headerIndex);
+  // Start moving a section (click-based)
+  const startMovingSection = (headerIndex: number) => {
+    setMovingSectionIndex(headerIndex);
   };
 
-  // Handle section drag end
-  const handleSectionDragEnd = () => {
-    setDraggingSectionIndex(null);
-    setDropTargetIndex(null);
+  // Cancel moving
+  const cancelMovingSection = () => {
+    setMovingSectionIndex(null);
   };
 
-  // Handle drag over a drop zone
-  const handleSectionDragOver = (e: React.DragEvent, targetPosition: number) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (draggingSectionIndex !== null && targetPosition !== draggingSectionIndex) {
-      setDropTargetIndex(targetPosition);
+  // Place section at target position
+  const placeSection = (targetPosition: number) => {
+    if (movingSectionIndex !== null) {
+      moveSectionHeaderToPosition(movingSectionIndex, targetPosition);
+      setMovingSectionIndex(null);
     }
-  };
-
-  // Handle drag leave
-  const handleSectionDragLeave = () => {
-    setDropTargetIndex(null);
   };
 
   // Move just the section header to a specific position (between any ingredients)
@@ -393,15 +374,6 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     })));
   };
 
-  // Handle drop
-  const handleSectionDrop = (e: React.DragEvent, targetPosition: number) => {
-    e.preventDefault();
-    if (draggingSectionIndex !== null) {
-      moveSectionHeaderToPosition(draggingSectionIndex, targetPosition);
-    }
-    setDraggingSectionIndex(null);
-    setDropTargetIndex(null);
-  };
 
   const toggleExpandedIngredient = (index: number) => {
     setExpandedIngredients(prev => {
@@ -1044,20 +1016,31 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         )}
 
         <div className="space-y-3">
-          {/* Drop zone at the very beginning - show when dragging (but not if already at start) */}
-          {draggingSectionIndex !== null && draggingSectionIndex !== 0 && (
-            <div
-              onDragOver={(e) => handleSectionDragOver(e, 0)}
-              onDragLeave={handleSectionDragLeave}
-              onDrop={(e) => handleSectionDrop(e, 0)}
-              className={`py-2 px-4 rounded border-2 border-dashed transition-all flex items-center justify-center ${
-                dropTargetIndex === 0 
-                  ? "bg-amber-100 border-amber-400 text-amber-700" 
-                  : "bg-amber-50/30 border-amber-200/50 text-amber-300 hover:border-amber-300 hover:text-amber-400"
-              }`}
-            >
-              <span className="text-xs font-medium">📋 Soltar sección aquí</span>
+          {/* Info banner when moving a section */}
+          {movingSectionIndex !== null && (
+            <div className="p-3 bg-amber-100 border border-amber-300 rounded-lg flex items-center justify-between">
+              <span className="text-sm text-amber-800 font-medium">
+                📋 Moviendo: <strong>{ingredients[movingSectionIndex].name || 'Sección'}</strong> — Haz click en una zona amarilla para colocarla
+              </span>
+              <button
+                type="button"
+                onClick={cancelMovingSection}
+                className="text-amber-600 hover:text-amber-800 text-sm font-medium"
+              >
+                ✕ Cancelar
+              </button>
             </div>
+          )}
+          
+          {/* Drop zone at the very beginning */}
+          {movingSectionIndex !== null && movingSectionIndex !== 0 && (
+            <button
+              type="button"
+              onClick={() => placeSection(0)}
+              className="w-full py-3 px-4 rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all flex items-center justify-center gap-2"
+            >
+              <span className="text-sm font-medium">⬆️ Colocar aquí (al principio)</span>
+            </button>
           )}
           {ingredients.map((ingredient, index) => {
             const isExpanded = expandedIngredients.has(index);
@@ -1067,47 +1050,44 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
             
             // Render section header differently
             if (ingredient.isHeader) {
-              const isDragging = draggingSectionIndex === index;
-              // Show drop zone before this header if we're dragging a DIFFERENT section header
-              const showDropZone = draggingSectionIndex !== null && 
-                draggingSectionIndex !== index && 
-                draggingSectionIndex !== index - 1; // Don't show right after the header being dragged
-              const isDropTarget = dropTargetIndex === index;
+              const isBeingMoved = movingSectionIndex === index;
+              // Show drop zone before this header if we're moving a DIFFERENT section header
+              const showDropZone = movingSectionIndex !== null && 
+                movingSectionIndex !== index && 
+                movingSectionIndex !== index - 1;
               
               return (
                 <div key={index}>
                   {/* Drop zone before this section */}
                   {showDropZone && (
-                    <div
-                      onDragOver={(e) => handleSectionDragOver(e, index)}
-                      onDragLeave={handleSectionDragLeave}
-                      onDrop={(e) => handleSectionDrop(e, index)}
-                      className={`py-2 px-4 rounded border-2 border-dashed transition-all flex items-center justify-center mb-2 ${
-                        isDropTarget 
-                          ? "bg-amber-100 border-amber-400 text-amber-700" 
-                          : "bg-amber-50/30 border-amber-200/50 text-amber-300 hover:border-amber-300 hover:text-amber-400"
-                      }`}
+                    <button
+                      type="button"
+                      onClick={() => placeSection(index)}
+                      className="w-full py-3 px-4 rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all flex items-center justify-center gap-2 mb-2"
                     >
-                      <span className="text-xs font-medium">📋 Soltar sección aquí</span>
-                    </div>
+                      <span className="text-sm font-medium">📋 Colocar sección aquí</span>
+                    </button>
                   )}
                   <div 
                     className={`flex gap-2 items-center pt-3 first:pt-0 rounded-lg transition-all ${
-                      isDragging ? "opacity-50 bg-amber-100 scale-95" : ""
+                      isBeingMoved ? "opacity-50 bg-amber-100 ring-2 ring-amber-400" : ""
                     }`}
                   >
-                    {/* Drag handle - this is the draggable element */}
-                    <div 
-                      draggable={true}
-                      onDragStart={(e) => handleSectionDragStart(e, index)}
-                      onDragEnd={handleSectionDragEnd}
-                      className="cursor-grab active:cursor-grabbing p-2 -m-1 text-amber-400 hover:text-amber-600 hover:bg-amber-100 rounded transition-colors"
-                      title="Arrastra para mover la sección"
+                    {/* Move button */}
+                    <button
+                      type="button"
+                      onClick={() => movingSectionIndex === index ? cancelMovingSection() : startMovingSection(index)}
+                      className={`p-2 -m-1 rounded transition-colors ${
+                        isBeingMoved 
+                          ? "text-amber-700 bg-amber-200" 
+                          : "text-amber-400 hover:text-amber-600 hover:bg-amber-100"
+                      }`}
+                      title={isBeingMoved ? "Cancelar movimiento" : "Mover esta sección"}
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
                       </svg>
-                    </div>
+                    </button>
                     
                     <div className="flex-1 flex items-center gap-2">
                       <span className="text-amber-600">📋</span>
@@ -1117,7 +1097,6 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                         onChange={(e) => updateIngredient(index, "name", e.target.value)}
                         className="input flex-1 font-semibold text-amber-800 bg-amber-50 border-amber-200"
                         placeholder="Nombre de la sección (ej: Para la base)"
-                        draggable={false}
                       />
                     </div>
                     
@@ -1135,28 +1114,22 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
               );
             }
             
-            // Show drop zone before regular ingredients too (when dragging a section header)
-            const showIngredientDropZone = draggingSectionIndex !== null && 
-              draggingSectionIndex !== index &&
-              draggingSectionIndex !== index - 1; // Don't show right after the header being dragged
-            const isIngredientDropTarget = dropTargetIndex === index;
+            // Show drop zone before regular ingredients too (when moving a section header)
+            const showIngredientDropZone = movingSectionIndex !== null && 
+              movingSectionIndex !== index &&
+              movingSectionIndex !== index - 1;
             
             return (
               <div key={index} className="space-y-2">
                 {/* Drop zone before this ingredient */}
                 {showIngredientDropZone && (
-                  <div
-                    onDragOver={(e) => handleSectionDragOver(e, index)}
-                    onDragLeave={handleSectionDragLeave}
-                    onDrop={(e) => handleSectionDrop(e, index)}
-                    className={`py-2 px-4 rounded border-2 border-dashed transition-all flex items-center justify-center ${
-                      isIngredientDropTarget 
-                        ? "bg-amber-100 border-amber-400 text-amber-700" 
-                        : "bg-amber-50/30 border-amber-200/50 text-amber-300 hover:border-amber-300 hover:text-amber-400"
-                    }`}
+                  <button
+                    type="button"
+                    onClick={() => placeSection(index)}
+                    className="w-full py-3 px-4 rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all flex items-center justify-center gap-2"
                   >
-                    <span className="text-xs font-medium">📋 Soltar sección aquí</span>
-                  </div>
+                    <span className="text-sm font-medium">📋 Colocar sección aquí</span>
+                  </button>
                 )}
                 {/* Primary measurement row */}
                 <div className="flex gap-2 items-start">
@@ -1307,20 +1280,15 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
             );
           })}
           
-          {/* Drop zone at the very end - hide if dragged header is already last */}
-          {draggingSectionIndex !== null && draggingSectionIndex < ingredients.length - 1 && (
-            <div
-              onDragOver={(e) => handleSectionDragOver(e, ingredients.length)}
-              onDragLeave={handleSectionDragLeave}
-              onDrop={(e) => handleSectionDrop(e, ingredients.length)}
-              className={`py-2 px-4 rounded border-2 border-dashed transition-all flex items-center justify-center mt-2 ${
-                dropTargetIndex === ingredients.length 
-                  ? "bg-amber-100 border-amber-400 text-amber-700" 
-                  : "bg-amber-50/30 border-amber-200/50 text-amber-300 hover:border-amber-300 hover:text-amber-400"
-              }`}
+          {/* Drop zone at the very end */}
+          {movingSectionIndex !== null && movingSectionIndex < ingredients.length - 1 && (
+            <button
+              type="button"
+              onClick={() => placeSection(ingredients.length)}
+              className="w-full py-3 px-4 rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all flex items-center justify-center gap-2 mt-2"
             >
-              <span className="text-xs font-medium">📋 Soltar sección aquí</span>
-            </div>
+              <span className="text-sm font-medium">⬇️ Colocar aquí (al final)</span>
+            </button>
           )}
         </div>
 
