@@ -310,6 +310,132 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     setIngredients([...ingredients, { name: "", amount: "", unit: "", isHeader: true }]);
   };
 
+  // Get the range of a section (header + its ingredients until next header or end)
+  const getSectionRange = (headerIndex: number): { start: number; end: number } => {
+    let end = headerIndex + 1;
+    while (end < ingredients.length && !ingredients[end].isHeader) {
+      end++;
+    }
+    return { start: headerIndex, end };
+  };
+
+  // Get the previous section range (or beginning of list)
+  const getPreviousSectionRange = (headerIndex: number): { start: number; end: number } | null => {
+    // Find where the previous section starts
+    let prevStart = headerIndex - 1;
+    while (prevStart >= 0 && !ingredients[prevStart].isHeader) {
+      prevStart--;
+    }
+    if (prevStart < 0) {
+      // No header found, previous section is from start to headerIndex
+      return { start: 0, end: headerIndex };
+    }
+    return { start: prevStart, end: headerIndex };
+  };
+
+  const moveSectionUp = (headerIndex: number) => {
+    const prevRange = getPreviousSectionRange(headerIndex);
+    if (!prevRange || prevRange.start === headerIndex) return; // Already at top
+    
+    const currentRange = getSectionRange(headerIndex);
+    const updated = [...ingredients];
+    
+    // Extract current section
+    const currentSection = updated.slice(currentRange.start, currentRange.end);
+    // Extract previous section
+    const prevSection = updated.slice(prevRange.start, prevRange.end);
+    
+    // Rebuild: everything before prev section + current section + prev section + everything after current
+    const before = updated.slice(0, prevRange.start);
+    const after = updated.slice(currentRange.end);
+    
+    const newIngredients = [...before, ...currentSection, ...prevSection, ...after];
+    setIngredients(newIngredients);
+    
+    // Update ingredient indices in instructions
+    const indexMapping = new Map<number, number>();
+    // Map old indices to new indices
+    let newIndex = 0;
+    for (let i = 0; i < before.length; i++) {
+      indexMapping.set(i, newIndex++);
+    }
+    for (let i = currentRange.start; i < currentRange.end; i++) {
+      indexMapping.set(i, newIndex++);
+    }
+    for (let i = prevRange.start; i < prevRange.end; i++) {
+      indexMapping.set(i, newIndex++);
+    }
+    for (let i = currentRange.end; i < ingredients.length; i++) {
+      indexMapping.set(i, newIndex++);
+    }
+    
+    setInstructions(instructions.map(instruction => ({
+      ...instruction,
+      ingredientIndices: instruction.ingredientIndices
+        .map(i => indexMapping.get(i) ?? i)
+        .sort((a, b) => a - b)
+    })));
+  };
+
+  const moveSectionDown = (headerIndex: number) => {
+    const currentRange = getSectionRange(headerIndex);
+    if (currentRange.end >= ingredients.length) return; // Already at bottom
+    
+    // The next section starts at currentRange.end
+    const nextRange = getSectionRange(currentRange.end);
+    if (!nextRange || nextRange.start === currentRange.end && !ingredients[currentRange.end]?.isHeader) {
+      // If no header at next position, take remaining items
+      nextRange.end = ingredients.length;
+    }
+    
+    const updated = [...ingredients];
+    
+    // Extract sections
+    const currentSection = updated.slice(currentRange.start, currentRange.end);
+    const nextSection = updated.slice(currentRange.end, nextRange.end);
+    
+    // Rebuild
+    const before = updated.slice(0, currentRange.start);
+    const after = updated.slice(nextRange.end);
+    
+    const newIngredients = [...before, ...nextSection, ...currentSection, ...after];
+    setIngredients(newIngredients);
+    
+    // Update ingredient indices in instructions
+    const indexMapping = new Map<number, number>();
+    let newIndex = 0;
+    for (let i = 0; i < before.length; i++) {
+      indexMapping.set(i, newIndex++);
+    }
+    for (let i = currentRange.end; i < nextRange.end; i++) {
+      indexMapping.set(i, newIndex++);
+    }
+    for (let i = currentRange.start; i < currentRange.end; i++) {
+      indexMapping.set(i, newIndex++);
+    }
+    for (let i = nextRange.end; i < ingredients.length; i++) {
+      indexMapping.set(i, newIndex++);
+    }
+    
+    setInstructions(instructions.map(instruction => ({
+      ...instruction,
+      ingredientIndices: instruction.ingredientIndices
+        .map(i => indexMapping.get(i) ?? i)
+        .sort((a, b) => a - b)
+    })));
+  };
+
+  // Check if section can move up (there's content before it)
+  const canMoveSectionUp = (headerIndex: number): boolean => {
+    return headerIndex > 0;
+  };
+
+  // Check if section can move down (there's content after it)
+  const canMoveSectionDown = (headerIndex: number): boolean => {
+    const range = getSectionRange(headerIndex);
+    return range.end < ingredients.length;
+  };
+
   const toggleExpandedIngredient = (index: number) => {
     setExpandedIngredients(prev => {
       const next = new Set(prev);
@@ -945,6 +1071,9 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
             
             // Render section header differently
             if (ingredient.isHeader) {
+              const canMoveUp = canMoveSectionUp(index);
+              const canMoveDown = canMoveSectionDown(index);
+              
               return (
                 <div key={index} className="flex gap-2 items-center pt-3 first:pt-0">
                   <div className="flex-1 flex items-center gap-2">
@@ -957,6 +1086,41 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                       placeholder="Nombre de la sección (ej: Para la base)"
                     />
                   </div>
+                  
+                  {/* Move section up button */}
+                  <button
+                    type="button"
+                    onClick={() => moveSectionUp(index)}
+                    disabled={!canMoveUp}
+                    className={`p-2 transition-colors rounded-lg ${
+                      canMoveUp 
+                        ? "text-amber-600 hover:bg-amber-50 hover:text-amber-700" 
+                        : "text-gray-300 cursor-not-allowed"
+                    }`}
+                    title="Mover sección arriba"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
+                  
+                  {/* Move section down button */}
+                  <button
+                    type="button"
+                    onClick={() => moveSectionDown(index)}
+                    disabled={!canMoveDown}
+                    className={`p-2 transition-colors rounded-lg ${
+                      canMoveDown 
+                        ? "text-amber-600 hover:bg-amber-50 hover:text-amber-700" 
+                        : "text-gray-300 cursor-not-allowed"
+                    }`}
+                    title="Mover sección abajo"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
                   <button
                     type="button"
                     onClick={() => removeIngredient(index)}
