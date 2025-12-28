@@ -20,6 +20,7 @@ export interface Recipe {
   prep_time_minutes: number | null;
   cook_time_minutes: number | null;
   servings: number | null;
+  servings_unit: string | null; // Custom unit for servings (e.g., "tortitas", "galletas"). Null = personas
   tags: string[];
   ingredients: Ingredient[];
   instructions: Instruction[] | string[]; // Soporta ambos formatos para retrocompatibilidad

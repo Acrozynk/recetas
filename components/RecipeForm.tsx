@@ -154,6 +154,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   const [prepTime, setPrepTime] = useState(recipe?.prep_time_minutes?.toString() || "");
   const [cookTime, setCookTime] = useState(recipe?.cook_time_minutes?.toString() || "");
   const [servings, setServings] = useState(recipe?.servings?.toString() || "4");
+  const [servingsUnit, setServingsUnit] = useState(recipe?.servings_unit || "");
   const [tags, setTags] = useState<string[]>(recipe?.tags || []);
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [rating, setRating] = useState<number | null>(recipe?.rating ?? null);
@@ -356,6 +357,8 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         cook_time_minutes: cookTime ? parseInt(cookTime) : null,
         // If using container, servings is null; otherwise use servings value
         servings: useContainer ? null : (servings ? parseInt(servings) : null),
+        // Custom unit for servings (e.g., "tortitas", "galletas"). Null = personas
+        servings_unit: useContainer ? null : (servingsUnit.trim() || null),
         // Container fields
         container_id: useContainer ? containerId : null,
         container_quantity: useContainer && containerQuantity ? parseFloat(containerQuantity) : null,
@@ -614,15 +617,29 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
             </div>
             
             {!useContainer ? (
-              /* Servings input */
-              <input
-                type="number"
-                value={servings}
-                onChange={(e) => setServings(e.target.value)}
-                className="input"
-                placeholder="4"
-                min="1"
-              />
+              /* Servings input with optional custom unit */
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={servings}
+                    onChange={(e) => setServings(e.target.value)}
+                    className="input w-24"
+                    placeholder="4"
+                    min="1"
+                  />
+                  <input
+                    type="text"
+                    value={servingsUnit}
+                    onChange={(e) => setServingsUnit(e.target.value)}
+                    className="input flex-1"
+                    placeholder="personas (o tortitas, galletas...)"
+                  />
+                </div>
+                <p className="text-xs text-[var(--color-slate-light)]">
+                  💡 Deja vacío para usar &quot;personas&quot; como unidad
+                </p>
+              </div>
             ) : (
               /* Container selection */
               <div className="space-y-3">

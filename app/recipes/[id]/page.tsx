@@ -8,6 +8,210 @@ import { supabase, type Recipe, type Ingredient, type Instruction, type Containe
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 
+// Helper function to normalize text for matching (remove accents, lowercase)
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Remove accents
+    .replace(/[^a-z0-9\s]/g, " ") // Remove special chars
+    .trim();
+}
+
+// Extract core ingredient name from full ingredient text
+// e.g., "calabacín pequeño" -> ["calabacin", "calabacin pequeno"]
+function extractIngredientKeywords(ingredientName: string): string[] {
+  const normalized = normalizeText(ingredientName);
+  const words = normalized.split(/\s+/).filter(w => w.length > 2);
+  
+  // Return both individual words and the full phrase
+  const keywords: string[] = [];
+  
+  // Add the full normalized name
+  keywords.push(normalized);
+  
+  // Add individual significant words (skip common words)
+  const skipWords = new Set([
+    "para", "con", "sin", "del", "las", "los", "una", "uno", "unos", "unas",
+    "poco", "poca", "mucho", "mucha", "mas", "menos", "bien", "mal",
+    "grande", "pequeno", "mediano", "fresco", "fresca", "seco", "seca",
+    "rallado", "rallada", "picado", "picada", "cortado", "cortada",
+    "troceado", "troceada", "molido", "molida", "entero", "entera",
+    "natural", "normal"
+  ]);
+  
+  for (const word of words) {
+    if (!skipWords.has(word) && word.length > 2) {
+      keywords.push(word);
+    }
+  }
+  
+  return [...new Set(keywords)]; // Remove duplicates
+}
+
+// Check if step text mentions an ingredient
+function findIngredientMention(stepText: string, ingredientName: string): { found: boolean; matchedWord: string } {
+  const normalizedStep = normalizeText(stepText);
+  const keywords = extractIngredientKeywords(ingredientName);
+  
+  // Try to match keywords from longest to shortest
+  const sortedKeywords = keywords.sort((a, b) => b.length - a.length);
+  
+  for (const keyword of sortedKeywords) {
+    // Use word boundary matching
+    const regex = new RegExp(`\\b${keyword}s?\\b`, 'i'); // Handle plurals
+    if (regex.test(normalizedStep)) {
+      return { found: true, matchedWord: keyword };
+    }
+  }
+  
+  return { found: false, matchedWord: '' };
+}
+
+// Format ingredient for display in step
+function formatIngredientForStep(
+  ingredient: Ingredient, 
+  scaleAmount: (amount: string) => string,
+  useVariant2: boolean
+): string {
+  const hasSecondary = ingredient.amount2 && ingredient.unit2;
+  const displayAmount = useVariant2 && hasSecondary 
+    ? ingredient.amount2 
+    : ingredient.amount;
+  const displayUnit = useVariant2 && hasSecondary 
+    ? ingredient.unit2 
+    : ingredient.unit;
+  
+  let result = scaleAmount(displayAmount || '');
+  if (displayUnit) result += ` ${displayUnit}`;
+  result += ` ${ingredient.name}`;
+  
+  return result.trim();
+}
+
+interface EnrichedStepPart {
+  type: 'text' | 'ingredient';
+  content: string;
+  ingredient?: Ingredient;
+  formattedIngredient?: string;
+}
+
+// Enrich step text with ingredient quantities
+function enrichStepWithIngredients(
+  stepText: string,
+  ingredients: Ingredient[],
+  scaleAmount: (amount: string) => string,
+  useVariant2: boolean
+): EnrichedStepPart[] {
+  const parts: EnrichedStepPart[] = [];
+  
+  // Filter out headers and get valid ingredients
+  const validIngredients = ingredients.filter(
+    ing => !ing.isHeader && !ing.name.startsWith('**')
+  );
+  
+  // Find all ingredient mentions in the step
+  const mentions: { ingredient: Ingredient; position: number; length: number }[] = [];
+  
+  for (const ingredient of validIngredients) {
+    const { found } = findIngredientMention(stepText, ingredient.name);
+    if (found) {
+      // Find where this ingredient is mentioned in the original text
+      const keywords = extractIngredientKeywords(ingredient.name);
+      const sortedKeywords = keywords.sort((a, b) => b.length - a.length);
+      
+      for (const keyword of sortedKeywords) {
+        const normalizedStep = normalizeText(stepText);
+        const regex = new RegExp(`\\b${keyword}s?\\b`, 'i');
+        const match = normalizedStep.match(regex);
+        
+        if (match && match.index !== undefined) {
+          // Find the position in the original text by finding similar word boundary
+          const originalLower = stepText.toLowerCase();
+          const searchStart = Math.max(0, match.index - 5);
+          let pos = -1;
+          
+          // Search for the matched word in original text
+          for (let i = searchStart; i < stepText.length - keyword.length + 3; i++) {
+            const substr = normalizeText(stepText.substring(i, i + keyword.length + 5));
+            if (substr.startsWith(keyword)) {
+              pos = i;
+              break;
+            }
+          }
+          
+          if (pos >= 0) {
+            // Find the end of the matched word in original text
+            let endPos = pos;
+            while (endPos < stepText.length && /[\wáéíóúüñÁÉÍÓÚÜÑ]/.test(stepText[endPos])) {
+              endPos++;
+            }
+            
+            mentions.push({
+              ingredient,
+              position: pos,
+              length: endPos - pos
+            });
+          }
+          break;
+        }
+      }
+    }
+  }
+  
+  // Sort mentions by position
+  mentions.sort((a, b) => a.position - b.position);
+  
+  // Remove overlapping mentions (keep the first one)
+  const filteredMentions: typeof mentions = [];
+  for (const mention of mentions) {
+    const overlaps = filteredMentions.some(
+      m => mention.position < m.position + m.length && mention.position + mention.length > m.position
+    );
+    if (!overlaps) {
+      filteredMentions.push(mention);
+    }
+  }
+  
+  // Build parts
+  let lastIndex = 0;
+  for (const mention of filteredMentions) {
+    // Add text before this mention
+    if (mention.position > lastIndex) {
+      parts.push({
+        type: 'text',
+        content: stepText.substring(lastIndex, mention.position)
+      });
+    }
+    
+    // Add the ingredient mention with quantity
+    const matchedText = stepText.substring(mention.position, mention.position + mention.length);
+    parts.push({
+      type: 'ingredient',
+      content: matchedText,
+      ingredient: mention.ingredient,
+      formattedIngredient: formatIngredientForStep(mention.ingredient, scaleAmount, useVariant2)
+    });
+    
+    lastIndex = mention.position + mention.length;
+  }
+  
+  // Add remaining text
+  if (lastIndex < stepText.length) {
+    parts.push({
+      type: 'text',
+      content: stepText.substring(lastIndex)
+    });
+  }
+  
+  // If no mentions found, return the whole text as a single part
+  if (parts.length === 0) {
+    parts.push({ type: 'text', content: stepText });
+  }
+  
+  return parts;
+}
+
 export default function RecipeDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -31,6 +235,7 @@ export default function RecipeDetailPage() {
   const [rating, setRating] = useState<number | null>(null);
   const [madeIt, setMadeIt] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
+  const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
 
   // Check if Wake Lock API is supported
   useEffect(() => {
@@ -280,22 +485,38 @@ export default function RecipeDetailPage() {
   const resetCookingProgress = () => {
     setCurrentStep(0);
     setCompletedSteps(new Set());
+    setCheckedIngredients(new Set());
+  };
+
+  const toggleIngredientChecked = (index: number) => {
+    setCheckedIngredients((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
   };
 
   if (loading) {
     return (
       <div className="min-h-screen pb-20">
         <Header title="Cargando..." showBack />
-        <div className="animate-pulse">
-          <div className="aspect-video bg-[var(--color-purple-bg-dark)]" />
-          <div className="p-4 max-w-4xl mx-auto">
-            <div className="h-8 bg-[var(--color-purple-bg-dark)] rounded w-3/4 mb-4" />
-            <div className="h-4 bg-[var(--color-purple-bg-dark)] rounded w-1/2 mb-8" />
-            <div className="space-y-2">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="h-4 bg-[var(--color-purple-bg-dark)] rounded" />
-              ))}
+        <div className="animate-pulse p-4 max-w-4xl mx-auto">
+          <div className="flex gap-4 sm:gap-6 items-start mb-6">
+            <div className="w-24 h-24 sm:w-32 sm:h-32 bg-[var(--color-purple-bg-dark)] rounded-xl flex-shrink-0" />
+            <div className="flex-1">
+              <div className="h-8 bg-[var(--color-purple-bg-dark)] rounded w-3/4 mb-3" />
+              <div className="h-4 bg-[var(--color-purple-bg-dark)] rounded w-full mb-2" />
+              <div className="h-4 bg-[var(--color-purple-bg-dark)] rounded w-2/3" />
             </div>
+          </div>
+          <div className="space-y-2">
+            {[...Array(5)].map((_, i) => (
+              <div key={i} className="h-4 bg-[var(--color-purple-bg-dark)] rounded" />
+            ))}
           </div>
         </div>
         <BottomNav />
@@ -375,34 +596,39 @@ export default function RecipeDetailPage() {
       />
 
       <main>
-        {/* Hero Image */}
-        {recipe.image_url && (
-          <div className="relative w-full max-h-[40vh] sm:max-h-[50vh] aspect-video bg-[var(--color-purple-bg-dark)] overflow-hidden">
-            <Image
-              src={recipe.image_url}
-              alt={recipe.title}
-              fill
-              className="object-cover"
-              priority
-            />
-          </div>
-        )}
-
         <div className="max-w-4xl mx-auto p-4">
-          {/* Title and Meta */}
+          {/* Title, Meta and Image */}
           <div className="mb-6">
-            <h1 className="font-display text-2xl sm:text-3xl font-semibold text-[var(--foreground)] mb-2">
-              {recipe.title}
-            </h1>
+            <div className="flex gap-4 sm:gap-6 items-start">
+              {/* Image - small and square on the side */}
+              {recipe.image_url && (
+                <div className="relative flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 rounded-xl overflow-hidden bg-[var(--color-purple-bg-dark)] shadow-md">
+                  <Image
+                    src={recipe.image_url}
+                    alt={recipe.title}
+                    fill
+                    className="object-cover"
+                    priority
+                  />
+                </div>
+              )}
+              
+              {/* Title and Description */}
+              <div className="flex-1 min-w-0">
+                <h1 className="font-display text-2xl sm:text-3xl font-semibold text-[var(--foreground)] mb-2">
+                  {recipe.title}
+                </h1>
 
-            {recipe.description && (
-              <p className="text-[var(--color-slate)] mb-4">
-                {recipe.description}
-              </p>
-            )}
+                {recipe.description && (
+                  <p className="text-[var(--color-slate)] line-clamp-3">
+                    {recipe.description}
+                  </p>
+                )}
+              </div>
+            </div>
 
             {/* Rating and Made It */}
-            <div className="flex flex-wrap items-center gap-4 mb-4">
+            <div className="flex flex-wrap items-center gap-4 mt-4 mb-4">
               {/* Interactive Rating */}
               <div className="flex items-center gap-1">
                 {[1, 2, 3].map((star) => (
@@ -818,13 +1044,26 @@ export default function RecipeDetailPage() {
                     ? ingredient.unit
                     : ingredient.unit2;
                     
+                  const isChecked = checkedIngredients.has(i);
+                  
                   return (
                     <li
                       key={i}
-                      className="flex items-start gap-3 p-2 hover:bg-[var(--color-purple-bg-dark)] rounded-lg transition-colors group"
+                      className={`flex items-start gap-3 p-2 rounded-lg transition-all group cursor-pointer ${
+                        isChecked
+                          ? "opacity-40"
+                          : "hover:bg-[var(--color-purple-bg-dark)]"
+                      }`}
+                      onClick={() => toggleIngredientChecked(i)}
                     >
-                      <input type="checkbox" className="checkbox mt-0.5" />
-                      <span className="flex-1">
+                      <input 
+                        type="checkbox" 
+                        className="checkbox mt-0.5" 
+                        checked={isChecked}
+                        onChange={() => toggleIngredientChecked(i)}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <span className={`flex-1 ${isChecked ? "line-through" : ""}`}>
                         <strong className="font-medium">
                           {scaleAmount(displayAmount || '')}
                           {displayUnit && ` ${displayUnit}`}
@@ -927,6 +1166,19 @@ export default function RecipeDetailPage() {
                   const isCurrentStep = cookingMode && i === currentStep;
                   const isCompletedStep = completedSteps.has(i);
                   
+                  // Determine variant mode for ingredients
+                  const useVariant2ForStep = recipe.variant_1_label 
+                    ? selectedVariant === 2 
+                    : showSecondaryUnits;
+                  
+                  // Enrich step text with ingredient quantities
+                  const enrichedParts = enrichStepWithIngredients(
+                    step.text,
+                    recipe.ingredients as Ingredient[],
+                    scaleAmount,
+                    useVariant2ForStep
+                  );
+                  
                   return (
                     <li
                       key={i}
@@ -963,7 +1215,18 @@ export default function RecipeDetailPage() {
                         </button>
                         <div className="flex-1 pt-1">
                           <p className={`${isCompletedStep ? "line-through text-[var(--color-slate-light)]" : "text-[var(--color-slate)]"} ${isCurrentStep ? "text-[var(--foreground)] font-medium" : ""}`}>
-                            {step.text}
+                            {enrichedParts.map((part, partIdx) => (
+                              part.type === 'ingredient' ? (
+                                <span key={partIdx}>
+                                  {part.content}
+                                  <span className="text-[var(--color-purple)] font-medium">
+                                    {' '}({part.formattedIngredient})
+                                  </span>
+                                </span>
+                              ) : (
+                                <span key={partIdx}>{part.content}</span>
+                              )
+                            ))}
                           </p>
                           
                           {/* Ingredientes usados en este paso */}
