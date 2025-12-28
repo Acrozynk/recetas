@@ -49,8 +49,8 @@ export default function Header({
             <Image
               src="/remy.png"
               alt="Remy"
-              width={36}
-              height={36}
+              width={48}
+              height={48}
               className="object-contain"
             />
           )}
