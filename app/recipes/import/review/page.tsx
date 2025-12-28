@@ -677,11 +677,14 @@ export default function ImportReviewPage() {
                 <h3 className="font-semibold mb-2">Ingredientes ({displayRecipe.ingredients.length})</h3>
                 {isEditing ? (
                   <div className="space-y-2">
-                    {editedRecipe?.ingredients.map((ing, i) => (
-                      <div key={i} className="flex gap-2">
+                    {editedRecipe?.ingredients.map((ing, i) => {
+                      // Debug: log each ingredient during render
+                      console.log(`Render ingredient ${i}:`, ing);
+                      return (
+                      <div key={`ing-${i}-${ing.name}`} className="flex gap-2">
                         <input
                           type="text"
-                          value={ing.amount}
+                          value={ing.amount || ""}
                           onChange={(e) => {
                             const newIngredients = [...(editedRecipe?.ingredients || [])];
                             newIngredients[i] = { ...newIngredients[i], amount: e.target.value };
@@ -692,7 +695,7 @@ export default function ImportReviewPage() {
                         />
                         <input
                           type="text"
-                          value={ing.unit}
+                          value={ing.unit || ""}
                           onChange={(e) => {
                             const newIngredients = [...(editedRecipe?.ingredients || [])];
                             newIngredients[i] = { ...newIngredients[i], unit: e.target.value };
@@ -703,7 +706,7 @@ export default function ImportReviewPage() {
                         />
                         <input
                           type="text"
-                          value={ing.name}
+                          value={ing.name || ""}
                           onChange={(e) => {
                             const newIngredients = [...(editedRecipe?.ingredients || [])];
                             newIngredients[i] = { ...newIngredients[i], name: e.target.value };
@@ -722,7 +725,8 @@ export default function ImportReviewPage() {
                           ✕
                         </button>
                       </div>
-                    ))}
+                    );
+                    })}
                     <button
                       onClick={() => {
                         const newIngredients = [...(editedRecipe?.ingredients || []), { amount: "", unit: "", name: "" }];
