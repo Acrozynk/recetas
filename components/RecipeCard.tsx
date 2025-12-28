@@ -4,9 +4,10 @@ import type { Recipe } from "@/lib/supabase";
 
 interface RecipeCardProps {
   recipe: Recipe;
+  onTagClick?: (tag: string) => void;
 }
 
-export default function RecipeCard({ recipe }: RecipeCardProps) {
+export default function RecipeCard({ recipe, onTagClick }: RecipeCardProps) {
   const totalTime =
     (recipe.prep_time_minutes || 0) + (recipe.cook_time_minutes || 0);
 
@@ -120,9 +121,19 @@ export default function RecipeCard({ recipe }: RecipeCardProps) {
           {recipe.tags && recipe.tags.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mt-3">
               {recipe.tags.slice(0, 3).map((tag) => (
-                <span key={tag} className="tag text-xs">
+                <button
+                  key={tag}
+                  className="tag text-xs hover:bg-[var(--color-purple)] hover:text-white transition-colors"
+                  onClick={(e) => {
+                    if (onTagClick) {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onTagClick(tag);
+                    }
+                  }}
+                >
                   {tag}
-                </span>
+                </button>
               ))}
               {recipe.tags.length > 3 && (
                 <span className="tag text-xs">+{recipe.tags.length - 3}</span>

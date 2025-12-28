@@ -377,7 +377,7 @@ export default function RecipeDetailPage() {
       <main>
         {/* Hero Image */}
         {recipe.image_url && (
-          <div className="relative aspect-video bg-[var(--color-purple-bg-dark)]">
+          <div className="relative w-full max-h-[40vh] sm:max-h-[50vh] aspect-video bg-[var(--color-purple-bg-dark)] overflow-hidden">
             <Image
               src={recipe.image_url}
               alt={recipe.title}
