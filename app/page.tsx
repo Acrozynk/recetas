@@ -12,7 +12,7 @@ export default function HomePage() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   useEffect(() => {
     loadRecipes();
@@ -39,18 +39,34 @@ export default function HomePage() {
     new Set(recipes.flatMap((r) => r.tags || []))
   ).sort();
 
-  // Filter recipes by search and tag
+  // Normalize text for search (case insensitive + accent insensitive)
+  const normalizeText = (text: string) =>
+    text
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+  // Filter recipes by search and tags
   const filteredRecipes = recipes.filter((recipe) => {
+    const normalizedSearch = normalizeText(search);
     const matchesSearch =
       !search ||
-      recipe.title.toLowerCase().includes(search.toLowerCase()) ||
-      recipe.description?.toLowerCase().includes(search.toLowerCase());
+      normalizeText(recipe.title).includes(normalizedSearch) ||
+      normalizeText(recipe.description || "").includes(normalizedSearch);
 
-    const matchesTag =
-      !selectedTag || (recipe.tags && recipe.tags.includes(selectedTag));
+    const matchesTags =
+      selectedTags.length === 0 ||
+      selectedTags.every((tag) => recipe.tags && recipe.tags.includes(tag));
 
-    return matchesSearch && matchesTag;
+    return matchesSearch && matchesTags;
   });
+
+  // Toggle tag selection
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
 
   return (
     <div className="min-h-screen pb-20">
@@ -84,26 +100,32 @@ export default function HomePage() {
         {/* Tag filters */}
         {allTags.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-2 mb-4 -mx-4 px-4 scrollbar-hide">
-            <button
-              onClick={() => setSelectedTag(null)}
-              className={`tag whitespace-nowrap transition-colors ${
-                !selectedTag
-                  ? "bg-[var(--color-purple)] text-white"
-                  : "hover:bg-[var(--border-color)]"
-              }`}
-            >
-              Todas
-            </button>
+            {selectedTags.length > 0 && (
+              <button
+                onClick={() => setSelectedTags([])}
+                className="tag whitespace-nowrap transition-colors bg-[var(--color-slate-light)]/20 hover:bg-[var(--color-slate-light)]/30 text-[var(--color-slate)] flex items-center gap-1"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Limpiar ({selectedTags.length})
+              </button>
+            )}
             {allTags.map((tag) => (
               <button
                 key={tag}
-                onClick={() => setSelectedTag(tag === selectedTag ? null : tag)}
+                onClick={() => toggleTag(tag)}
                 className={`tag whitespace-nowrap transition-colors ${
-                  tag === selectedTag
+                  selectedTags.includes(tag)
                     ? "bg-[var(--color-purple)] text-white"
                     : "hover:bg-[var(--border-color)]"
                 }`}
               >
+                {selectedTags.includes(tag) && (
+                  <svg className="w-3.5 h-3.5 mr-1 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
                 {tag}
               </button>
             ))}
@@ -152,10 +174,10 @@ export default function HomePage() {
               </svg>
             </div>
             <h2 className="font-display text-xl font-semibold text-[var(--foreground)] mb-2">
-              {search || selectedTag ? "No se encontraron recetas" : "Aún no hay recetas"}
+              {search || selectedTags.length > 0 ? "No se encontraron recetas" : "Aún no hay recetas"}
             </h2>
             <p className="text-[var(--color-slate-light)] mb-6">
-              {search || selectedTag
+              {search || selectedTags.length > 0
                 ? "Prueba con otra búsqueda o filtro"
                 : "Añade tu primera receta para empezar"}
             </p>

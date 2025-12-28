@@ -104,13 +104,56 @@ export default function ImportPage() {
 
       const { session } = await response.json();
 
-      // Store image files in localStorage reference (we'll upload them during review)
-      // Note: We can't store actual files, so we'll need to re-select them or upload during parse
-      // For now, store a flag that images are available
+      // Upload local images to storage so they're available during review
       if (imageFiles.size > 0) {
-        localStorage.setItem(`import-images-available-${session.id}`, "true");
-        // Store image files in memory for the review page
-        // This is a limitation - images need to be re-uploaded during review
+        const imageMapping: Record<string, string> = {};
+        
+        // Upload images in parallel (batch of 5 at a time to avoid overwhelming the server)
+        const imageEntries = Array.from(imageFiles.entries());
+        const batchSize = 5;
+        
+        for (let i = 0; i < imageEntries.length; i += batchSize) {
+          const batch = imageEntries.slice(i, i + batchSize);
+          const uploadPromises = batch.map(async ([localPath, file]) => {
+            try {
+              const uploadFormData = new FormData();
+              uploadFormData.append("file", file);
+              
+              const uploadResponse = await fetch("/api/upload-image", {
+                method: "POST",
+                body: uploadFormData,
+              });
+              
+              if (uploadResponse.ok) {
+                const { url } = await uploadResponse.json();
+                return { localPath, url };
+              }
+            } catch (err) {
+              console.error(`Failed to upload image ${localPath}:`, err);
+            }
+            return null;
+          });
+          
+          const results = await Promise.all(uploadPromises);
+          results.forEach((result) => {
+            if (result) {
+              imageMapping[result.localPath] = result.url;
+            }
+          });
+        }
+        
+        // Update session with image mappings
+        if (Object.keys(imageMapping).length > 0) {
+          await fetch("/api/import-session", {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              sessionId: session.id,
+              action: "update_images",
+              imageMapping,
+            }),
+          });
+        }
       }
 
       // Navigate to review page
@@ -447,7 +490,7 @@ export default function ImportPage() {
           <div className="mt-6 text-center">
             <div className="inline-block w-8 h-8 border-4 border-[var(--color-purple)] border-t-transparent rounded-full animate-spin" />
             <p className="mt-2 text-[var(--color-slate)]">
-              {mode === "folder" ? "Procesando carpeta..." : mode === "file" ? "Analizando recetas..." : "Obteniendo receta..."}
+              {mode === "folder" ? "Procesando carpeta y subiendo imágenes..." : mode === "file" ? "Analizando recetas..." : "Obteniendo receta..."}
             </p>
           </div>
         )}
