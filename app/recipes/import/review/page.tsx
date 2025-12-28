@@ -51,6 +51,7 @@ export default function ImportReviewPage() {
 
   // Edit form state
   const [editedRecipe, setEditedRecipe] = useState<ParsedRecipe | null>(null);
+  const [originalEditedRecipe, setOriginalEditedRecipe] = useState<ParsedRecipe | null>(null);
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
 
   // Calculate stats
@@ -197,6 +198,7 @@ export default function ImportReviewPage() {
           };
           
           setEditedRecipe(finalRecipe);
+          setOriginalEditedRecipe(JSON.parse(JSON.stringify(finalRecipe)));
           setIsEditing(true);
           setDetectedLanguage("es");
           setError("ℹ️ Los ingredientes no se pudieron traducir, se mantienen en original");
@@ -213,6 +215,7 @@ export default function ImportReviewPage() {
         
         // Switch to edit mode with the translated recipe
         setEditedRecipe(finalRecipe);
+        setOriginalEditedRecipe(JSON.parse(JSON.stringify(finalRecipe)));
         setIsEditing(true);
         setDetectedLanguage("es");
         
@@ -358,8 +361,21 @@ export default function ImportReviewPage() {
 
   const handleEdit = () => {
     if (!currentRecipe) return;
-    setEditedRecipe({ ...currentRecipe.original });
+    const recipeCopy = JSON.parse(JSON.stringify(currentRecipe.original));
+    setEditedRecipe(recipeCopy);
+    setOriginalEditedRecipe(recipeCopy);
     setIsEditing(true);
+  };
+
+  const handleUndo = () => {
+    if (originalEditedRecipe) {
+      setEditedRecipe(JSON.parse(JSON.stringify(originalEditedRecipe)));
+    }
+  };
+
+  const hasChanges = () => {
+    if (!editedRecipe || !originalEditedRecipe) return false;
+    return JSON.stringify(editedRecipe) !== JSON.stringify(originalEditedRecipe);
   };
 
   const handleSaveEdit = async () => {
@@ -464,6 +480,7 @@ export default function ImportReviewPage() {
       // Exit edit mode first
       setIsEditing(false);
       setEditedRecipe(null);
+      setOriginalEditedRecipe(null);
       
       if (result.isComplete) {
         router.push("/recipes/import/complete");
@@ -532,6 +549,7 @@ export default function ImportReviewPage() {
       setSession(result.session);
       setIsEditing(false);
       setEditedRecipe(null);
+      setOriginalEditedRecipe(null);
     } catch (err) {
       console.error("Error navigating:", err);
     }
@@ -846,19 +864,86 @@ export default function ImportReviewPage() {
                 <h3 className="font-semibold mb-2">Ingredientes ({displayRecipe.ingredients.length})</h3>
                 {isEditing ? (
                   <div className="space-y-1">
-                    {/* Button to add at the beginning */}
-                    <button
-                      onClick={() => {
-                        const newIngredients = [{ amount: "", unit: "", name: "" }, ...(editedRecipe?.ingredients || [])];
-                        setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
-                      }}
-                      className="w-full py-1 text-xs text-[var(--color-slate-light)] hover:text-[var(--color-purple)] hover:bg-[var(--color-purple-bg)] rounded transition-colors"
-                    >
-                      + insertar aquí
-                    </button>
+                    {/* Buttons to add at the beginning */}
+                    <div className="flex gap-2 justify-center">
+                      <button
+                        onClick={() => {
+                          const newIngredients = [{ amount: "", unit: "", name: "" }, ...(editedRecipe?.ingredients || [])];
+                          setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                        }}
+                        className="py-1 px-2 text-xs text-[var(--color-slate-light)] hover:text-[var(--color-purple)] hover:bg-[var(--color-purple-bg)] rounded transition-colors"
+                      >
+                        + ingrediente
+                      </button>
+                      <button
+                        onClick={() => {
+                          const newIngredients = [{ amount: "", unit: "", name: "", isHeader: true }, ...(editedRecipe?.ingredients || [])];
+                          setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                        }}
+                        className="py-1 px-2 text-xs text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded transition-colors"
+                      >
+                        + sección
+                      </button>
+                    </div>
                     {editedRecipe?.ingredients.map((ing, i) => {
                       const hasVariants = editedRecipe?.variant_1_label || editedRecipe?.variant_2_label;
                       const hasSecondaryAmount = ing.amount2 || ing.unit2;
+                      const isHeader = ing.isHeader || ing.name?.startsWith("**");
+                      
+                      // Render section header differently
+                      if (isHeader) {
+                        return (
+                          <div key={`ing-${i}`}>
+                            <div className="flex gap-2 items-center pt-2">
+                              <span className="text-amber-600">📋</span>
+                              <input
+                                type="text"
+                                defaultValue={(ing.name || "").replace(/^\*\*|\*\*$/g, '')}
+                                onBlur={(e) => {
+                                  const newIngredients = [...(editedRecipe?.ingredients || [])];
+                                  newIngredients[i] = { ...newIngredients[i], name: e.target.value, isHeader: true };
+                                  setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                                }}
+                                className="input flex-1 font-semibold text-amber-800 bg-amber-50 border-amber-200"
+                                placeholder="Nombre de la sección (ej: Para la base)"
+                                autoComplete="off"
+                              />
+                              <button
+                                onClick={() => {
+                                  const newIngredients = editedRecipe?.ingredients.filter((_, idx) => idx !== i) || [];
+                                  setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                                }}
+                                className="text-red-500 hover:text-red-700 px-2"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                            {/* Buttons to add after this section */}
+                            <div className="flex gap-2 justify-center">
+                              <button
+                                onClick={() => {
+                                  const newIngredients = [...(editedRecipe?.ingredients || [])];
+                                  newIngredients.splice(i + 1, 0, { amount: "", unit: "", name: "" });
+                                  setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                                }}
+                                className="py-1 px-2 text-xs text-[var(--color-slate-light)] hover:text-[var(--color-purple)] hover:bg-[var(--color-purple-bg)] rounded transition-colors"
+                              >
+                                + ingrediente
+                              </button>
+                              <button
+                                onClick={() => {
+                                  const newIngredients = [...(editedRecipe?.ingredients || [])];
+                                  newIngredients.splice(i + 1, 0, { amount: "", unit: "", name: "", isHeader: true });
+                                  setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                                }}
+                                className="py-1 px-2 text-xs text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded transition-colors"
+                              >
+                                + sección
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
                       
                       return (
                         <div key={`ing-${i}`}>
@@ -939,8 +1024,11 @@ export default function ImportReviewPage() {
                           {/* Secondary amount row - only show if variants are enabled and this ingredient has secondary amounts */}
                           {hasVariants && hasSecondaryAmount && (
                             <div className="ml-4 mt-1 flex gap-2 items-center pl-2 border-l-2 border-amber-200">
-                              <span className="text-xs text-amber-600 font-medium whitespace-nowrap w-12">
-                                {editedRecipe?.variant_2_label?.substring(0, 8) || "Alt"}:
+                              <span 
+                                className="text-xs text-amber-600 font-medium truncate max-w-[100px]"
+                                title={editedRecipe?.variant_2_label || "Alternativo"}
+                              >
+                                {editedRecipe?.variant_2_label || "Alt"}:
                               </span>
                               <input
                                 type="text"
@@ -972,17 +1060,29 @@ export default function ImportReviewPage() {
                             </div>
                           )}
                           
-                          {/* Button to add after this ingredient */}
-                          <button
-                            onClick={() => {
-                              const newIngredients = [...(editedRecipe?.ingredients || [])];
-                              newIngredients.splice(i + 1, 0, { amount: "", unit: "", name: "" });
-                              setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
-                            }}
-                            className="w-full py-1 text-xs text-[var(--color-slate-light)] hover:text-[var(--color-purple)] hover:bg-[var(--color-purple-bg)] rounded transition-colors"
-                          >
-                            + insertar aquí
-                          </button>
+                          {/* Buttons to add after this ingredient */}
+                          <div className="flex gap-2 justify-center">
+                            <button
+                              onClick={() => {
+                                const newIngredients = [...(editedRecipe?.ingredients || [])];
+                                newIngredients.splice(i + 1, 0, { amount: "", unit: "", name: "" });
+                                setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                              }}
+                              className="py-1 px-2 text-xs text-[var(--color-slate-light)] hover:text-[var(--color-purple)] hover:bg-[var(--color-purple-bg)] rounded transition-colors"
+                            >
+                              + ingrediente
+                            </button>
+                            <button
+                              onClick={() => {
+                                const newIngredients = [...(editedRecipe?.ingredients || [])];
+                                newIngredients.splice(i + 1, 0, { amount: "", unit: "", name: "", isHeader: true });
+                                setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                              }}
+                              className="py-1 px-2 text-xs text-amber-500 hover:text-amber-700 hover:bg-amber-50 rounded transition-colors"
+                            >
+                              + sección
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -1119,23 +1219,35 @@ export default function ImportReviewPage() {
         <div className="max-w-2xl mx-auto">
           {currentRecipe?.status === "pending" ? (
             isEditing ? (
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 <button
                   onClick={() => {
                     setIsEditing(false);
                     setEditedRecipe(null);
+                    setOriginalEditedRecipe(null);
                   }}
-                  className="btn-secondary flex-1"
+                  className="btn-secondary px-3"
                   disabled={saving}
                 >
                   Cancelar
+                </button>
+                <button
+                  onClick={handleUndo}
+                  disabled={saving || !hasChanges()}
+                  className="px-3 py-2 rounded-lg border border-amber-200 text-amber-600 font-medium hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
+                  title="Deshacer todos los cambios"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                  </svg>
+                  Deshacer
                 </button>
                 <button
                   onClick={handleSaveEdit}
                   disabled={saving}
                   className="btn-primary flex-1 disabled:opacity-50"
                 >
-                  {saving ? "Guardando..." : "Guardar Cambios"}
+                  {saving ? "Guardando..." : "Guardar"}
                 </button>
               </div>
             ) : (
