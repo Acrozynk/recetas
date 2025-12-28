@@ -759,15 +759,72 @@ export default function ImportReviewPage() {
                 <p className="text-[var(--color-slate)] mb-4">{displayRecipe.description}</p>
               )}
 
-              {/* Variant labels indicator */}
-              {displayRecipe.variant_1_label && displayRecipe.variant_2_label && (
+              {/* Variant labels - editable */}
+              {isEditing ? (
+                <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-amber-800 text-sm font-medium">🍰 Variantes de cantidad</span>
+                    {!editedRecipe?.variant_1_label && !editedRecipe?.variant_2_label && (
+                      <button
+                        type="button"
+                        onClick={() => setEditedRecipe(prev => prev ? { 
+                          ...prev, 
+                          variant_1_label: "Cantidad grande",
+                          variant_2_label: "Cantidad pequeña"
+                        } : null)}
+                        className="text-xs text-amber-700 hover:text-amber-900 underline"
+                      >
+                        + Añadir variantes
+                      </button>
+                    )}
+                  </div>
+                  {(editedRecipe?.variant_1_label || editedRecipe?.variant_2_label) && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-amber-700 mb-1">Principal</label>
+                        <input
+                          type="text"
+                          value={editedRecipe?.variant_1_label || ""}
+                          onChange={(e) => setEditedRecipe(prev => prev ? { ...prev, variant_1_label: e.target.value } : null)}
+                          className="input text-sm w-full"
+                          placeholder="Ej: Molde grande (26cm)"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-amber-700 mb-1">Alternativa</label>
+                        <div className="flex gap-1">
+                          <input
+                            type="text"
+                            value={editedRecipe?.variant_2_label || ""}
+                            onChange={(e) => setEditedRecipe(prev => prev ? { ...prev, variant_2_label: e.target.value } : null)}
+                            className="input text-sm flex-1"
+                            placeholder="Ej: Molde pequeño (16cm)"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setEditedRecipe(prev => prev ? { 
+                              ...prev, 
+                              variant_1_label: "",
+                              variant_2_label: ""
+                            } : null)}
+                            className="text-red-500 hover:text-red-700 px-2"
+                            title="Eliminar variantes"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : displayRecipe.variant_1_label && displayRecipe.variant_2_label ? (
                 <div className="mb-3 p-2 bg-amber-50 border border-amber-200 rounded-lg text-sm">
                   <span className="text-amber-800">🍰 Receta con variantes:</span>
                   <span className="font-medium ml-1">{displayRecipe.variant_1_label}</span>
                   <span className="text-amber-600"> / </span>
                   <span className="font-medium">{displayRecipe.variant_2_label}</span>
                 </div>
-              )}
+              ) : null}
 
               {/* Ingredients */}
               <div className="mb-4">
@@ -784,68 +841,136 @@ export default function ImportReviewPage() {
                     >
                       + insertar aquí
                     </button>
-                    {editedRecipe?.ingredients.map((ing, i) => (
-                      <div key={`ing-${i}`}>
-                        <div className="flex gap-2 items-center">
-                          <input
-                            type="text"
-                            defaultValue={ing.amount || ""}
-                            onBlur={(e) => {
-                              const newIngredients = [...(editedRecipe?.ingredients || [])];
-                              newIngredients[i] = { ...newIngredients[i], amount: e.target.value };
-                              setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
-                            }}
-                            className="input !w-16 flex-shrink-0"
-                            placeholder="Cant."
-                            autoComplete="off"
-                          />
-                          <input
-                            type="text"
-                            defaultValue={ing.unit || ""}
-                            onBlur={(e) => {
-                              const newIngredients = [...(editedRecipe?.ingredients || [])];
-                              newIngredients[i] = { ...newIngredients[i], unit: e.target.value };
-                              setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
-                            }}
-                            className="input !w-24 flex-shrink-0"
-                            placeholder="Unidad"
-                            autoComplete="off"
-                          />
-                          <input
-                            type="text"
-                            defaultValue={ing.name || ""}
-                            onBlur={(e) => {
-                              const newIngredients = [...(editedRecipe?.ingredients || [])];
-                              newIngredients[i] = { ...newIngredients[i], name: e.target.value };
-                              setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
-                            }}
-                            className="input flex-1 min-w-0 !w-auto"
-                            placeholder="Ingrediente"
-                            autoComplete="off"
-                          />
+                    {editedRecipe?.ingredients.map((ing, i) => {
+                      const hasVariants = editedRecipe?.variant_1_label || editedRecipe?.variant_2_label;
+                      const hasSecondaryAmount = ing.amount2 || ing.unit2;
+                      
+                      return (
+                        <div key={`ing-${i}`}>
+                          {/* Primary amount row */}
+                          <div className="flex gap-2 items-center">
+                            <input
+                              type="text"
+                              defaultValue={ing.amount || ""}
+                              onBlur={(e) => {
+                                const newIngredients = [...(editedRecipe?.ingredients || [])];
+                                newIngredients[i] = { ...newIngredients[i], amount: e.target.value };
+                                setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                              }}
+                              className="input !w-16 flex-shrink-0"
+                              placeholder={hasVariants && editedRecipe?.variant_1_label ? editedRecipe.variant_1_label.substring(0, 6) : "Cant."}
+                              autoComplete="off"
+                            />
+                            <input
+                              type="text"
+                              defaultValue={ing.unit || ""}
+                              onBlur={(e) => {
+                                const newIngredients = [...(editedRecipe?.ingredients || [])];
+                                newIngredients[i] = { ...newIngredients[i], unit: e.target.value };
+                                setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                              }}
+                              className="input !w-24 flex-shrink-0"
+                              placeholder="Unidad"
+                              autoComplete="off"
+                            />
+                            <input
+                              type="text"
+                              defaultValue={ing.name || ""}
+                              onBlur={(e) => {
+                                const newIngredients = [...(editedRecipe?.ingredients || [])];
+                                newIngredients[i] = { ...newIngredients[i], name: e.target.value };
+                                setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                              }}
+                              className="input flex-1 min-w-0 !w-auto"
+                              placeholder="Ingrediente"
+                              autoComplete="off"
+                            />
+                            {/* Toggle secondary amount button - only show if variants are enabled */}
+                            {hasVariants && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const newIngredients = [...(editedRecipe?.ingredients || [])];
+                                  if (hasSecondaryAmount) {
+                                    // Clear secondary amount
+                                    newIngredients[i] = { ...newIngredients[i], amount2: "", unit2: "" };
+                                  } else {
+                                    // Add placeholder secondary amount
+                                    newIngredients[i] = { ...newIngredients[i], amount2: "", unit2: ing.unit || "" };
+                                  }
+                                  setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                                }}
+                                className={`px-2 py-1 text-xs rounded transition-colors ${
+                                  hasSecondaryAmount 
+                                    ? "bg-amber-100 text-amber-700" 
+                                    : "text-[var(--color-slate-light)] hover:bg-amber-50 hover:text-amber-600"
+                                }`}
+                                title={hasSecondaryAmount ? "Ocultar cantidad alternativa" : "Añadir cantidad alternativa"}
+                              >
+                                ⇄
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                const newIngredients = editedRecipe?.ingredients.filter((_, idx) => idx !== i) || [];
+                                setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                              }}
+                              className="text-red-500 hover:text-red-700 px-2"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                          
+                          {/* Secondary amount row - only show if variants are enabled and this ingredient has secondary amounts */}
+                          {hasVariants && hasSecondaryAmount && (
+                            <div className="ml-4 mt-1 flex gap-2 items-center pl-2 border-l-2 border-amber-200">
+                              <span className="text-xs text-amber-600 font-medium whitespace-nowrap w-12">
+                                {editedRecipe?.variant_2_label?.substring(0, 8) || "Alt"}:
+                              </span>
+                              <input
+                                type="text"
+                                defaultValue={ing.amount2 || ""}
+                                onBlur={(e) => {
+                                  const newIngredients = [...(editedRecipe?.ingredients || [])];
+                                  newIngredients[i] = { ...newIngredients[i], amount2: e.target.value };
+                                  setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                                }}
+                                className="input !w-16 flex-shrink-0 text-sm"
+                                placeholder="Cant."
+                                autoComplete="off"
+                              />
+                              <input
+                                type="text"
+                                defaultValue={ing.unit2 || ""}
+                                onBlur={(e) => {
+                                  const newIngredients = [...(editedRecipe?.ingredients || [])];
+                                  newIngredients[i] = { ...newIngredients[i], unit2: e.target.value };
+                                  setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                                }}
+                                className="input !w-24 flex-shrink-0 text-sm"
+                                placeholder="Unidad"
+                                autoComplete="off"
+                              />
+                              <span className="text-xs text-[var(--color-slate-light)] truncate flex-1">
+                                {ing.name || "—"}
+                              </span>
+                            </div>
+                          )}
+                          
+                          {/* Button to add after this ingredient */}
                           <button
                             onClick={() => {
-                              const newIngredients = editedRecipe?.ingredients.filter((_, idx) => idx !== i) || [];
+                              const newIngredients = [...(editedRecipe?.ingredients || [])];
+                              newIngredients.splice(i + 1, 0, { amount: "", unit: "", name: "" });
                               setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
                             }}
-                            className="text-red-500 hover:text-red-700 px-2"
+                            className="w-full py-1 text-xs text-[var(--color-slate-light)] hover:text-[var(--color-purple)] hover:bg-[var(--color-purple-bg)] rounded transition-colors"
                           >
-                            ✕
+                            + insertar aquí
                           </button>
                         </div>
-                        {/* Button to add after this ingredient */}
-                        <button
-                          onClick={() => {
-                            const newIngredients = [...(editedRecipe?.ingredients || [])];
-                            newIngredients.splice(i + 1, 0, { amount: "", unit: "", name: "" });
-                            setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
-                          }}
-                          className="w-full py-1 text-xs text-[var(--color-slate-light)] hover:text-[var(--color-purple)] hover:bg-[var(--color-purple-bg)] rounded transition-colors"
-                        >
-                          + insertar aquí
-                        </button>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ) : (
                   <ul className="space-y-1 text-sm max-h-48 overflow-y-auto">
