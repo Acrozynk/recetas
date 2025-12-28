@@ -91,6 +91,10 @@ export default function ImportPage() {
         return;
       }
 
+      // Log image paths for debugging
+      if (imageFiles.size > 0) {
+        console.log("Found image files:", Array.from(imageFiles.keys()).slice(0, 5));
+      }
       setLoadingStatus(`Encontradas ${imageFiles.size} imágenes. Analizando recetas...`);
 
       // Create session via API
@@ -108,6 +112,17 @@ export default function ImportPage() {
       }
 
       const { session } = await response.json();
+      
+      // Log recipe image paths for debugging
+      const recipesWithLocalImages = session.recipes
+        .filter((r: { original: { local_image_path: string | null } }) => r.original.local_image_path)
+        .map((r: { original: { title: string; local_image_path: string } }) => ({
+          title: r.original.title,
+          path: r.original.local_image_path
+        }));
+      if (recipesWithLocalImages.length > 0) {
+        console.log("Recipes expecting local images:", recipesWithLocalImages.slice(0, 5));
+      }
 
       // Upload local images to storage so they're available during review
       if (imageFiles.size > 0) {
