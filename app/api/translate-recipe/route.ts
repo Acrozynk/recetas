@@ -4,8 +4,41 @@ import {
   translateText, 
   translateTexts,
   translateRecipeWithDictionary,
+  translateWithDictionary,
 } from "@/lib/translate";
 import type { ParsedRecipe } from "@/lib/parse-copymthat";
+
+/**
+ * Ensure all ingredients have valid names (never empty)
+ */
+function ensureValidIngredients(
+  translatedIngredients: ParsedRecipe["ingredients"], 
+  originalIngredients: ParsedRecipe["ingredients"]
+): ParsedRecipe["ingredients"] {
+  return translatedIngredients.map((ing, i) => {
+    const original = originalIngredients[i];
+    
+    // Ensure name is never empty
+    let name = ing.name;
+    if (!name || name.trim().length === 0) {
+      // Try dictionary translation of original
+      name = translateWithDictionary(original?.name || "") || original?.name || "";
+    }
+    
+    // Ensure unit is valid
+    let unit = ing.unit;
+    if (!unit && original?.unit) {
+      unit = translateWithDictionary(original.unit) || original.unit;
+    }
+    
+    return {
+      ...ing,
+      name: name || original?.name || "",
+      unit: unit || "",
+      amount: ing.amount || original?.amount || "",
+    };
+  });
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,6 +66,11 @@ export async function POST(request: NextRequest) {
     // If dictionary-only mode is requested, use fast local translation
     if (useDictionaryOnly) {
       const translatedRecipe = translateRecipeWithDictionary(recipe) as ParsedRecipe;
+      // Ensure ingredients are valid
+      translatedRecipe.ingredients = ensureValidIngredients(
+        translatedRecipe.ingredients, 
+        recipe.ingredients
+      );
       return NextResponse.json({ 
         recipe: translatedRecipe, 
         translated: true,
@@ -56,18 +94,28 @@ export async function POST(request: NextRequest) {
       ]);
 
       // Translate ingredients (names and units)
-      const ingredientNames = recipe.ingredients.map(i => i.name);
-      const ingredientUnits = recipe.ingredients.map(i => i.unit);
+      const ingredientNames = recipe.ingredients.map(i => i.name || "");
+      const ingredientUnits = recipe.ingredients.map(i => i.unit || "");
+      
+      console.log("Translating ingredient names:", ingredientNames);
       
       const [translatedIngredientNames, translatedIngredientUnits] = await Promise.all([
         translateTexts(ingredientNames),
         translateTexts(ingredientUnits),
       ]);
       
+      console.log("Translated ingredient names:", translatedIngredientNames);
+      
+      // Build translated ingredients with fallbacks
       const translatedIngredients = recipe.ingredients.map((ing, i) => ({
         ...ing,
-        name: translatedIngredientNames[i] || ing.name, // Fallback to original
-        unit: translatedIngredientUnits[i] || ing.unit,
+        // Use translated name, fallback to dictionary, fallback to original
+        name: (translatedIngredientNames[i] && translatedIngredientNames[i].trim().length > 0) 
+          ? translatedIngredientNames[i] 
+          : (translateWithDictionary(ing.name) || ing.name),
+        unit: (translatedIngredientUnits[i] && translatedIngredientUnits[i].trim().length > 0)
+          ? translatedIngredientUnits[i]
+          : (translateWithDictionary(ing.unit) || ing.unit),
       }));
 
       // Translate instructions
@@ -77,8 +125,10 @@ export async function POST(request: NextRequest) {
       const translatedInstructionTexts = await translateTexts(instructionTexts);
       
       const translatedInstructions = recipe.instructions.map((inst, i) => {
-        const translatedText = translatedInstructionTexts[i] || 
-          (typeof inst === "string" ? inst : inst.text); // Fallback
+        const originalText = typeof inst === "string" ? inst : inst.text;
+        const translatedText = (translatedInstructionTexts[i] && translatedInstructionTexts[i].trim().length > 0)
+          ? translatedInstructionTexts[i]
+          : (translateWithDictionary(originalText) || originalText);
         
         if (typeof inst === "string") {
           return { text: translatedText, ingredientIndices: [] };
@@ -97,15 +147,23 @@ export async function POST(request: NextRequest) {
       // Translate tags
       const translatedTags = await translateTexts(recipe.tags);
 
-      const translatedRecipe: ParsedRecipe = {
+      let translatedRecipe: ParsedRecipe = {
         ...recipe,
-        title: translatedTitle || recipe.title,
+        title: (translatedTitle && translatedTitle.trim().length > 0) 
+          ? translatedTitle 
+          : (translateWithDictionary(recipe.title) || recipe.title),
         description: translatedDescription,
         ingredients: translatedIngredients,
         instructions: translatedInstructions,
         notes: translatedNotes || recipe.notes,
-        tags: translatedTags.map((t, i) => t || recipe.tags[i]),
+        tags: translatedTags.map((t, i) => (t && t.trim().length > 0) ? t : recipe.tags[i]),
       };
+
+      // Final validation - ensure all ingredients have valid names
+      translatedRecipe.ingredients = ensureValidIngredients(
+        translatedRecipe.ingredients,
+        recipe.ingredients
+      );
 
       // Verify translation worked (check if at least title changed or ingredients have values)
       const hasValidIngredients = translatedRecipe.ingredients.every(
@@ -113,8 +171,12 @@ export async function POST(request: NextRequest) {
       );
 
       if (!hasValidIngredients) {
-        console.warn("Translation produced empty ingredients, falling back to dictionary");
+        console.warn("Translation still has empty ingredients after fallback, using full dictionary");
         const fallbackRecipe = translateRecipeWithDictionary(recipe) as ParsedRecipe;
+        fallbackRecipe.ingredients = ensureValidIngredients(
+          fallbackRecipe.ingredients, 
+          recipe.ingredients
+        );
         return NextResponse.json({ 
           recipe: fallbackRecipe, 
           translated: true,
@@ -137,6 +199,11 @@ export async function POST(request: NextRequest) {
       
       // Fallback to dictionary translation
       const translatedRecipe = translateRecipeWithDictionary(recipe) as ParsedRecipe;
+      // Ensure ingredients are valid
+      translatedRecipe.ingredients = ensureValidIngredients(
+        translatedRecipe.ingredients, 
+        recipe.ingredients
+      );
       return NextResponse.json({ 
         recipe: translatedRecipe, 
         translated: true,

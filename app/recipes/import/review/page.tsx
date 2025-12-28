@@ -123,17 +123,36 @@ export default function ImportReviewPage() {
       const { recipe: translatedRecipe, translated, message, method } = await response.json();
       
       if (translated) {
-        // Verify translation has valid data
-        const hasValidData = translatedRecipe.ingredients?.every(
-          (ing: { name: string }) => ing.name && ing.name.trim().length > 0
+        // Ensure all ingredients have valid names (fallback to original if empty)
+        const originalIngredients = currentRecipe.original.ingredients;
+        const validatedIngredients = translatedRecipe.ingredients.map(
+          (ing: Ingredient, i: number) => ({
+            ...ing,
+            name: (ing.name && ing.name.trim().length > 0) 
+              ? ing.name 
+              : (originalIngredients[i]?.name || ""),
+            unit: ing.unit || originalIngredients[i]?.unit || "",
+            amount: ing.amount || originalIngredients[i]?.amount || "",
+          })
         );
         
+        // Check if we have valid data after fallback
+        const hasValidData = validatedIngredients.length > 0 && 
+          validatedIngredients.every((ing: Ingredient) => ing.name && ing.name.trim().length > 0);
+        
         if (!hasValidData) {
+          console.error("Translation still has invalid data:", validatedIngredients);
           throw new Error("Translation returned invalid data");
         }
         
+        // Create final recipe with validated ingredients
+        const finalRecipe = {
+          ...translatedRecipe,
+          ingredients: validatedIngredients,
+        };
+        
         // Switch to edit mode with the translated recipe
-        setEditedRecipe(translatedRecipe);
+        setEditedRecipe(finalRecipe);
         setIsEditing(true);
         setDetectedLanguage("es");
         
