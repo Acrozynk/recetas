@@ -349,6 +349,7 @@ export default function ImportReviewPage() {
   const handleSaveEdit = async () => {
     if (!session || !editedRecipe) return;
     setSaving(true);
+    setError(""); // Clear any previous errors
 
     try {
       // Upload image if needed
@@ -392,14 +393,23 @@ export default function ImportReviewPage() {
         }),
       });
 
+      if (!response.ok) {
+        throw new Error("Failed to update session");
+      }
+
       const result = await response.json();
+      
+      // Exit edit mode first
       setIsEditing(false);
       setEditedRecipe(null);
       
       if (result.isComplete) {
         router.push("/recipes/import/complete");
-      } else {
+      } else if (result.session) {
         setSession(result.session);
+      } else {
+        // Fallback: reload session if response is unexpected
+        await loadSession();
       }
     } catch (err) {
       console.error("Error saving edited recipe:", err);
