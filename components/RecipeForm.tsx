@@ -14,10 +14,14 @@ import TagInput from "./TagInput";
 
 interface RecipeFormProps {
   recipe?: Recipe;
-  mode: "create" | "edit";
+  mode: "create" | "edit" | "import";
+  // Optional callbacks for custom behavior (used in import review)
+  onSave?: (recipeData: Record<string, unknown>) => Promise<void>;
+  onCancel?: () => void;
+  hideNavButtons?: boolean;
 }
 
-export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
+export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButtons }: RecipeFormProps) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -775,6 +779,12 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         variant_2_label: showVariantLabels && variant2Label.trim() ? variant2Label.trim() : null,
       };
 
+      // If custom onSave callback is provided (import mode), use it
+      if (onSave) {
+        await onSave(recipeData);
+        return;
+      }
+
       if (mode === "edit" && recipe) {
         const { error: updateError } = await supabase
           .from("recipes")
@@ -811,12 +821,12 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         </div>
       )}
 
-      {/* Top Save Buttons (only in edit mode) */}
-      {mode === "edit" && (
+      {/* Top Save Buttons (only in edit mode, hide if hideNavButtons) */}
+      {mode === "edit" && !hideNavButtons && (
         <div className="flex gap-3">
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={() => onCancel ? onCancel() : router.back()}
             className="btn-secondary flex-1"
             disabled={saving}
           >
@@ -2004,23 +2014,25 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
       </div>
 
       {/* Submit */}
-      <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={() => router.back()}
-          className="btn-secondary flex-1"
-          disabled={saving}
-        >
-          Cancelar
-        </button>
-        <button
-          type="submit"
-          className="btn-primary flex-1 disabled:opacity-50"
-          disabled={saving || !title.trim()}
-        >
-          {saving ? "Guardando..." : mode === "edit" ? "Actualizar Receta" : "Guardar Receta"}
-        </button>
-      </div>
+      {!hideNavButtons && (
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => onCancel ? onCancel() : router.back()}
+            className="btn-secondary flex-1"
+            disabled={saving}
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            className="btn-primary flex-1 disabled:opacity-50"
+            disabled={saving || !title.trim()}
+          >
+            {saving ? "Guardando..." : mode === "edit" ? "Actualizar Receta" : mode === "import" ? "Importar" : "Guardar Receta"}
+          </button>
+        </div>
+      )}
 
       {/* Unit suggestions datalist - shared by all unit inputs */}
       <datalist id="unit-suggestions">

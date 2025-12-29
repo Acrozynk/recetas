@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { supabase, type Ingredient, type Instruction } from "@/lib/supabase";
+import { supabase, type Ingredient, type Instruction, type Recipe } from "@/lib/supabase";
 import type { ParsedRecipe } from "@/lib/parse-copymthat";
 import { detectRecipeLanguage } from "@/lib/translate";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import TagInput from "@/components/TagInput";
+import RecipeForm from "@/components/RecipeForm";
 
 interface ImportRecipeEntry {
   original: ParsedRecipe;
