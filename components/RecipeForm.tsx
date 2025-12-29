@@ -355,6 +355,23 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     setIngredients([...ingredients, { name: "", amount: "", unit: "", amount2: "", unit2: "" }]);
   };
 
+  // Insert ingredient at specific position
+  const insertIngredientAt = (index: number) => {
+    const newIngredient = { name: "", amount: "", unit: "", amount2: "", unit2: "" };
+    const newIngredients = [
+      ...ingredients.slice(0, index),
+      newIngredient,
+      ...ingredients.slice(index)
+    ];
+    setIngredients(newIngredients);
+    
+    // Update instruction indices for ingredients after the insertion point
+    setInstructions(instructions.map(instruction => ({
+      ...instruction,
+      ingredientIndices: instruction.ingredientIndices.map(i => i >= index ? i + 1 : i)
+    })));
+  };
+
   const addSectionHeader = () => {
     setIngredients([...ingredients, { name: "", amount: "", unit: "", isHeader: true }]);
   };
@@ -1230,7 +1247,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
               movingSectionIndex !== index - 1;
             
             return (
-              <div key={index} className="space-y-2">
+              <div key={index} className="space-y-2 group/ingredient">
                 {/* Drop zone before this ingredient */}
                 {showIngredientDropZone && (
                   <button
@@ -1239,6 +1256,20 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                     className="w-full py-3 px-4 rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all flex items-center justify-center gap-2"
                   >
                     <span className="text-sm font-medium">📋 Colocar sección aquí</span>
+                  </button>
+                )}
+                {/* Insert button - shows on hover */}
+                {movingSectionIndex === null && (
+                  <button
+                    type="button"
+                    onClick={() => insertIngredientAt(index)}
+                    className="w-full py-1 opacity-0 group-hover/ingredient:opacity-100 focus:opacity-100 transition-opacity flex items-center justify-center gap-1 text-[var(--color-purple)] hover:text-[var(--color-purple-dark)]"
+                    title="Insertar ingrediente aquí"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span className="text-xs">Insertar aquí</span>
                   </button>
                 )}
                 {/* Primary measurement row - horizontal layout with CSS Grid */}
