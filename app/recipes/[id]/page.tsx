@@ -463,16 +463,52 @@ export default function RecipeDetailPage() {
     // If no portions configured, show original amounts instead of 0
     if (totalPortions === 0 || servingMultiplier === 0) return amount;
 
-    // Try to parse and scale the amount
-    const numMatch = amount.match(/^([\d./]+)\s*(.*)$/);
-    if (numMatch) {
-      let num: number;
-      if (numMatch[1].includes("/")) {
-        const [numerator, denominator] = numMatch[1].split("/");
-        num = parseInt(numerator) / parseInt(denominator);
-      } else {
-        num = parseFloat(numMatch[1]);
+    // Unicode fractions map
+    const unicodeFractions: Record<string, number> = {
+      '½': 0.5, '⅓': 1/3, '⅔': 2/3, '¼': 0.25, '¾': 0.75,
+      '⅛': 0.125, '⅜': 0.375, '⅝': 0.625, '⅞': 0.875,
+      '⅕': 0.2, '⅖': 0.4, '⅗': 0.6, '⅘': 0.8, '⅙': 1/6, '⅚': 5/6
+    };
+
+    // Helper to parse a number that may include Unicode fractions
+    const parseAmount = (str: string): number | null => {
+      let trimmed = str.trim();
+      if (!trimmed) return null;
+      
+      // Check for leading whole number followed by Unicode fraction (e.g., "1½")
+      const mixedMatch = trimmed.match(/^(\d+)([½⅓⅔¼¾⅛⅜⅝⅞⅕⅖⅗⅘⅙⅚])$/);
+      if (mixedMatch) {
+        const whole = parseInt(mixedMatch[1]);
+        const frac = unicodeFractions[mixedMatch[2]];
+        return frac !== undefined ? whole + frac : null;
       }
+      
+      // Check for standalone Unicode fraction
+      if (unicodeFractions[trimmed] !== undefined) {
+        return unicodeFractions[trimmed];
+      }
+      
+      // Check for regular fraction (e.g., "1/2")
+      if (trimmed.includes("/")) {
+        const [numerator, denominator] = trimmed.split("/");
+        const num = parseInt(numerator);
+        const den = parseInt(denominator);
+        if (!isNaN(num) && !isNaN(den) && den !== 0) {
+          return num / den;
+        }
+        return null;
+      }
+      
+      // Regular number
+      const num = parseFloat(trimmed);
+      return isNaN(num) ? null : num;
+    };
+
+    // Try to parse and scale the amount - now supports Unicode fractions
+    const numMatch = amount.match(/^([\d./½⅓⅔¼¾⅛⅜⅝⅞⅕⅖⅗⅘⅙⅚]+)\s*(.*)$/);
+    if (numMatch) {
+      const num = parseAmount(numMatch[1]);
+      if (num === null) return amount;
 
       const scaled = num * servingMultiplier;
       
@@ -490,6 +526,10 @@ export default function RecipeDetailPage() {
         scaledStr = "⅓";
       } else if (Math.abs(scaled - 0.67) < 0.01) {
         scaledStr = "⅔";
+      } else if (Math.abs(scaled - 0.125) < 0.01) {
+        scaledStr = "⅛";
+      } else if (Math.abs(scaled - 0.167) < 0.01) {
+        scaledStr = "⅙";
       } else if (scaled === 1.5) {
         scaledStr = "1½";
       } else if (scaled === 2.5) {
