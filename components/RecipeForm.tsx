@@ -422,7 +422,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     
     // Find where this section ends (next header or end of list)
     let sectionEndIndex = sourceHeaderIndex + 1;
-    while (sectionEndIndex < ingredients.length && !ingredients[sectionEndIndex].isHeader) {
+    while (sectionEndIndex < ingredients.length && !ingredients[sectionEndIndex].isHeader && !ingredients[sectionEndIndex].name.startsWith('**')) {
       sectionEndIndex++;
     }
     
@@ -686,13 +686,15 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     
     for (let index = 0; index < ingredients.length; index++) {
       const ingredient = ingredients[index];
-      if (ingredient.isHeader) {
+      const isHeader = ingredient.isHeader || ingredient.name.startsWith('**');
+      if (isHeader) {
         // Save previous section if exists and has ingredients
         if (currentSection && currentSection.ingredientIndices.length > 0) {
           sections.push(currentSection);
         }
-        // Start new section
-        currentSection = { name: ingredient.name || 'Sin nombre', startIndex: index, ingredientIndices: [] };
+        // Start new section - remove ** markers from name
+        const sectionName = ingredient.name.replace(/^\*\*|\*\*$/g, '') || 'Sin nombre';
+        currentSection = { name: sectionName, startIndex: index, ingredientIndices: [] };
       } else if (ingredient.name.trim()) {
         if (currentSection) {
           currentSection.ingredientIndices.push(index);
@@ -1355,8 +1357,9 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
             const canConvert = ingredient.amount && ingredient.unit && 
               (isVolumeUnit(ingredient.unit) || isWeightUnit(ingredient.unit));
             
-            // Render section header differently
-            if (ingredient.isHeader) {
+            // Render section header differently (check both isHeader and old **name** format)
+            const isIngredientHeader = ingredient.isHeader || ingredient.name.startsWith('**');
+            if (isIngredientHeader) {
               const isBeingMoved = movingSectionIndex === index;
               // Show drop zone before this header if we're moving a DIFFERENT section header
               const showDropZone = movingSectionIndex !== null && 
