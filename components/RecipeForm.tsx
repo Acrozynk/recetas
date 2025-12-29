@@ -42,6 +42,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     { label: "⅛", value: "⅛" },
     { label: "¼", value: "¼" },
     { label: "⅓", value: "⅓" },
+    { label: "⅜", value: "⅜" },
     { label: "½", value: "½" },
     { label: "⅔", value: "⅔" },
     { label: "¾", value: "¾" },
@@ -1116,14 +1117,14 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         </div>
         
         {/* Fraction buttons toolbar */}
-        <div className="flex items-center gap-1 mb-4 pb-3 border-b border-[var(--border-color)]">
-          <span className="text-xs text-[var(--color-slate-light)] mr-1">Fracciones:</span>
+        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[var(--border-color)]">
+          <span className="text-sm text-[var(--color-slate-light)] mr-1">Fracciones:</span>
           {FRACTIONS.map((f) => (
             <button
               key={f.value}
               type="button"
               onClick={() => insertFraction(f.value)}
-              className="px-2.5 py-1.5 text-sm font-medium bg-[var(--color-purple-bg)] hover:bg-[var(--color-purple-bg-dark)] text-[var(--color-purple)] rounded-md transition-colors min-w-[32px]"
+              className="px-3 py-2 text-lg font-medium bg-[var(--color-purple-bg)] hover:bg-[var(--color-purple-bg-dark)] text-[var(--color-purple)] rounded-lg transition-colors min-w-[44px]"
               title={`Insertar ${f.label}`}
             >
               {f.label}
