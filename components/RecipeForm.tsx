@@ -590,6 +590,66 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     setInstructions(updated);
   };
 
+  // Get ingredient sections (groups of ingredients under each header)
+  const getIngredientSections = () => {
+    const sections: Array<{ name: string; startIndex: number; ingredientIndices: number[] }> = [];
+    let currentSection: { name: string; startIndex: number; ingredientIndices: number[] } | null = null;
+    
+    ingredients.forEach((ingredient, index) => {
+      if (ingredient.isHeader) {
+        // Save previous section if exists
+        if (currentSection) {
+          sections.push(currentSection);
+        }
+        // Start new section
+        currentSection = { name: ingredient.name || 'Sin nombre', startIndex: index, ingredientIndices: [] };
+      } else if (ingredient.name.trim()) {
+        if (currentSection) {
+          currentSection.ingredientIndices.push(index);
+        } else {
+          // Ingredients before any header - create default section
+          if (sections.length === 0 || sections[sections.length - 1].name !== 'Ingredientes') {
+            currentSection = { name: 'Ingredientes', startIndex: -1, ingredientIndices: [index] };
+          } else {
+            sections[sections.length - 1].ingredientIndices.push(index);
+          }
+        }
+      }
+    });
+    
+    // Don't forget the last section
+    if (currentSection && currentSection.ingredientIndices.length > 0) {
+      sections.push(currentSection);
+    }
+    
+    return sections;
+  };
+
+  // Toggle all ingredients in a section for a step
+  const toggleSectionInStep = (stepIndex: number, sectionIndices: number[]) => {
+    const updated = [...instructions];
+    const currentIndices = updated[stepIndex].ingredientIndices;
+    
+    // Check if ALL ingredients in the section are already selected
+    const allSelected = sectionIndices.every(idx => currentIndices.includes(idx));
+    
+    if (allSelected) {
+      // Remove all ingredients in this section
+      updated[stepIndex] = {
+        ...updated[stepIndex],
+        ingredientIndices: currentIndices.filter(i => !sectionIndices.includes(i))
+      };
+    } else {
+      // Add all ingredients in this section
+      const newIndices = [...new Set([...currentIndices, ...sectionIndices])].sort((a, b) => a - b);
+      updated[stepIndex] = {
+        ...updated[stepIndex],
+        ingredientIndices: newIndices
+      };
+    }
+    setInstructions(updated);
+  };
+
   const removeInstruction = (index: number) => {
     if (instructions.length > 1) {
       setInstructions(instructions.filter((_, i) => i !== index));
@@ -1656,36 +1716,59 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                   </button>
                 </div>
                 
-                {/* Ingredient chips for this step */}
-                {ingredients.filter(i => i.name.trim()).length > 0 && (
-                  <div className="ml-8">
-                    <div className="flex flex-wrap gap-2">
-                      {ingredients.map((ingredient, ingredientIndex) => {
-                        if (!ingredient.name.trim() || ingredient.isHeader) return null;
-                        const isSelected = instruction.ingredientIndices.includes(ingredientIndex);
-                        return (
-                          <button
-                            key={ingredientIndex}
-                            type="button"
-                            onClick={() => toggleIngredientInStep(stepIndex, ingredientIndex)}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
-                              isSelected
-                                ? "bg-[var(--color-purple)] text-white shadow-sm"
-                                : "bg-white border border-[var(--border-color)] text-[var(--color-slate)] hover:border-[var(--color-purple)] hover:text-[var(--color-purple)]"
-                            }`}
-                          >
-                            {isSelected && (
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                            {ingredient.name}
-                          </button>
-                        );
-                      })}
+                {/* Section chips for this step */}
+                {(() => {
+                  const sections = getIngredientSections();
+                  if (sections.length === 0) return null;
+                  
+                  return (
+                    <div className="ml-8">
+                      <div className="flex flex-wrap gap-2">
+                        {sections.map((section, sectionIdx) => {
+                          // Check if ALL ingredients in this section are selected
+                          const allSelected = section.ingredientIndices.every(idx => 
+                            instruction.ingredientIndices.includes(idx)
+                          );
+                          // Check if SOME ingredients in this section are selected
+                          const someSelected = section.ingredientIndices.some(idx => 
+                            instruction.ingredientIndices.includes(idx)
+                          );
+                          
+                          return (
+                            <button
+                              key={sectionIdx}
+                              type="button"
+                              onClick={() => toggleSectionInStep(stepIndex, section.ingredientIndices)}
+                              className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                allSelected
+                                  ? "bg-[var(--color-purple)] text-white shadow-sm"
+                                  : someSelected
+                                  ? "bg-[var(--color-purple-bg)] border border-[var(--color-purple)] text-[var(--color-purple)]"
+                                  : "bg-white border border-[var(--border-color)] text-[var(--color-slate)] hover:border-[var(--color-purple)] hover:text-[var(--color-purple)]"
+                              }`}
+                              title={`${section.ingredientIndices.length} ingredientes`}
+                            >
+                              {allSelected && (
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                              {someSelected && !allSelected && (
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                </svg>
+                              )}
+                              {section.name}
+                              <span className={`text-[10px] ${allSelected ? 'text-white/70' : 'text-[var(--color-slate-light)]'}`}>
+                                ({section.ingredientIndices.length})
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             );
           })}
