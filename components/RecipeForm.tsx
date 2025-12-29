@@ -891,19 +891,19 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                       const container = containers.find(c => c.id === selected.id);
                       return (
                         <div key={selected.id} className={`flex items-center gap-2 p-2 rounded-lg border ${idx === 0 ? 'bg-[var(--color-purple-bg)] border-[var(--color-purple)]' : 'bg-amber-50 border-amber-300'}`}>
-                          <span className="text-xs font-medium text-[var(--color-slate)] w-16">
-                            {idx === 0 ? '🥇 Principal' : '🥈 Variante'}
+                          <span className="text-xs font-medium text-[var(--color-slate)] shrink-0">
+                            {idx === 0 ? '🥇' : '🥈'}
                           </span>
                           <input
                             type="number"
                             value={selected.quantity}
                             onChange={(e) => updateContainerQuantity(selected.id, e.target.value)}
-                            className="input w-16 text-center text-sm py-1"
+                            className="input w-12 text-center text-sm py-1 px-1 shrink-0"
                             placeholder="1"
                             min="0.5"
                             step="0.5"
                           />
-                          <span className="text-sm text-[var(--foreground)] flex-1">
+                          <span className="text-sm text-[var(--foreground)] flex-1 truncate">
                             {container?.name || 'Recipiente no encontrado'}
                           </span>
                           <button
