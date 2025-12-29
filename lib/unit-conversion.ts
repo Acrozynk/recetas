@@ -237,7 +237,32 @@ export function getIngredientDensity(ingredientName: string): number {
 export function parseAmount(amount: string): number | null {
   if (!amount || !amount.trim()) return null;
   
-  const cleaned = amount.trim();
+  let cleaned = amount.trim();
+  
+  // Replace Unicode fractions with decimal equivalents
+  const unicodeFractions: Record<string, number> = {
+    '⅛': 0.125,
+    '¼': 0.25,
+    '⅓': 0.333,
+    '⅜': 0.375,
+    '½': 0.5,
+    '⅝': 0.625,
+    '⅔': 0.667,
+    '¾': 0.75,
+    '⅞': 0.875,
+  };
+  
+  // Handle mixed numbers with Unicode fractions like "1½" or "1 ½"
+  for (const [frac, value] of Object.entries(unicodeFractions)) {
+    const mixedUnicodeMatch = cleaned.match(new RegExp(`^(\\d+)\\s*${frac}$`));
+    if (mixedUnicodeMatch) {
+      return parseInt(mixedUnicodeMatch[1]) + value;
+    }
+    // Handle standalone Unicode fractions
+    if (cleaned === frac) {
+      return value;
+    }
+  }
   
   // Handle mixed numbers like "1 1/2"
   const mixedMatch = cleaned.match(/^(\d+)\s+(\d+)\/(\d+)$/);

@@ -7,6 +7,13 @@ import Link from "next/link";
 import { supabase, type Recipe, type Ingredient, type Instruction, type Container, normalizeInstructions } from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
+import { 
+  convertIngredient, 
+  isVolumeUnit, 
+  isWeightUnit, 
+  normalizeUnit,
+  parseAmount
+} from "@/lib/unit-conversion";
 
 // Helper function to normalize text for matching (remove accents, lowercase)
 function normalizeText(text: string): string {
@@ -72,7 +79,8 @@ function findIngredientMention(stepText: string, ingredientName: string): { foun
 function formatIngredientForStep(
   ingredient: Ingredient, 
   scaleAmount: (amount: string) => string,
-  useVariant2: boolean
+  useVariant2: boolean,
+  convertUnit?: (amount: string | undefined, unit: string | undefined, name: string) => { amount: string; unit: string }
 ): string {
   const hasSecondary = ingredient.amount2 && ingredient.unit2;
   const displayAmount = useVariant2 && hasSecondary 
@@ -82,7 +90,17 @@ function formatIngredientForStep(
     ? ingredient.unit2 
     : ingredient.unit;
   
-  let result = scaleAmount(displayAmount || '');
+  const scaledAmount = scaleAmount(displayAmount || '');
+  
+  // Apply unit conversion if provided
+  if (convertUnit) {
+    const converted = convertUnit(scaledAmount, displayUnit, ingredient.name);
+    let result = converted.amount;
+    if (converted.unit) result += ` ${converted.unit}`;
+    return result.trim();
+  }
+  
+  let result = scaledAmount;
   if (displayUnit) result += ` ${displayUnit}`;
   
   return result.trim();
@@ -100,7 +118,8 @@ function enrichStepWithIngredients(
   stepText: string,
   ingredients: Ingredient[],
   scaleAmount: (amount: string) => string,
-  useVariant2: boolean
+  useVariant2: boolean,
+  convertUnit?: (amount: string | undefined, unit: string | undefined, name: string) => { amount: string; unit: string }
 ): EnrichedStepPart[] {
   const parts: EnrichedStepPart[] = [];
   
@@ -197,7 +216,7 @@ function enrichStepWithIngredients(
         type: 'ingredient',
         content: matchedText,
         ingredient: mention.ingredient,
-        formattedIngredient: formatIngredientForStep(mention.ingredient, scaleAmount, useVariant2)
+        formattedIngredient: formatIngredientForStep(mention.ingredient, scaleAmount, useVariant2, convertUnit)
       });
     } else {
       // If somehow we didn't capture the word, just add as text
@@ -250,6 +269,8 @@ export default function RecipeDetailPage() {
   const [madeIt, setMadeIt] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
+  // Unit conversion mode: 'metric' (g, ml) or 'american' (cups, tbsp)
+  const [unitMode, setUnitMode] = useState<'metric' | 'american'>('metric');
 
   // Check if Wake Lock API is supported
   useEffect(() => {
@@ -471,6 +492,85 @@ export default function RecipeDetailPage() {
     }
 
     return amount;
+  };
+
+  // Convert ingredient amount based on unit mode (metric vs american)
+  const convertIngredientUnit = (
+    amount: string | undefined,
+    unit: string | undefined,
+    ingredientName: string
+  ): { amount: string; unit: string } => {
+    if (!amount || !unit) return { amount: amount || '', unit: unit || '' };
+    
+    const normalizedUnit = normalizeUnit(unit);
+    
+    // Determine target unit based on mode
+    if (unitMode === 'american') {
+      // Convert metric to american
+      if (isWeightUnit(unit)) {
+        // Weight -> volume (cups/tbsp)
+        const result = convertIngredient(amount, unit, 'cup', ingredientName);
+        if (result.success) {
+          // Parse the result to see if it's a small amount
+          const parsedResult = parseAmount(result.amount);
+          if (parsedResult !== null && parsedResult < 0.1) {
+            // Try tablespoons for small amounts
+            const tbspResult = convertIngredient(amount, unit, 'tbsp', ingredientName);
+            if (tbspResult.success) {
+              const parsedTbsp = parseAmount(tbspResult.amount);
+              if (parsedTbsp !== null && parsedTbsp >= 1) {
+                return { amount: tbspResult.amount, unit: 'cda' };
+              }
+              // Try teaspoons for even smaller amounts
+              const tspResult = convertIngredient(amount, unit, 'tsp', ingredientName);
+              if (tspResult.success) {
+                return { amount: tspResult.amount, unit: 'cdta' };
+              }
+            }
+          }
+          return { amount: result.amount, unit: 'taza' };
+        }
+      } else if (normalizedUnit === 'ml') {
+        // ml -> volume (cups/tbsp)
+        const result = convertIngredient(amount, unit, 'cup', ingredientName);
+        if (result.success) {
+          const parsedResult = parseAmount(result.amount);
+          if (parsedResult !== null && parsedResult < 0.25) {
+            const tbspResult = convertIngredient(amount, unit, 'tbsp', ingredientName);
+            if (tbspResult.success) {
+              return { amount: tbspResult.amount, unit: 'cda' };
+            }
+          }
+          return { amount: result.amount, unit: 'taza' };
+        }
+      } else if (normalizedUnit === 'l') {
+        // liters -> cups
+        const result = convertIngredient(amount, unit, 'cup', ingredientName);
+        if (result.success) {
+          return { amount: result.amount, unit: 'tazas' };
+        }
+      }
+    } else {
+      // Convert american to metric
+      if (isVolumeUnit(unit) && !['ml', 'l'].includes(normalizedUnit)) {
+        // Volume (cups/tbsp) -> weight (grams)
+        const result = convertIngredient(amount, unit, 'g', ingredientName);
+        if (result.success) {
+          const parsedResult = parseAmount(result.amount);
+          if (parsedResult !== null && parsedResult >= 1000) {
+            // Convert to kg for large amounts
+            const kgResult = convertIngredient(amount, unit, 'kg', ingredientName);
+            if (kgResult.success) {
+              return { amount: kgResult.amount, unit: 'kg' };
+            }
+          }
+          return { amount: result.amount, unit: 'g' };
+        }
+      }
+    }
+    
+    // Return original if no conversion needed or possible
+    return { amount, unit };
   };
 
   const toggleStepCompleted = (stepIndex: number) => {
@@ -974,6 +1074,31 @@ export default function RecipeDetailPage() {
                   Ingredientes
                 </h2>
                 <div className="flex items-center gap-2">
+                  {/* Unit conversion toggle - metric (g) vs american (cups) */}
+                  <div className="flex rounded-lg overflow-hidden border border-[var(--border-color)] shadow-sm">
+                    <button
+                      onClick={() => setUnitMode('metric')}
+                      className={`px-2.5 py-1.5 text-xs font-medium transition-all flex items-center gap-1 ${
+                        unitMode === 'metric'
+                          ? "bg-[var(--color-purple)] text-white"
+                          : "bg-white text-[var(--color-slate)] hover:bg-[var(--color-purple-bg)]"
+                      }`}
+                      title="Unidades métricas (gramos, ml)"
+                    >
+                      <span className="font-bold">g</span>
+                    </button>
+                    <button
+                      onClick={() => setUnitMode('american')}
+                      className={`px-2.5 py-1.5 text-xs font-medium transition-all flex items-center gap-1 ${
+                        unitMode === 'american'
+                          ? "bg-[var(--color-purple)] text-white"
+                          : "bg-white text-[var(--color-slate)] hover:bg-[var(--color-purple-bg)]"
+                      }`}
+                      title="Unidades americanas (tazas, cucharadas)"
+                    >
+                      <span>🥛</span>
+                    </button>
+                  </div>
                   {/* Variant selector - show when recipe has variant labels */}
                   {recipe.variant_1_label && recipe.variant_2_label && (
                     <div className="flex rounded-lg overflow-hidden border border-[var(--border-color)]">
@@ -1020,6 +1145,17 @@ export default function RecipeDetailPage() {
                   )}
                 </div>
               </div>
+              
+              {/* Unit conversion info banner */}
+              {unitMode === 'american' && (
+                <div className="mb-3 p-2 rounded-lg text-sm bg-blue-50 border border-blue-200 text-blue-800 flex items-center gap-2">
+                  <span>🥛</span>
+                  <span>
+                    Mostrando en <strong>tazas/cucharadas</strong>
+                    <span className="text-blue-600 text-xs ml-1">(conversión aproximada)</span>
+                  </span>
+                </div>
+              )}
               
               {/* Variant info banner */}
               {recipe.variant_1_label && recipe.variant_2_label && (() => {
@@ -1071,20 +1207,31 @@ export default function RecipeDetailPage() {
                   const useVariant2 = recipe.variant_1_label 
                     ? selectedVariant === 2 
                     : showSecondaryUnits;
-                  const displayAmount = useVariant2 && hasSecondary 
+                  const baseDisplayAmount = useVariant2 && hasSecondary 
                     ? ingredient.amount2 
                     : ingredient.amount;
-                  const displayUnit = useVariant2 && hasSecondary 
+                  const baseDisplayUnit = useVariant2 && hasSecondary 
                     ? ingredient.unit2 
                     : ingredient.unit;
-                  const altAmount = useVariant2 && hasSecondary
-                    ? ingredient.amount
-                    : ingredient.amount2;
-                  const altUnit = useVariant2 && hasSecondary
-                    ? ingredient.unit
-                    : ingredient.unit2;
+                  
+                  // Apply unit conversion based on mode
+                  const converted = convertIngredientUnit(
+                    scaleAmount(baseDisplayAmount || ''),
+                    baseDisplayUnit,
+                    ingredient.name
+                  );
+                  const displayAmount = converted.amount;
+                  const displayUnit = converted.unit;
+                  
+                  // Calculate alternative (original metric if in american mode, or vice versa)
+                  const showOriginal = baseDisplayUnit !== displayUnit;
+                  const originalScaled = scaleAmount(baseDisplayAmount || '');
                     
                   const isChecked = checkedIngredients.has(i);
+                  
+                  // Check if this ingredient has an alternative
+                  const hasAlternative = ingredient.alternative?.name;
+                  const altScaledAmount = hasAlternative ? scaleAmount(ingredient.alternative?.amount || '') : '';
                   
                   return (
                     <li
@@ -1105,14 +1252,25 @@ export default function RecipeDetailPage() {
                       />
                       <span className={`flex-1 ${isChecked ? "line-through" : ""}`}>
                         <strong className="font-medium">
-                          {scaleAmount(displayAmount || '')}
+                          {displayAmount}
                           {displayUnit && ` ${displayUnit}`}
                         </strong>{" "}
                         {ingredient.name}
-                        {/* Show alternative in parentheses if available (only for unit conversion, not variants) */}
-                        {!recipe.variant_1_label && hasSecondary && altAmount && altUnit && (
+                        {/* Show original amount in parentheses if converted */}
+                        {showOriginal && baseDisplayUnit && (
                           <span className="text-[var(--color-slate-light)] text-sm ml-1">
-                            ({scaleAmount(altAmount)} {altUnit})
+                            ({originalScaled} {baseDisplayUnit})
+                          </span>
+                        )}
+                        {/* Show alternative ingredient */}
+                        {hasAlternative && (
+                          <span className="text-emerald-700">
+                            {", o "}
+                            <strong className="font-medium">
+                              {altScaledAmount}
+                              {ingredient.alternative?.unit && ` ${ingredient.alternative.unit}`}
+                            </strong>{" "}
+                            {ingredient.alternative?.name}
                           </span>
                         )}
                       </span>
@@ -1230,7 +1388,8 @@ export default function RecipeDetailPage() {
                     step.text,
                     ingredientsToMatch,
                     scaleAmount,
-                    useVariant2ForStep
+                    useVariant2ForStep,
+                    convertIngredientUnit
                   );
                   
                   return (
@@ -1283,58 +1442,6 @@ export default function RecipeDetailPage() {
                             ))}
                           </p>
                           
-                          {/* Ingredientes usados en este paso */}
-                          {stepIngredients.length > 0 && (
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {stepIngredients.filter(ing => !ing.isHeader && !ing.name.startsWith('**')).map((ingredient, idx) => {
-                                const hasSecondary = ingredient.amount2 && ingredient.unit2;
-                                // Use variant selection when recipe has variant labels
-                                const useVariant2 = recipe.variant_1_label 
-                                  ? selectedVariant === 2 
-                                  : showSecondaryUnits;
-                                const displayAmount = useVariant2 && hasSecondary 
-                                  ? ingredient.amount2 
-                                  : ingredient.amount;
-                                const displayUnit = useVariant2 && hasSecondary 
-                                  ? ingredient.unit2 
-                                  : ingredient.unit;
-                                const altAmount = useVariant2 && hasSecondary
-                                  ? ingredient.amount
-                                  : ingredient.amount2;
-                                const altUnit = useVariant2 && hasSecondary
-                                  ? ingredient.unit
-                                  : ingredient.unit2;
-                                  
-                                return (
-                                  <span
-                                    key={idx}
-                                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs ${
-                                      isCurrentStep
-                                        ? "bg-white border border-[var(--color-purple)] shadow-sm"
-                                        : "bg-[var(--color-purple-bg)] border border-[var(--color-purple-bg-dark)]"
-                                    }`}
-                                  >
-                                    <svg className="w-3.5 h-3.5 text-[var(--color-purple)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                    </svg>
-                                    <span className="font-semibold text-[var(--color-purple)]">
-                                      {scaleAmount(displayAmount || '')}
-                                      {displayUnit && ` ${displayUnit}`}
-                                      {/* Only show alt amounts for unit conversion, not variants */}
-                                      {!recipe.variant_1_label && hasSecondary && altAmount && altUnit && (
-                                        <span className="font-normal text-[var(--color-slate-light)]">
-                                          {" "}({scaleAmount(altAmount)} {altUnit})
-                                        </span>
-                                      )}
-                                    </span>
-                                    <span className="text-[var(--color-slate)]">
-                                      {ingredient.name}
-                                    </span>
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          )}
                         </div>
                       </div>
                     </li>

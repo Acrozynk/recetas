@@ -60,6 +60,12 @@ export function normalizeInstructions(instructions: Instruction[] | string[]): I
   }));
 }
 
+export interface AlternativeIngredient {
+  name: string;
+  amount: string;
+  unit: string;
+}
+
 export interface Ingredient {
   name: string;
   amount: string;
@@ -72,6 +78,9 @@ export interface Ingredient {
   category?: string;
   // Section header (e.g., "Para la base:", "Para el relleno:")
   isHeader?: boolean;
+  // Alternative ingredient that can substitute this one
+  // e.g., "½ tsp baking powder" can be replaced by "⅛ tsp baking soda"
+  alternative?: AlternativeIngredient;
 }
 
 export interface MealPlan {

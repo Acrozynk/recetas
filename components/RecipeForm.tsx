@@ -232,6 +232,19 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     (recipe?.ingredients as Ingredient[]) || Array.from({ length: 5 }, () => ({ name: "", amount: "", unit: "", amount2: "", unit2: "" }))
   );
   const [expandedIngredients, setExpandedIngredients] = useState<Set<number>>(new Set());
+  // Track which ingredients have their alternative section expanded
+  const [showAlternative, setShowAlternative] = useState<Set<number>>(() => {
+    // Initialize with indices of ingredients that already have alternatives
+    const initial = new Set<number>();
+    if (recipe?.ingredients) {
+      (recipe.ingredients as Ingredient[]).forEach((ing, idx) => {
+        if (ing.alternative?.name) {
+          initial.add(idx);
+        }
+      });
+    }
+    return initial;
+  });
   
   // State for moving section headers (click-based, more reliable than drag & drop)
   const [movingSectionIndex, setMovingSectionIndex] = useState<number | null>(null);
@@ -418,6 +431,38 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   const updateIngredient = (index: number, field: keyof Ingredient, value: string) => {
     const updated = [...ingredients];
     updated[index] = { ...updated[index], [field]: value };
+    setIngredients(updated);
+  };
+
+  const toggleShowAlternative = (index: number) => {
+    setShowAlternative(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+        // Clear the alternative when hiding
+        const updated = [...ingredients];
+        updated[index] = { ...updated[index], alternative: undefined };
+        setIngredients(updated);
+      } else {
+        next.add(index);
+        // Initialize empty alternative
+        const updated = [...ingredients];
+        if (!updated[index].alternative) {
+          updated[index] = { ...updated[index], alternative: { name: "", amount: "", unit: "" } };
+          setIngredients(updated);
+        }
+      }
+      return next;
+    });
+  };
+
+  const updateAlternative = (index: number, field: keyof Ingredient["alternative"] & string, value: string) => {
+    const updated = [...ingredients];
+    const currentAlt = updated[index].alternative || { name: "", amount: "", unit: "" };
+    updated[index] = { 
+      ...updated[index], 
+      alternative: { ...currentAlt, [field]: value }
+    };
     setIngredients(updated);
   };
 
@@ -1131,43 +1176,41 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                     <span className="text-sm font-medium">📋 Colocar sección aquí</span>
                   </button>
                 )}
-                {/* Primary measurement row */}
-                <div className="flex gap-2 items-start">
-                  <div className="flex-1 grid grid-cols-[1fr,1fr,2fr] gap-2">
-                    <input
-                      type="text"
-                      value={ingredient.amount}
-                      onChange={(e) => updateIngredient(index, "amount", e.target.value)}
-                      onFocus={handleInputFocus}
-                      onSelect={handleInputSelect}
-                      className="input"
-                      placeholder="1"
-                    />
-                    <input
-                      type="text"
-                      value={ingredient.unit}
-                      onChange={(e) => updateIngredient(index, "unit", e.target.value)}
-                      onFocus={handleInputFocus}
-                      onSelect={handleInputSelect}
-                      className="input"
-                      placeholder="taza"
-                    />
-                    <input
-                      type="text"
-                      value={ingredient.name}
-                      onChange={(e) => updateIngredient(index, "name", e.target.value)}
-                      onFocus={handleInputFocus}
-                      onSelect={handleInputSelect}
-                      className="input"
-                      placeholder="Nombre del ingrediente"
-                    />
-                  </div>
+                {/* Primary measurement row - horizontal layout */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={ingredient.amount}
+                    onChange={(e) => updateIngredient(index, "amount", e.target.value)}
+                    onFocus={handleInputFocus}
+                    onSelect={handleInputSelect}
+                    className="input w-20 shrink-0 text-center"
+                    placeholder="1"
+                  />
+                  <input
+                    type="text"
+                    value={ingredient.unit}
+                    onChange={(e) => updateIngredient(index, "unit", e.target.value)}
+                    onFocus={handleInputFocus}
+                    onSelect={handleInputSelect}
+                    className="input w-24 shrink-0"
+                    placeholder="taza"
+                  />
+                  <input
+                    type="text"
+                    value={ingredient.name}
+                    onChange={(e) => updateIngredient(index, "name", e.target.value)}
+                    onFocus={handleInputFocus}
+                    onSelect={handleInputSelect}
+                    className="input flex-1 min-w-0"
+                    placeholder="Nombre del ingrediente"
+                  />
                   
                   {/* Convert button */}
                   <button
                     type="button"
                     onClick={() => canConvert ? autoConvertIngredient(index) : toggleExpandedIngredient(index)}
-                    className={`p-2 rounded-lg transition-colors ${
+                    className={`p-2 shrink-0 rounded-lg transition-colors ${
                       canConvert 
                         ? "text-[var(--color-purple)] hover:bg-[var(--color-purple-bg)] hover:text-[var(--color-purple)]" 
                         : "text-[var(--color-slate-light)] hover:text-[var(--color-slate)]"
@@ -1184,7 +1227,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                     <button
                       type="button"
                       onClick={() => toggleExpandedIngredient(index)}
-                      className="p-2 text-[var(--color-slate-light)] hover:text-[var(--color-slate)] transition-colors"
+                      className="p-2 shrink-0 text-[var(--color-slate-light)] hover:text-[var(--color-slate)] transition-colors"
                       title={isExpanded ? "Ocultar medida alternativa" : "Mostrar medida alternativa"}
                     >
                       <svg className={`w-5 h-5 transition-transform ${isExpanded ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1193,10 +1236,26 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                     </button>
                   )}
                   
+                  {/* Alternative ingredient toggle button */}
+                  <button
+                    type="button"
+                    onClick={() => toggleShowAlternative(index)}
+                    className={`p-2 shrink-0 rounded-lg transition-colors ${
+                      showAlternative.has(index)
+                        ? "text-emerald-600 bg-emerald-50"
+                        : "text-[var(--color-slate-light)] hover:text-emerald-600 hover:bg-emerald-50"
+                    }`}
+                    title={showAlternative.has(index) ? "Quitar alternativa" : "Añadir ingrediente alternativo (ej: polvo de hornear o bicarbonato)"}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                  </button>
+                  
                   <button
                     type="button"
                     onClick={() => removeIngredient(index)}
-                    className="p-2 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
+                    className="p-2 shrink-0 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
                     disabled={ingredients.length === 1}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1205,56 +1264,100 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                   </button>
                 </div>
                 
+                {/* Alternative ingredient row */}
+                {showAlternative.has(index) && (
+                  <div className="ml-4 flex items-center gap-2 pl-2 border-l-2 border-emerald-300 bg-emerald-50/50 rounded-r-lg py-2 pr-2">
+                    <span className="text-xs text-emerald-700 font-medium shrink-0">
+                      o
+                    </span>
+                    <input
+                      type="text"
+                      value={ingredient.alternative?.amount || ""}
+                      onChange={(e) => updateAlternative(index, "amount", e.target.value)}
+                      onFocus={handleInputFocus}
+                      onSelect={handleInputSelect}
+                      className="input text-sm w-16 shrink-0 text-center"
+                      placeholder="⅛"
+                    />
+                    <input
+                      type="text"
+                      value={ingredient.alternative?.unit || ""}
+                      onChange={(e) => updateAlternative(index, "unit", e.target.value)}
+                      onFocus={handleInputFocus}
+                      onSelect={handleInputSelect}
+                      className="input text-sm w-20 shrink-0"
+                      placeholder="cdta"
+                    />
+                    <input
+                      type="text"
+                      value={ingredient.alternative?.name || ""}
+                      onChange={(e) => updateAlternative(index, "name", e.target.value)}
+                      onFocus={handleInputFocus}
+                      onSelect={handleInputSelect}
+                      className="input text-sm flex-1 min-w-0"
+                      placeholder="Nombre del ingrediente alternativo"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => toggleShowAlternative(index)}
+                      className="p-1.5 shrink-0 text-emerald-600 hover:text-red-600 transition-colors"
+                      title="Quitar alternativa"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+                
                 {/* Secondary measurement row (collapsed by default) */}
                 {(isExpanded || hasSecondary) && (
-                  <div className={`ml-4 flex gap-2 items-center pl-2 border-l-2 border-[var(--color-purple-bg-dark)] ${!isExpanded && hasSecondary ? 'opacity-60' : ''}`}>
+                  <div className={`ml-4 flex items-center gap-2 pl-2 border-l-2 border-[var(--color-purple-bg-dark)] ${!isExpanded && hasSecondary ? 'opacity-60' : ''}`}>
                     <span 
-                      className="text-xs text-[var(--color-slate-light)] font-medium truncate max-w-[120px]"
+                      className="text-xs text-[var(--color-slate-light)] font-medium shrink-0"
                       title={showVariantLabels && variant2Label ? variant2Label : "Alternativo"}
                     >
                       {showVariantLabels && variant2Label ? variant2Label : "Alt"}:
                     </span>
-                    <div className="flex-1 grid grid-cols-[1fr,1fr,2fr] gap-2">
+                    <input
+                      type="text"
+                      value={ingredient.amount2 || ""}
+                      onChange={(e) => updateIngredient(index, "amount2", e.target.value)}
+                      onFocus={handleInputFocus}
+                      onSelect={handleInputSelect}
+                      className="input text-sm w-16 shrink-0 text-center"
+                      placeholder="120"
+                    />
+                    {showVariantLabels ? (
                       <input
                         type="text"
-                        value={ingredient.amount2 || ""}
-                        onChange={(e) => updateIngredient(index, "amount2", e.target.value)}
-                        onFocus={handleInputFocus}
-                        onSelect={handleInputSelect}
-                        className="input text-sm"
-                        placeholder="120"
+                        value={ingredient.unit2 || ""}
+                        onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
+                        className="input text-sm w-20 shrink-0"
+                        placeholder="unidad"
                       />
-                      {showVariantLabels ? (
-                        <input
-                          type="text"
-                          value={ingredient.unit2 || ""}
-                          onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
-                          className="input text-sm"
-                          placeholder="unidad"
-                        />
-                      ) : (
-                        <select
-                          value={ingredient.unit2 || ""}
-                          onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
-                          className="input text-sm"
-                        >
-                          <option value="">unidad</option>
-                          <optgroup label="Peso">
-                            {COMMON_UNITS.weight.map(u => (
-                              <option key={u.value} value={u.value}>{u.label}</option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="Volumen">
-                            {COMMON_UNITS.volume.map(u => (
-                              <option key={u.value} value={u.value}>{u.label}</option>
-                            ))}
-                          </optgroup>
-                        </select>
-                      )}
-                      <span className="text-xs text-[var(--color-slate-light)] flex items-center">
-                        {ingredient.name || "—"}
-                      </span>
-                    </div>
+                    ) : (
+                      <select
+                        value={ingredient.unit2 || ""}
+                        onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
+                        className="input text-sm w-20 shrink-0"
+                      >
+                        <option value="">unidad</option>
+                        <optgroup label="Peso">
+                          {COMMON_UNITS.weight.map(u => (
+                            <option key={u.value} value={u.value}>{u.label}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Volumen">
+                          {COMMON_UNITS.volume.map(u => (
+                            <option key={u.value} value={u.value}>{u.label}</option>
+                          ))}
+                        </optgroup>
+                      </select>
+                    )}
+                    <span className="text-xs text-[var(--color-slate-light)] flex-1 truncate">
+                      {ingredient.name || "—"}
+                    </span>
                     <button
                       type="button"
                       onClick={() => {
@@ -1267,7 +1370,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                           return next;
                         });
                       }}
-                      className="p-1.5 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
+                      className="p-1.5 shrink-0 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
                       title="Eliminar medida alternativa"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
