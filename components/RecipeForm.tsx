@@ -908,24 +908,28 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                     {selectedContainers.map((selected, idx) => {
                       const container = containers.find(c => c.id === selected.id);
                       return (
-                        <div key={selected.id} className={`flex items-center gap-3 p-2 rounded-lg border ${idx === 0 ? 'bg-[var(--color-purple-bg)] border-[var(--color-purple)]' : 'bg-amber-50 border-amber-300'}`}>
-                          <span className="shrink-0">{idx === 0 ? '🥇' : '🥈'}</span>
+                        <div 
+                          key={selected.id} 
+                          className={`grid items-center gap-2 p-2 rounded-lg border ${idx === 0 ? 'bg-[var(--color-purple-bg)] border-[var(--color-purple)]' : 'bg-amber-50 border-amber-300'}`}
+                          style={{ gridTemplateColumns: '24px 50px 1fr 24px' }}
+                        >
+                          <span>{idx === 0 ? '🥇' : '🥈'}</span>
                           <input
                             type="number"
                             value={selected.quantity}
                             onChange={(e) => updateContainerQuantity(selected.id, e.target.value)}
-                            className="input w-14 text-center text-sm py-1 shrink-0"
+                            className="input text-center text-sm py-1 px-1"
                             placeholder="1"
                             min="0.5"
                             step="0.5"
                           />
-                          <span className="text-sm text-[var(--foreground)] flex-1">
+                          <span className="text-sm text-[var(--foreground)]">
                             {container?.name || 'Recipiente no encontrado'}
                           </span>
                           <button
                             type="button"
                             onClick={() => removeContainerFromSelection(selected.id)}
-                            className="p-1 text-[var(--color-slate-light)] hover:text-red-600 transition-colors shrink-0"
+                            className="p-1 text-[var(--color-slate-light)] hover:text-red-600 transition-colors justify-self-end"
                             title="Quitar"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
