@@ -250,6 +250,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   
   // State for moving section headers (click-based, more reliable than drag & drop)
   const [movingSectionIndex, setMovingSectionIndex] = useState<number | null>(null);
+  const [movingInstructionSectionIndex, setMovingInstructionSectionIndex] = useState<number | null>(null);
   
   // Variant labels for recipes with two sets of ingredient amounts
   // These are now derived from selected containers when in 'recipiente' mode
@@ -564,6 +565,66 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
 
   const addInstructionSectionHeader = () => {
     setInstructions([...instructions, { text: "", ingredientIndices: [], isHeader: true }]);
+  };
+
+  const insertInstructionAt = (index: number) => {
+    const newInstructions = [
+      ...instructions.slice(0, index),
+      { text: "", ingredientIndices: [] },
+      ...instructions.slice(index)
+    ];
+    setInstructions(newInstructions);
+  };
+
+  // Start moving an instruction section (click-based)
+  const startMovingInstructionSection = (headerIndex: number) => {
+    setMovingInstructionSectionIndex(headerIndex);
+  };
+
+  const cancelMovingInstructionSection = () => {
+    setMovingInstructionSectionIndex(null);
+  };
+
+  const placeInstructionSection = (targetPosition: number) => {
+    if (movingInstructionSectionIndex !== null) {
+      moveInstructionSectionToPosition(movingInstructionSectionIndex, targetPosition);
+      setMovingInstructionSectionIndex(null);
+    }
+  };
+
+  // Move entire instruction section (header + all steps until next header)
+  const moveInstructionSectionToPosition = (sourceHeaderIndex: number, targetPosition: number) => {
+    if (sourceHeaderIndex === targetPosition || sourceHeaderIndex === targetPosition - 1) return;
+    
+    // Find where this section ends (next header or end of list)
+    let sectionEndIndex = sourceHeaderIndex + 1;
+    while (sectionEndIndex < instructions.length && !instructions[sectionEndIndex].isHeader) {
+      sectionEndIndex++;
+    }
+    
+    // Extract the entire section (header + its steps)
+    const sectionToMove = instructions.slice(sourceHeaderIndex, sectionEndIndex);
+    
+    // Create new array without the section
+    const withoutSection = [
+      ...instructions.slice(0, sourceHeaderIndex),
+      ...instructions.slice(sectionEndIndex)
+    ];
+    
+    // Adjust target position if it's after the removed section
+    let adjustedTarget = targetPosition;
+    if (targetPosition > sourceHeaderIndex) {
+      adjustedTarget = targetPosition - sectionToMove.length;
+    }
+    
+    // Insert section at new position
+    const newInstructions = [
+      ...withoutSection.slice(0, adjustedTarget),
+      ...sectionToMove,
+      ...withoutSection.slice(adjustedTarget)
+    ];
+    
+    setInstructions(newInstructions);
   };
 
   const updateInstructionText = (index: number, value: string) => {
@@ -1656,43 +1717,135 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         </p>
 
         <div className="space-y-4">
+          {/* Info banner when moving an instruction section */}
+          {movingInstructionSectionIndex !== null && (
+            <div className="p-3 bg-amber-100 border border-amber-300 rounded-lg flex items-center justify-between">
+              <span className="text-sm text-amber-800 font-medium">
+                📋 Moviendo sección completa: <strong>{instructions[movingInstructionSectionIndex].text || 'Sección'}</strong> — Haz click en una zona amarilla para colocarla
+              </span>
+              <button
+                type="button"
+                onClick={cancelMovingInstructionSection}
+                className="text-amber-600 hover:text-amber-800 text-sm font-medium"
+              >
+                ✕ Cancelar
+              </button>
+            </div>
+          )}
+          
+          {/* Drop zone at the very beginning */}
+          {movingInstructionSectionIndex !== null && movingInstructionSectionIndex !== 0 && (
+            <button
+              type="button"
+              onClick={() => placeInstructionSection(0)}
+              className="w-full py-3 px-4 rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all flex items-center justify-center gap-2"
+            >
+              <span className="text-sm font-medium">📋 Colocar sección aquí (al inicio)</span>
+            </button>
+          )}
+          
           {instructions.map((instruction, stepIndex) => {
             // Calculate step number (only counting non-headers)
             const stepNumber = instructions.slice(0, stepIndex + 1).filter(i => !i.isHeader).length;
             
             // Render section header
             if (instruction.isHeader) {
+              const isBeingMoved = movingInstructionSectionIndex === stepIndex;
+              const showDropZone = movingInstructionSectionIndex !== null && 
+                movingInstructionSectionIndex !== stepIndex && 
+                movingInstructionSectionIndex !== stepIndex - 1;
+              
               return (
-                <div key={stepIndex} className="flex gap-2 items-center pt-3 first:pt-0">
-                  <div className="flex-1 flex items-center gap-2">
-                    <svg className="w-5 h-5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
-                    </svg>
-                    <input
-                      type="text"
-                      value={instruction.text}
-                      onChange={(e) => updateInstructionText(stepIndex, e.target.value)}
-                      className="input flex-1 font-semibold text-amber-800 bg-amber-50 border-amber-200"
-                      placeholder="Nombre de la sección (ej: Para la base)"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeInstruction(stepIndex)}
-                    className="p-2 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
-                    title="Eliminar sección"
+                <div key={stepIndex}>
+                  {/* Drop zone before this section */}
+                  {showDropZone && (
+                    <button
+                      type="button"
+                      onClick={() => placeInstructionSection(stepIndex)}
+                      className="w-full py-3 px-4 rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all flex items-center justify-center gap-2 mb-2"
+                    >
+                      <span className="text-sm font-medium">📋 Colocar sección aquí</span>
+                    </button>
+                  )}
+                  <div 
+                    className={`flex gap-2 items-center pt-3 first:pt-0 rounded-lg transition-all ${
+                      isBeingMoved ? "opacity-50 bg-amber-100 ring-2 ring-amber-400" : ""
+                    }`}
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => movingInstructionSectionIndex === stepIndex ? cancelMovingInstructionSection() : startMovingInstructionSection(stepIndex)}
+                      className={`p-2 -m-1 rounded transition-colors ${
+                        isBeingMoved 
+                          ? "text-amber-700 bg-amber-200" 
+                          : "text-amber-400 hover:text-amber-600 hover:bg-amber-100"
+                      }`}
+                      title={isBeingMoved ? "Cancelar movimiento" : "Mover esta sección"}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                      </svg>
+                    </button>
+                    <div className="flex-1 flex items-center gap-2">
+                      <svg className="w-5 h-5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                      </svg>
+                      <input
+                        type="text"
+                        value={instruction.text}
+                        onChange={(e) => updateInstructionText(stepIndex, e.target.value)}
+                        className="input flex-1 font-semibold text-amber-800 bg-amber-50 border-amber-200"
+                        placeholder="Nombre de la sección (ej: Para la base)"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeInstruction(stepIndex)}
+                      className="p-2 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
+                      title="Eliminar sección"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               );
             }
             
+            // Show drop zone before regular steps too (when moving a section header)
+            const showStepDropZone = movingInstructionSectionIndex !== null && 
+              movingInstructionSectionIndex !== stepIndex &&
+              movingInstructionSectionIndex !== stepIndex - 1;
+            
             // Render regular instruction step
             return (
-              <div key={stepIndex} className="border border-[var(--border-color)] rounded-lg p-3 bg-[var(--color-purple-bg)]">
+              <div key={stepIndex} className="space-y-2 group/instruction">
+                {/* Drop zone before this step */}
+                {showStepDropZone && (
+                  <button
+                    type="button"
+                    onClick={() => placeInstructionSection(stepIndex)}
+                    className="w-full py-3 px-4 rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all flex items-center justify-center gap-2"
+                  >
+                    <span className="text-sm font-medium">📋 Colocar sección aquí</span>
+                  </button>
+                )}
+                {/* Insert button - shows on hover */}
+                {movingInstructionSectionIndex === null && (
+                  <button
+                    type="button"
+                    onClick={() => insertInstructionAt(stepIndex)}
+                    className="w-full py-1 opacity-0 group-hover/instruction:opacity-100 focus:opacity-100 transition-opacity flex items-center justify-center gap-1 text-[var(--color-purple)] hover:text-[var(--color-purple-dark)]"
+                    title="Insertar paso aquí"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span className="text-xs font-medium">Insertar paso</span>
+                  </button>
+                )}
+                <div className="border border-[var(--border-color)] rounded-lg p-3 bg-[var(--color-purple-bg)]">
                 <div className="flex gap-2 items-start mb-3">
                   <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-[var(--color-purple)] text-white text-sm font-medium mt-2">
                     {stepNumber}
@@ -1769,9 +1922,21 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                     </div>
                   );
                 })()}
+                </div>
               </div>
             );
           })}
+          
+          {/* Drop zone at the very end */}
+          {movingInstructionSectionIndex !== null && movingInstructionSectionIndex < instructions.length - 1 && (
+            <button
+              type="button"
+              onClick={() => placeInstructionSection(instructions.length)}
+              className="w-full py-3 px-4 rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all flex items-center justify-center gap-2 mt-2"
+            >
+              <span className="text-sm font-medium">⬇️ Colocar aquí (al final)</span>
+            </button>
+          )}
         </div>
 
         <div className="flex gap-4 mt-3">
