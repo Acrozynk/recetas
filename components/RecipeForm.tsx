@@ -1412,74 +1412,124 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                 
                 {/* Secondary measurement row (collapsed by default) */}
                 {(isExpanded || hasSecondary) && (
-                  <div className={`ml-4 flex items-center gap-2 pl-2 border-l-2 border-[var(--color-purple-bg-dark)] ${!isExpanded && hasSecondary ? 'opacity-60' : ''}`}>
-                    <span 
-                      className="text-xs text-[var(--color-slate-light)] font-medium"
-                      style={{ width: '30px' }}
-                      title={showVariantLabels && variant2Label ? variant2Label : "Alternativo"}
-                    >
-                      {showVariantLabels && variant2Label ? variant2Label : "Alt"}:
-                    </span>
-                    <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: '60px 90px 1fr' }}>
-                      <input
-                        type="text"
-                        value={ingredient.amount2 || ""}
-                        onChange={(e) => updateIngredient(index, "amount2", e.target.value)}
-                        onFocus={handleInputFocus}
-                        onSelect={handleInputSelect}
-                        className="input text-sm text-center"
-                        placeholder="120"
-                      />
-                      {showVariantLabels ? (
+                  <div className={`ml-4 space-y-2 pl-2 border-l-2 border-[var(--color-purple-bg-dark)] ${!isExpanded && hasSecondary ? 'opacity-60' : ''}`}>
+                    {/* Main ingredient variant row */}
+                    <div className="flex items-center gap-2">
+                      <span 
+                        className="text-xs text-[var(--color-slate-light)] font-medium shrink-0"
+                        style={{ width: '30px' }}
+                        title={showVariantLabels && variant2Label ? variant2Label : "Alternativo"}
+                      >
+                        {showVariantLabels && variant2Label ? "🥈" : "Alt"}:
+                      </span>
+                      <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: '60px 90px 1fr' }}>
                         <input
                           type="text"
-                          value={ingredient.unit2 || ""}
-                          onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
-                          className="input text-sm"
-                          placeholder="unidad"
+                          value={ingredient.amount2 || ""}
+                          onChange={(e) => updateIngredient(index, "amount2", e.target.value)}
+                          onFocus={handleInputFocus}
+                          onSelect={handleInputSelect}
+                          className="input text-sm text-center"
+                          placeholder="120"
                         />
-                      ) : (
-                        <select
-                          value={ingredient.unit2 || ""}
-                          onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
-                          className="input text-sm"
-                        >
-                          <option value="">unidad</option>
-                          <optgroup label="Peso">
-                            {COMMON_UNITS.weight.map(u => (
-                              <option key={u.value} value={u.value}>{u.label}</option>
-                            ))}
-                          </optgroup>
-                          <optgroup label="Volumen">
-                            {COMMON_UNITS.volume.map(u => (
-                              <option key={u.value} value={u.value}>{u.label}</option>
-                            ))}
-                          </optgroup>
-                        </select>
-                      )}
-                      <span className="text-xs text-[var(--color-slate-light)] flex items-center truncate">
-                        {ingredient.name || "—"}
-                      </span>
+                        {showVariantLabels ? (
+                          <input
+                            type="text"
+                            value={ingredient.unit2 || ""}
+                            onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
+                            className="input text-sm"
+                            placeholder="unidad"
+                          />
+                        ) : (
+                          <select
+                            value={ingredient.unit2 || ""}
+                            onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
+                            className="input text-sm"
+                          >
+                            <option value="">unidad</option>
+                            <optgroup label="Peso">
+                              {COMMON_UNITS.weight.map(u => (
+                                <option key={u.value} value={u.value}>{u.label}</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Volumen">
+                              {COMMON_UNITS.volume.map(u => (
+                                <option key={u.value} value={u.value}>{u.label}</option>
+                              ))}
+                            </optgroup>
+                          </select>
+                        )}
+                        <span className="text-xs text-[var(--color-slate-light)] flex items-center truncate">
+                          {ingredient.name || "—"}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = [...ingredients];
+                          updated[index] = { ...updated[index], amount2: "", unit2: "" };
+                          setIngredients(updated);
+                          setExpandedIngredients(prev => {
+                            const next = new Set(prev);
+                            next.delete(index);
+                            return next;
+                          });
+                        }}
+                        className="p-1.5 shrink-0 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
+                        title="Eliminar medida alternativa"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const updated = [...ingredients];
-                        updated[index] = { ...updated[index], amount2: "", unit2: "" };
-                        setIngredients(updated);
-                        setExpandedIngredients(prev => {
-                          const next = new Set(prev);
-                          next.delete(index);
-                          return next;
-                        });
-                      }}
-                      className="p-1.5 shrink-0 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
-                      title="Eliminar medida alternativa"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
+                    
+                    {/* Alternative ingredient variant row - only show if alternative exists and variants enabled */}
+                    {showAlternative.has(index) && ingredient.alternative?.name && (
+                      <div className="flex items-center gap-2 bg-emerald-50/50 rounded-r-lg py-1 pr-2">
+                        <span className="text-xs text-emerald-600 font-medium shrink-0" style={{ width: '30px' }}>
+                          o
+                        </span>
+                        <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: '60px 90px 1fr' }}>
+                          <input
+                            type="text"
+                            value={ingredient.alternative?.amount2 || ""}
+                            onChange={(e) => {
+                              const updated = [...ingredients];
+                              const currentAlt = updated[index].alternative || { name: "", amount: "", unit: "" };
+                              updated[index] = { 
+                                ...updated[index], 
+                                alternative: { ...currentAlt, amount2: e.target.value }
+                              };
+                              setIngredients(updated);
+                            }}
+                            onFocus={handleInputFocus}
+                            onSelect={handleInputSelect}
+                            className="input text-sm text-center"
+                            placeholder="—"
+                          />
+                          <input
+                            type="text"
+                            value={ingredient.alternative?.unit2 || ""}
+                            onChange={(e) => {
+                              const updated = [...ingredients];
+                              const currentAlt = updated[index].alternative || { name: "", amount: "", unit: "" };
+                              updated[index] = { 
+                                ...updated[index], 
+                                alternative: { ...currentAlt, unit2: e.target.value }
+                              };
+                              setIngredients(updated);
+                            }}
+                            className="input text-sm"
+                            placeholder="unidad"
+                          />
+                          <span className="text-xs text-emerald-600 flex items-center truncate">
+                            {ingredient.alternative?.name || "—"}
+                          </span>
+                        </div>
+                        <div className="w-7"></div> {/* Spacer to align with delete button above */}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

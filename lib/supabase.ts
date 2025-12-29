@@ -64,6 +64,9 @@ export interface AlternativeIngredient {
   name: string;
   amount: string;
   unit: string;
+  // Secondary/variant amounts for alternative ingredient
+  amount2?: string;
+  unit2?: string;
 }
 
 export interface Ingredient {

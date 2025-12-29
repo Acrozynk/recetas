@@ -1451,7 +1451,15 @@ export default function RecipeDetailPage() {
                   
                   // Check if this ingredient has an alternative
                   const hasAlternative = ingredient.alternative?.name;
-                  const altScaledAmount = hasAlternative ? scaleAmount(ingredient.alternative?.amount || '') : '';
+                  // Use amount2/unit2 for alternative when variant 2 is selected
+                  const altHasVariant2 = ingredient.alternative?.amount2 && ingredient.alternative?.unit2;
+                  const altBaseAmount = useVariant2 && altHasVariant2 
+                    ? ingredient.alternative?.amount2 
+                    : ingredient.alternative?.amount;
+                  const altBaseUnit = useVariant2 && altHasVariant2 
+                    ? ingredient.alternative?.unit2 
+                    : ingredient.alternative?.unit;
+                  const altScaledAmount = hasAlternative ? scaleAmount(altBaseAmount || '') : '';
                   
                   return (
                     <li
@@ -1488,7 +1496,7 @@ export default function RecipeDetailPage() {
                             {", o "}
                             <strong className="font-medium">
                               {altScaledAmount}
-                              {ingredient.alternative?.unit && ` ${ingredient.alternative.unit}`}
+                              {altBaseUnit && ` ${altBaseUnit}`}
                             </strong>{" "}
                             {ingredient.alternative?.name}
                           </span>
