@@ -25,6 +25,48 @@ function normalizeText(text: string): string {
     .trim();
 }
 
+// Find position of a keyword in text, handling accents
+// Returns { position, length } in the ORIGINAL text
+function findPositionIgnoringAccents(text: string, keyword: string): { position: number; length: number } | null {
+  const normalizedKeyword = normalizeText(keyword);
+  
+  // Iterate through the text to find matches
+  for (let i = 0; i < text.length; i++) {
+    // Try to match starting at position i
+    let j = 0; // position in keyword
+    let k = i; // position in text
+    let matchLength = 0;
+    
+    while (j < normalizedKeyword.length && k < text.length) {
+      // Normalize single character from text
+      const textChar = text[k].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const keywordChar = normalizedKeyword[j];
+      
+      if (textChar === keywordChar) {
+        j++;
+        k++;
+        matchLength++;
+      } else if (textChar === "" || /[^a-z0-9]/.test(text[k].toLowerCase())) {
+        // Skip combining characters or special chars in original text
+        k++;
+      } else {
+        break;
+      }
+    }
+    
+    // Check if we matched the entire keyword
+    if (j === normalizedKeyword.length) {
+      // Extend to capture full word
+      while (k < text.length && /[\wáéíóúüñÁÉÍÓÚÜÑ]/i.test(text[k])) {
+        k++;
+      }
+      return { position: i, length: k - i };
+    }
+  }
+  
+  return null;
+}
+
 // Extract core ingredient name from full ingredient text
 // e.g., "calabacín pequeño" -> ["calabacin", "calabacin pequeno"]
 function extractIngredientKeywords(ingredientName: string): string[] {
@@ -139,44 +181,26 @@ function enrichStepWithIngredients(
       const sortedKeywords = keywords.sort((a, b) => b.length - a.length);
       
       for (const keyword of sortedKeywords) {
-        // Search in lowercase original text directly
-        const lowerStep = stepText.toLowerCase();
-        const lowerKeyword = keyword.toLowerCase();
-        let pos = lowerStep.indexOf(lowerKeyword);
+        // Find position in original text, handling accents
+        const match = findPositionIgnoringAccents(stepText, keyword);
         
-        // Find a position that matches word boundaries
-        while (pos >= 0) {
-          const beforeChar = pos > 0 ? lowerStep[pos - 1] : ' ';
-          const afterPos = pos + lowerKeyword.length;
-          const afterChar = afterPos < lowerStep.length ? lowerStep[afterPos] : ' ';
+        if (match) {
+          // Verify word boundaries
+          const beforeChar = match.position > 0 ? stepText[match.position - 1] : ' ';
+          const afterPos = match.position + match.length;
+          const afterChar = afterPos < stepText.length ? stepText[afterPos] : ' ';
           
-          // Check word boundaries (not alphanumeric or Spanish accented chars)
           const isWordBoundaryBefore = !/[\wáéíóúüñ]/i.test(beforeChar);
           const isWordBoundaryAfter = !/[\wáéíóúüñ]/i.test(afterChar);
           
           if (isWordBoundaryBefore && isWordBoundaryAfter) {
-            // Found valid word boundary match, now extend to capture full word in original
-            let endPos = pos + lowerKeyword.length;
-            // Extend to include any remaining word characters (for plurals, etc.)
-            while (endPos < stepText.length && /[\wáéíóúüñÁÉÍÓÚÜÑ]/i.test(stepText[endPos])) {
-              endPos++;
-            }
-            
             mentions.push({
               ingredient,
-              position: pos,
-              length: endPos - pos
+              position: match.position,
+              length: match.length
             });
             break;
           }
-          
-          // Try next occurrence
-          pos = lowerStep.indexOf(lowerKeyword, pos + 1);
-        }
-        
-        // If we found a mention, don't try other keywords
-        if (mentions.some(m => m.ingredient === ingredient)) {
-          break;
         }
       }
     }
