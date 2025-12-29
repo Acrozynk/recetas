@@ -1363,16 +1363,14 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                   <button
                     type="button"
                     onClick={() => toggleShowAlternative(index)}
-                    className={`p-2 shrink-0 rounded-lg transition-colors ${
+                    className={`p-2 shrink-0 rounded-lg transition-colors font-bold text-sm ${
                       showAlternative.has(index)
                         ? "text-emerald-600 bg-emerald-50"
                         : "text-[var(--color-slate-light)] hover:text-emerald-600 hover:bg-emerald-50"
                     }`}
                     title={showAlternative.has(index) ? "Quitar alternativa" : "Añadir ingrediente alternativo (ej: polvo de hornear o bicarbonato)"}
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
-                    </svg>
+                    o
                   </button>
                   
                   <button
