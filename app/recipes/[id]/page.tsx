@@ -272,6 +272,7 @@ export default function RecipeDetailPage() {
   const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
   // Unit conversion mode: 'metric' (g, ml) or 'american' (cups, tbsp)
   const [unitMode, setUnitMode] = useState<'metric' | 'american'>('metric');
+  const [duplicating, setDuplicating] = useState(false);
 
   // Check if Wake Lock API is supported
   useEffect(() => {
@@ -410,6 +411,41 @@ export default function RecipeDetailPage() {
       router.push("/");
     } catch (error) {
       console.error("Error deleting recipe:", error);
+    }
+  };
+
+  const handleDuplicate = async () => {
+    if (!recipe || duplicating) return;
+
+    setDuplicating(true);
+    try {
+      // Create a copy of the recipe without id and timestamps
+      const { id, created_at, updated_at, container, ...recipeData } = recipe as Recipe & { container?: Container };
+      
+      const duplicatedRecipe = {
+        ...recipeData,
+        title: `Copia de ${recipe.title}`,
+        // Reset rating and made_it for the copy
+        rating: null,
+        made_it: false,
+      };
+
+      const response = await fetch('/api/recipes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(duplicatedRecipe),
+      });
+
+      if (!response.ok) throw new Error('Failed to duplicate recipe');
+
+      const newRecipe = await response.json();
+      
+      // Redirect to edit page of the new recipe
+      router.push(`/recipes/${newRecipe.id}/edit`);
+    } catch (error) {
+      console.error("Error duplicating recipe:", error);
+      alert("Error al duplicar la receta. Inténtalo de nuevo.");
+      setDuplicating(false);
     }
   };
 
@@ -737,9 +773,32 @@ export default function RecipeDetailPage() {
                 />
               </svg>
             </button>
+            <button
+              onClick={handleDuplicate}
+              disabled={duplicating}
+              className="p-2 text-[var(--color-slate)] hover:text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] rounded-lg transition-colors disabled:opacity-50 disabled:cursor-wait"
+              title="Duplicar receta"
+            >
+              {duplicating ? (
+                <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                  />
+                </svg>
+              )}
+            </button>
             <Link
               href={`/recipes/${recipe.id}/edit`}
               className="p-2 text-[var(--color-slate)] hover:text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] rounded-lg transition-colors"
+              title="Editar receta"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -753,6 +812,7 @@ export default function RecipeDetailPage() {
             <button
               onClick={() => setShowDeleteConfirm(true)}
               className="p-2 text-[var(--color-slate)] hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title="Eliminar receta"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path

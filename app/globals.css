@@ -143,6 +143,30 @@ body {
   box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
 }
 
+/* Select dropdown styles */
+select.input {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2364748B'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 1rem;
+  padding-right: 2.5rem;
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+select.input option {
+  background: white;
+  color: #1f2937;
+  padding: 0.5rem;
+}
+
+select.input option:checked,
+select.input option:hover {
+  background: var(--color-purple);
+  color: white;
+}
+
 /* Tag styles */
 .tag {
   display: inline-flex;
