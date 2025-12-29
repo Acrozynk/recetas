@@ -29,42 +29,39 @@ function normalizeText(text: string): string {
 // Returns { position, length } in the ORIGINAL text
 function findPositionIgnoringAccents(text: string, keyword: string): { position: number; length: number } | null {
   const normalizedKeyword = normalizeText(keyword);
+  const lowerText = text.toLowerCase();
   
-  // Iterate through the text to find matches
+  // Build a mapping from normalized positions to original positions
+  // and search in normalized text
+  let normalizedText = '';
+  const posMap: number[] = []; // posMap[normalizedIndex] = originalIndex
+  
   for (let i = 0; i < text.length; i++) {
-    // Try to match starting at position i
-    let j = 0; // position in keyword
-    let k = i; // position in text
-    let matchLength = 0;
-    
-    while (j < normalizedKeyword.length && k < text.length) {
-      // Normalize single character from text
-      const textChar = text[k].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-      const keywordChar = normalizedKeyword[j];
-      
-      if (textChar === keywordChar) {
-        j++;
-        k++;
-        matchLength++;
-      } else if (textChar === "" || /[^a-z0-9]/.test(text[k].toLowerCase())) {
-        // Skip combining characters or special chars in original text
-        k++;
-      } else {
-        break;
+    const char = text[i];
+    const normalizedChar = char.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (normalizedChar) {
+      for (let c = 0; c < normalizedChar.length; c++) {
+        posMap.push(i);
       }
-    }
-    
-    // Check if we matched the entire keyword
-    if (j === normalizedKeyword.length) {
-      // Extend to capture full word
-      while (k < text.length && /[\wáéíóúüñÁÉÍÓÚÜÑ]/i.test(text[k])) {
-        k++;
-      }
-      return { position: i, length: k - i };
+      normalizedText += normalizedChar;
     }
   }
   
-  return null;
+  // Search in normalized text
+  const pos = normalizedText.indexOf(normalizedKeyword);
+  if (pos === -1) return null;
+  
+  // Map back to original position
+  const originalStart = posMap[pos];
+  const normalizedEnd = pos + normalizedKeyword.length;
+  let originalEnd = normalizedEnd < posMap.length ? posMap[normalizedEnd] : text.length;
+  
+  // Extend to capture full word in original text
+  while (originalEnd < text.length && /[\wáéíóúüñÁÉÍÓÚÜÑ]/i.test(text[originalEnd])) {
+    originalEnd++;
+  }
+  
+  return { position: originalStart, length: originalEnd - originalStart };
 }
 
 // Extract core ingredient name from full ingredient text
