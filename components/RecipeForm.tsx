@@ -1726,7 +1726,9 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
             onClick={addSectionHeader}
             className="text-amber-600 font-medium text-sm flex items-center gap-1 hover:underline"
           >
-            <span>📋</span>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+            </svg>
             Añadir sección
           </button>
         </div>
@@ -1810,7 +1812,9 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                       </svg>
                     </button>
                     <div className="flex-1 flex items-center gap-2">
-                      <span className="text-amber-600">📋</span>
+                      <svg className="w-5 h-5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                      </svg>
                       <input
                         type="text"
                         value={instruction.text}
@@ -1976,7 +1980,9 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
             onClick={addInstructionSectionHeader}
             className="text-amber-600 font-medium text-sm flex items-center gap-1 hover:underline"
           >
-            <span>📋</span>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+            </svg>
             Añadir sección
           </button>
         </div>
