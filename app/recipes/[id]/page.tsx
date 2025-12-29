@@ -1190,7 +1190,10 @@ export default function RecipeDetailPage() {
                 <div className="flex items-center gap-2 mb-3">
                   <span className="text-2xl">🍰</span>
                   <span className="font-medium text-[var(--color-slate)] capitalize">
-                    {container.name}
+                    {/* Show variant label if selected, otherwise container name */}
+                    {recipe.variant_1_label && recipe.variant_2_label
+                      ? (selectedVariant === 1 ? recipe.variant_1_label : recipe.variant_2_label)
+                      : container.name}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
@@ -1238,7 +1241,9 @@ export default function RecipeDetailPage() {
                   )}
                 </span>
                 <span className="text-xs text-[var(--color-slate-light)]">
-                  Receta original: {recipe.container_quantity || 1} {container.name}
+                  Receta original: {recipe.container_quantity || 1} {recipe.variant_1_label && recipe.variant_2_label
+                    ? (selectedVariant === 1 ? recipe.variant_1_label : recipe.variant_2_label)
+                    : container.name}
                 </span>
               </div>
             </div>
