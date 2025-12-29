@@ -915,9 +915,18 @@ export default function RecipeDetailPage() {
                     >
                       −
                     </button>
-                    <span className="w-8 text-center text-xl font-bold text-[var(--color-purple)]">
-                      {adults}
-                    </span>
+                    <input
+                      type="number"
+                      value={adults}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (!isNaN(val) && val >= 0) {
+                          setAdults(val);
+                        }
+                      }}
+                      min="0"
+                      className="w-12 text-center text-xl font-bold text-[var(--color-purple)] bg-white border border-[var(--border-color)] rounded-lg py-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--color-purple)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
                     <button
                       onClick={() => setAdults(adults + 1)}
                       className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-[var(--border-color)] hover:bg-[var(--color-purple-bg-dark)] transition-colors text-lg font-medium"
@@ -944,9 +953,18 @@ export default function RecipeDetailPage() {
                     >
                       −
                     </button>
-                    <span className="w-8 text-center text-xl font-bold text-amber-600">
-                      {children}
-                    </span>
+                    <input
+                      type="number"
+                      value={children}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (!isNaN(val) && val >= 0) {
+                          setChildren(val);
+                        }
+                      }}
+                      min="0"
+                      className="w-12 text-center text-xl font-bold text-amber-600 bg-white border border-amber-200 rounded-lg py-0.5 focus:outline-none focus:ring-2 focus:ring-amber-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
                     <button
                       onClick={() => setChildren(children + 1)}
                       className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-amber-200 hover:bg-amber-100 transition-colors text-lg font-medium"
@@ -1007,9 +1025,18 @@ export default function RecipeDetailPage() {
                   >
                     −
                   </button>
-                  <span className="w-16 text-center text-2xl font-bold text-blue-700">
-                    {unitsQuantity}
-                  </span>
+                  <input
+                    type="number"
+                    value={unitsQuantity}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      if (!isNaN(val) && val >= 1) {
+                        setUnitsQuantity(val);
+                      }
+                    }}
+                    min="1"
+                    className="w-20 text-center text-2xl font-bold text-blue-700 bg-white border border-blue-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
                   <button
                     onClick={() => setUnitsQuantity(unitsQuantity + 1)}
                     className="w-10 h-10 flex items-center justify-center rounded-full bg-white border border-blue-200 hover:bg-blue-100 transition-colors text-xl font-medium"
@@ -1073,9 +1100,19 @@ export default function RecipeDetailPage() {
                   >
                     −
                   </button>
-                  <span className="w-16 text-center text-2xl font-bold text-amber-700">
-                    {containerQuantity % 1 === 0 ? containerQuantity : containerQuantity.toFixed(1)}
-                  </span>
+                  <input
+                    type="number"
+                    value={containerQuantity % 1 === 0 ? containerQuantity : containerQuantity.toFixed(1)}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      if (!isNaN(val) && val >= 0.5) {
+                        setContainerQuantity(val);
+                      }
+                    }}
+                    min="0.5"
+                    step="0.5"
+                    className="w-20 text-center text-2xl font-bold text-amber-700 bg-white border border-amber-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-amber-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
                   <button
                     onClick={() => setContainerQuantity(containerQuantity + 0.5)}
                     className="w-10 h-10 flex items-center justify-center rounded-full bg-white border border-amber-200 hover:bg-amber-100 transition-colors text-xl font-medium"
