@@ -1293,6 +1293,24 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
         </div>
       </div>
 
+      {/* Fraction buttons toolbar - sticky floating bar */}
+      <div className="sticky top-14 z-30 -mx-4 px-4 py-2 bg-white/95 backdrop-blur-sm border-b border-[var(--border-color)] shadow-sm">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+          <span className="text-sm text-[var(--color-slate-light)] mr-1 flex-shrink-0">Fracciones:</span>
+          {FRACTIONS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => insertFraction(f.value)}
+              className="px-3 py-2 text-lg font-medium bg-[var(--color-purple-bg)] hover:bg-[var(--color-purple-bg-dark)] text-[var(--color-purple)] rounded-lg transition-colors min-w-[44px] flex-shrink-0"
+              title={`Insertar ${f.label}`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Ingredients */}
       <div className="bg-white rounded-xl p-4 border border-[var(--border-color)]">
         <div className="flex items-center justify-between mb-3">
@@ -1307,22 +1325,6 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
               💡 Usa ⇄ para convertir
             </span>
           </div>
-        </div>
-        
-        {/* Fraction buttons toolbar - sticky */}
-        <div className="flex items-center gap-2 mb-4 pb-3 pt-3 -mt-3 border-b border-[var(--border-color)] sticky top-0 z-10 bg-[var(--background)]">
-          <span className="text-sm text-[var(--color-slate-light)] mr-1">Fracciones:</span>
-          {FRACTIONS.map((f) => (
-            <button
-              key={f.value}
-              type="button"
-              onClick={() => insertFraction(f.value)}
-              className="px-3 py-2 text-lg font-medium bg-[var(--color-purple-bg)] hover:bg-[var(--color-purple-bg-dark)] text-[var(--color-purple)] rounded-lg transition-colors min-w-[44px]"
-              title={`Insertar ${f.label}`}
-            >
-              {f.label}
-            </button>
-          ))}
         </div>
 
         {/* Variant info banner - shows when 2+ containers selected */}
