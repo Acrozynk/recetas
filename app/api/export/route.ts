@@ -522,3 +522,4 @@ function escapeHTML(text: string | null | undefined): string {
     .replace(/'/g, "&#039;");
 }
 
+

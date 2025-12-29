@@ -16,3 +16,4 @@ ALTER TABLE recipes
 -- Ingredients can also have isHeader: true to mark section headers
 -- like "Para la base:" or "Para el relleno:"
 
+

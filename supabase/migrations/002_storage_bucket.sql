@@ -26,3 +26,4 @@ CREATE POLICY "Allow deletions"
 ON storage.objects FOR DELETE
 USING (bucket_id = 'recipe-images');
 
+

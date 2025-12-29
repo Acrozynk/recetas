@@ -7,3 +7,4 @@ ALTER TABLE recipes ADD COLUMN IF NOT EXISTS servings_unit TEXT DEFAULT NULL;
 -- Add comment for documentation
 COMMENT ON COLUMN recipes.servings_unit IS 'Custom unit for servings (e.g., tortitas, galletas, unidades). When null, uses personas as default.';
 
+

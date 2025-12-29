@@ -456,7 +456,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     });
   };
 
-  const updateAlternative = (index: number, field: keyof Ingredient["alternative"] & string, value: string) => {
+  const updateAlternative = (index: number, field: "name" | "amount" | "unit", value: string) => {
     const updated = [...ingredients];
     const currentAlt = updated[index].alternative || { name: "", amount: "", unit: "" };
     updated[index] = { 

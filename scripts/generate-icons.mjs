@@ -39,3 +39,4 @@ async function generateIcons() {
 
 generateIcons().catch(console.error);
 
+

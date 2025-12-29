@@ -12,3 +12,4 @@ ALTER TABLE recipes ADD COLUMN IF NOT EXISTS made_it BOOLEAN DEFAULT FALSE;
 CREATE INDEX IF NOT EXISTS idx_recipes_rating ON recipes(rating);
 CREATE INDEX IF NOT EXISTS idx_recipes_made_it ON recipes(made_it);
 
+

@@ -136,3 +136,4 @@ CREATE TRIGGER check_completion_on_check
   WHEN (NEW.checked = true)
   EXECUTE FUNCTION check_list_completion();
 
+
