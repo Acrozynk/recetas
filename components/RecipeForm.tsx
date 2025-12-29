@@ -410,35 +410,41 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   // Place section at target position
   const placeSection = (targetPosition: number) => {
     if (movingSectionIndex !== null) {
-      moveSectionHeaderToPosition(movingSectionIndex, targetPosition);
+      moveSectionToPosition(movingSectionIndex, targetPosition);
       setMovingSectionIndex(null);
     }
   };
 
-  // Move just the section header to a specific position (between any ingredients)
-  const moveSectionHeaderToPosition = (sourceHeaderIndex: number, targetPosition: number) => {
+  // Move entire section (header + all ingredients until next header)
+  const moveSectionToPosition = (sourceHeaderIndex: number, targetPosition: number) => {
     if (sourceHeaderIndex === targetPosition || sourceHeaderIndex === targetPosition - 1) return;
     
-    // Extract just the header (not the whole section)
-    const headerToMove = ingredients[sourceHeaderIndex];
-    
-    // Create new array without the header
-    const withoutHeader = [
-      ...ingredients.slice(0, sourceHeaderIndex),
-      ...ingredients.slice(sourceHeaderIndex + 1)
-    ];
-    
-    // Adjust target position if it's after the removed header
-    let adjustedTarget = targetPosition;
-    if (targetPosition > sourceHeaderIndex) {
-      adjustedTarget = targetPosition - 1;
+    // Find where this section ends (next header or end of list)
+    let sectionEndIndex = sourceHeaderIndex + 1;
+    while (sectionEndIndex < ingredients.length && !ingredients[sectionEndIndex].isHeader) {
+      sectionEndIndex++;
     }
     
-    // Insert header at new position
+    // Extract the entire section (header + its ingredients)
+    const sectionToMove = ingredients.slice(sourceHeaderIndex, sectionEndIndex);
+    
+    // Create new array without the section
+    const withoutSection = [
+      ...ingredients.slice(0, sourceHeaderIndex),
+      ...ingredients.slice(sectionEndIndex)
+    ];
+    
+    // Adjust target position if it's after the removed section
+    let adjustedTarget = targetPosition;
+    if (targetPosition > sourceHeaderIndex) {
+      adjustedTarget = targetPosition - sectionToMove.length;
+    }
+    
+    // Insert section at new position
     const newIngredients = [
-      ...withoutHeader.slice(0, adjustedTarget),
-      headerToMove,
-      ...withoutHeader.slice(adjustedTarget)
+      ...withoutSection.slice(0, adjustedTarget),
+      ...sectionToMove,
+      ...withoutSection.slice(adjustedTarget)
     ];
     
     // Build index mapping for instruction updates
@@ -1171,7 +1177,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
           {movingSectionIndex !== null && (
             <div className="p-3 bg-amber-100 border border-amber-300 rounded-lg flex items-center justify-between">
               <span className="text-sm text-amber-800 font-medium">
-                📋 Moviendo: <strong>{ingredients[movingSectionIndex].name || 'Sección'}</strong> — Haz click en una zona amarilla para colocarla
+                📋 Moviendo sección completa: <strong>{ingredients[movingSectionIndex].name || 'Sección'}</strong> — Haz click en una zona amarilla para colocarla
               </span>
               <button
                 type="button"
