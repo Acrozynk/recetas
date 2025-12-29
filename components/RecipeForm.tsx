@@ -559,8 +559,32 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     }
   };
 
+  // Find the instruction section name for a given step index
+  const getInstructionSectionName = (stepIndex: number, instructionList: Instruction[]): string | null => {
+    // Look backwards from the step to find the nearest section header
+    for (let i = stepIndex - 1; i >= 0; i--) {
+      if (instructionList[i].isHeader) {
+        return instructionList[i].text?.trim().toLowerCase() || null;
+      }
+    }
+    return null;
+  };
+
+  // Find matching ingredient section indices by name
+  const getMatchingIngredientSectionIndices = (sectionName: string | null): number[] => {
+    if (!sectionName) return [];
+    const sections = getIngredientSections();
+    const matchingSection = sections.find(s => 
+      s.name.trim().toLowerCase() === sectionName
+    );
+    return matchingSection?.ingredientIndices || [];
+  };
+
   const addInstruction = () => {
-    setInstructions([...instructions, { text: "", ingredientIndices: [] }]);
+    // Find what section this new step would be under
+    const sectionName = getInstructionSectionName(instructions.length, instructions);
+    const autoSelectedIndices = getMatchingIngredientSectionIndices(sectionName);
+    setInstructions([...instructions, { text: "", ingredientIndices: autoSelectedIndices }]);
   };
 
   const addInstructionSectionHeader = () => {
@@ -568,9 +592,12 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   };
 
   const insertInstructionAt = (index: number) => {
+    // Find what section this new step would be under
+    const sectionName = getInstructionSectionName(index, instructions);
+    const autoSelectedIndices = getMatchingIngredientSectionIndices(sectionName);
     const newInstructions = [
       ...instructions.slice(0, index),
-      { text: "", ingredientIndices: [] },
+      { text: "", ingredientIndices: autoSelectedIndices },
       ...instructions.slice(index)
     ];
     setInstructions(newInstructions);
