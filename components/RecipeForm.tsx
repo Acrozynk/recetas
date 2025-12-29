@@ -224,8 +224,16 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   const [portionType, setPortionType] = useState<'personas' | 'unidades' | 'recipiente'>(
     recipe?.container_id ? 'recipiente' : recipe?.servings_unit ? 'unidades' : 'personas'
   );
-  const [containerId, setContainerId] = useState<string | null>(recipe?.container_id || null);
-  const [containerQuantity, setContainerQuantity] = useState(recipe?.container_quantity?.toString() || "1");
+  // Support for multiple containers (each with quantity)
+  const [selectedContainers, setSelectedContainers] = useState<Array<{ id: string; quantity: string }>>(() => {
+    // Initialize from recipe data
+    if (recipe?.container_id) {
+      const initial = [{ id: recipe.container_id, quantity: recipe.container_quantity?.toString() || "1" }];
+      // If there's a second variant label that matches a container, we might have a second one
+      return initial;
+    }
+    return [];
+  });
   const [newContainerName, setNewContainerName] = useState("");
   const [addingContainer, setAddingContainer] = useState(false);
   const [ingredients, setIngredients] = useState<Ingredient[]>(
@@ -250,9 +258,14 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   const [movingSectionIndex, setMovingSectionIndex] = useState<number | null>(null);
   
   // Variant labels for recipes with two sets of ingredient amounts
-  const [variant1Label, setVariant1Label] = useState(recipe?.variant_1_label || "");
-  const [variant2Label, setVariant2Label] = useState(recipe?.variant_2_label || "");
-  const [showVariantLabels, setShowVariantLabels] = useState(!!recipe?.variant_1_label || !!recipe?.variant_2_label);
+  // These are now derived from selected containers when in 'recipiente' mode
+  const variant1Label = selectedContainers[0] 
+    ? containers.find(c => c.id === selectedContainers[0].id)?.name || ""
+    : "";
+  const variant2Label = selectedContainers[1]
+    ? containers.find(c => c.id === selectedContainers[1].id)?.name || ""
+    : "";
+  const showVariantLabels = selectedContainers.length >= 2;
   const [instructions, setInstructions] = useState<Instruction[]>(
     recipe?.instructions 
       ? normalizeInstructions(recipe.instructions)
@@ -304,7 +317,10 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
       if (response.ok) {
         const data = await response.json();
         setContainers([...containers, data.container]);
-        setContainerId(data.container.id);
+        // Auto-add to selected containers if less than 2 selected
+        if (selectedContainers.length < 2) {
+          setSelectedContainers([...selectedContainers, { id: data.container.id, quantity: "1" }]);
+        }
         setNewContainerName("");
       } else {
         const errorData = await response.json();
@@ -315,6 +331,24 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     } finally {
       setAddingContainer(false);
     }
+  };
+
+  // Add a container to selection
+  const addContainerToSelection = (containerId: string) => {
+    if (!containerId || selectedContainers.some(c => c.id === containerId)) return;
+    setSelectedContainers([...selectedContainers, { id: containerId, quantity: "1" }]);
+  };
+
+  // Remove a container from selection
+  const removeContainerFromSelection = (containerId: string) => {
+    setSelectedContainers(selectedContainers.filter(c => c.id !== containerId));
+  };
+
+  // Update container quantity
+  const updateContainerQuantity = (containerId: string, quantity: string) => {
+    setSelectedContainers(selectedContainers.map(c => 
+      c.id === containerId ? { ...c, quantity } : c
+    ));
   };
 
   const addIngredient = () => {
@@ -531,9 +565,9 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         servings: portionType === 'recipiente' ? null : (servings ? parseInt(servings) : null),
         // "unidades" marker when using unit-based portions, null = personas
         servings_unit: portionType === 'unidades' ? "unidades" : null,
-        // Container fields
-        container_id: portionType === 'recipiente' ? containerId : null,
-        container_quantity: portionType === 'recipiente' && containerQuantity ? parseFloat(containerQuantity) : null,
+        // Container fields - use first selected container as primary
+        container_id: portionType === 'recipiente' && selectedContainers[0] ? selectedContainers[0].id : null,
+        container_quantity: portionType === 'recipiente' && selectedContainers[0] ? parseFloat(selectedContainers[0].quantity) : null,
         tags: tags.filter((t) => t.trim()),
         ingredients: ingredients.filter((i) => i.name.trim()),
         instructions: instructions.filter((i) => i.text.trim()),
@@ -845,47 +879,76 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                 />
               </div>
             ) : (
-              /* Container selection */
+              /* Container selection - supports multiple */
               <div className="space-y-3">
-                {/* Quantity input */}
-                <div>
-                  <label className="block text-xs text-[var(--color-slate-light)] mb-1">
-                    Cantidad
-                  </label>
-                  <input
-                    type="number"
-                    value={containerQuantity}
-                    onChange={(e) => setContainerQuantity(e.target.value)}
-                    className="input w-24"
-                    placeholder="1"
-                    min="0.5"
-                    step="0.5"
-                  />
-                </div>
+                {/* Selected containers list */}
+                {selectedContainers.length > 0 && (
+                  <div className="space-y-2">
+                    <label className="block text-xs text-[var(--color-slate-light)]">
+                      Recipientes seleccionados {selectedContainers.length >= 2 && <span className="text-amber-600">(variantes activas)</span>}
+                    </label>
+                    {selectedContainers.map((selected, idx) => {
+                      const container = containers.find(c => c.id === selected.id);
+                      return (
+                        <div key={selected.id} className={`flex items-center gap-2 p-2 rounded-lg border ${idx === 0 ? 'bg-[var(--color-purple-bg)] border-[var(--color-purple)]' : 'bg-amber-50 border-amber-300'}`}>
+                          <span className="text-xs font-medium text-[var(--color-slate)] w-16">
+                            {idx === 0 ? '🥇 Principal' : '🥈 Variante'}
+                          </span>
+                          <input
+                            type="number"
+                            value={selected.quantity}
+                            onChange={(e) => updateContainerQuantity(selected.id, e.target.value)}
+                            className="input w-16 text-center text-sm py-1"
+                            placeholder="1"
+                            min="0.5"
+                            step="0.5"
+                          />
+                          <span className="text-sm text-[var(--foreground)] flex-1">
+                            {container?.name || 'Recipiente no encontrado'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => removeContainerFromSelection(selected.id)}
+                            className="p-1 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
+                            title="Quitar"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 
-                {/* Container selector */}
+                {/* Add container selector */}
                 <div>
                   <label className="block text-xs text-[var(--color-slate-light)] mb-1">
-                    Tipo de recipiente
+                    {selectedContainers.length === 0 ? 'Selecciona un recipiente' : 'Añadir otro recipiente (para variante)'}
                   </label>
                   <select
-                    value={containerId || ""}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setContainerId(value || null);
-                    }}
+                    value=""
+                    onChange={(e) => addContainerToSelection(e.target.value)}
                     className="input w-full"
                   >
                     <option value="">-- Selecciona recipiente --</option>
-                    {containers.map((container) => (
-                      <option key={container.id} value={container.id}>
-                        {container.name}
-                      </option>
-                    ))}
+                    {containers
+                      .filter(c => !selectedContainers.some(sc => sc.id === c.id))
+                      .map((container) => (
+                        <option key={container.id} value={container.id}>
+                          {container.name}
+                        </option>
+                      ))}
                   </select>
                   {containers.length === 0 && (
                     <p className="text-xs text-amber-600 mt-1">
                       No hay recipientes. Añade uno nuevo abajo.
+                    </p>
+                  )}
+                  {selectedContainers.length >= 2 && (
+                    <p className="text-xs text-green-600 mt-1">
+                      ✓ Con 2 recipientes, puedes añadir cantidades alternativas en los ingredientes
                     </p>
                   )}
                 </div>
@@ -1026,18 +1089,11 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-display text-lg font-semibold">Ingredientes</h2>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowVariantLabels(!showVariantLabels)}
-              className={`text-xs px-2 py-1 rounded-full transition-colors ${
-                showVariantLabels
-                  ? "bg-[var(--color-purple)] text-white"
-                  : "bg-[var(--color-purple-bg)] text-[var(--color-slate-light)] hover:text-[var(--color-purple)]"
-              }`}
-              title="Habilitar dos variantes de cantidad (ej: molde grande/pequeño)"
-            >
-              🍰 Variantes
-            </button>
+            {showVariantLabels && (
+              <span className="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700">
+                🍰 {variant1Label} / {variant2Label}
+              </span>
+            )}
             <span className="text-xs text-[var(--color-slate-light)] bg-[var(--color-purple-bg)] px-2 py-1 rounded-full">
               💡 Usa ⇄ para convertir
             </span>
@@ -1060,38 +1116,12 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
           ))}
         </div>
 
-        {/* Variant labels */}
+        {/* Variant info banner - shows when 2+ containers selected */}
         {showVariantLabels && (
           <div className="mb-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
-            <p className="text-xs text-amber-700 mb-2">
-              Define etiquetas para las dos cantidades (ej: &quot;Molde grande 26cm&quot; y &quot;Molde pequeño 16cm&quot;)
+            <p className="text-xs text-amber-700">
+              📐 <strong>Variantes activas:</strong> Usa el botón <span className="inline-flex items-center px-1 py-0.5 bg-white rounded border">↓</span> en cada ingrediente para añadir la cantidad alternativa para <strong>{variant2Label}</strong>
             </p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-amber-800 mb-1">
-                  Cantidad principal
-                </label>
-                <input
-                  type="text"
-                  value={variant1Label}
-                  onChange={(e) => setVariant1Label(e.target.value)}
-                  className="input text-sm"
-                  placeholder="Molde grande (26cm)"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-amber-800 mb-1">
-                  Cantidad alternativa
-                </label>
-                <input
-                  type="text"
-                  value={variant2Label}
-                  onChange={(e) => setVariant2Label(e.target.value)}
-                  className="input text-sm"
-                  placeholder="Molde pequeño (16cm)"
-                />
-              </div>
-            </div>
           </div>
         )}
 
