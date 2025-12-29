@@ -938,7 +938,8 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                             type="number"
                             value={selected.quantity}
                             onChange={(e) => updateContainerQuantity(selected.id, e.target.value)}
-                            className="input text-center text-sm py-1 px-1 bg-white text-[var(--foreground)]"
+                            className="text-center text-sm py-1 px-1 rounded-md border border-[var(--border-color)]"
+                            style={{ backgroundColor: 'white', color: '#451A03', width: '50px' }}
                             placeholder="1"
                             min="0.5"
                             step="0.5"
