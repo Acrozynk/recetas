@@ -652,14 +652,16 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
   };
 
   // Get ingredient sections (groups of ingredients under each header)
-  const getIngredientSections = () => {
-    const sections: Array<{ name: string; startIndex: number; ingredientIndices: number[] }> = [];
-    let currentSection: { name: string; startIndex: number; ingredientIndices: number[] } | null = null;
+  const getIngredientSections = (): Array<{ name: string; startIndex: number; ingredientIndices: number[] }> => {
+    type Section = { name: string; startIndex: number; ingredientIndices: number[] };
+    const sections: Section[] = [];
+    let currentSection: Section | null = null;
     
-    ingredients.forEach((ingredient, index) => {
+    for (let index = 0; index < ingredients.length; index++) {
+      const ingredient = ingredients[index];
       if (ingredient.isHeader) {
-        // Save previous section if exists
-        if (currentSection) {
+        // Save previous section if exists and has ingredients
+        if (currentSection && currentSection.ingredientIndices.length > 0) {
           sections.push(currentSection);
         }
         // Start new section
@@ -669,14 +671,10 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
           currentSection.ingredientIndices.push(index);
         } else {
           // Ingredients before any header - create default section
-          if (sections.length === 0 || sections[sections.length - 1].name !== 'Ingredientes') {
-            currentSection = { name: 'Ingredientes', startIndex: -1, ingredientIndices: [index] };
-          } else {
-            sections[sections.length - 1].ingredientIndices.push(index);
-          }
+          currentSection = { name: 'Ingredientes', startIndex: -1, ingredientIndices: [index] };
         }
       }
-    });
+    }
     
     // Don't forget the last section
     if (currentSection && currentSection.ingredientIndices.length > 0) {
