@@ -368,6 +368,110 @@ export default function ImportReviewPage() {
     setIsEditing(true);
   };
 
+  // Convert ParsedRecipe to Recipe format for RecipeForm
+  const convertToRecipeFormat = (parsed: ParsedRecipe): Recipe => {
+    return {
+      id: "",
+      title: parsed.title || "",
+      description: parsed.description || null,
+      source_url: parsed.source_url || null,
+      image_url: parsed.image_url || null,
+      prep_time_minutes: parsed.prep_time_minutes || null,
+      cook_time_minutes: parsed.cook_time_minutes || null,
+      servings: parsed.servings || null,
+      servings_unit: null,
+      tags: parsed.tags || [],
+      ingredients: (parsed.ingredients || []).map(ing => ({
+        name: ing.name || "",
+        amount: ing.amount || "",
+        unit: ing.unit || "",
+        amount2: ing.amount2,
+        unit2: ing.unit2,
+        isHeader: ing.isHeader,
+        alternative: ing.alternative,
+      })),
+      instructions: (parsed.instructions || []).map(inst => 
+        typeof inst === "string" 
+          ? { text: inst, ingredientIndices: [] }
+          : { text: inst.text || "", ingredientIndices: inst.ingredientIndices || [], isHeader: inst.isHeader }
+      ),
+      notes: parsed.notes || null,
+      rating: parsed.rating || null,
+      made_it: parsed.made_it || false,
+      container_id: null,
+      container_quantity: null,
+      variant_1_label: parsed.variant_1_label || null,
+      variant_2_label: parsed.variant_2_label || null,
+      created_at: new Date().toISOString(),
+    };
+  };
+
+  // Handle save from RecipeForm in import mode
+  const handleImportSave = async (recipeData: Record<string, unknown>) => {
+    if (!session) return;
+    setSaving(true);
+    setError("");
+
+    try {
+      // Upload image if needed
+      const imageUrl = editedRecipe ? await uploadImage(editedRecipe) : recipeData.image_url;
+
+      // Insert recipe into database
+      const finalRecipeData = {
+        ...recipeData,
+        image_url: imageUrl,
+      };
+
+      const { data, error: insertError } = await supabase
+        .from("recipes")
+        .insert([finalRecipeData])
+        .select("id")
+        .single();
+
+      if (insertError) throw insertError;
+
+      // Update session
+      const response = await fetch("/api/import-session", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: session.id,
+          action: "edit",
+          recipeIndex: session.current_index,
+          editedRecipe: recipeData,
+          importedId: data?.id,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to update session");
+
+      const result = await response.json();
+      
+      setIsEditing(false);
+      setEditedRecipe(null);
+      setOriginalEditedRecipe(null);
+      
+      if (result.isComplete) {
+        router.push("/recipes/import/complete");
+      } else if (result.session) {
+        setSession(result.session);
+      } else {
+        await loadSession();
+      }
+    } catch (err) {
+      console.error("Error saving:", err);
+      setError(`Error al guardar: ${err instanceof Error ? err.message : "Error desconocido"}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditedRecipe(null);
+    setOriginalEditedRecipe(null);
+  };
+
   const handleUndo = () => {
     if (originalEditedRecipe) {
       setEditedRecipe(JSON.parse(JSON.stringify(originalEditedRecipe)));
@@ -672,8 +776,8 @@ export default function ImportReviewPage() {
           ))}
         </div>
 
-        {/* Error message - shown at top when editing */}
-        {error && isEditing && (
+        {/* Error message - shown at top */}
+        {error && (
           <div className={`mb-4 p-3 rounded-lg text-sm ${
             error.startsWith("ℹ️") 
               ? "bg-blue-50 border border-blue-200 text-blue-700"
@@ -683,8 +787,55 @@ export default function ImportReviewPage() {
           </div>
         )}
 
-        {/* Current Recipe Card */}
-        {displayRecipe && (
+        {/* Edit Mode - Use full RecipeForm */}
+        {isEditing && editedRecipe && (
+          <div className="mb-20">
+            {/* Edit mode header with translation badge */}
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold">Editando receta</h2>
+              {currentRecipe?.translated && (
+                <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium">
+                  🌐 Traducida
+                </span>
+              )}
+            </div>
+            <RecipeForm
+              recipe={convertToRecipeFormat(editedRecipe)}
+              mode="import"
+              onSave={handleImportSave}
+              onCancel={handleCancelEdit}
+              hideNavButtons={true}
+            />
+            {/* Bottom action buttons for edit mode */}
+            <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-[var(--border-color)] p-4 safe-area-bottom">
+              <div className="max-w-7xl mx-auto px-4 lg:px-8 flex gap-2">
+                <button
+                  onClick={handleCancelEdit}
+                  className="btn-secondary px-4"
+                  disabled={saving}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  form="recipe-form"
+                  disabled={saving}
+                  className="btn-primary flex-1 disabled:opacity-50"
+                  onClick={() => {
+                    // Trigger the form submission
+                    const form = document.querySelector('form');
+                    if (form) form.requestSubmit();
+                  }}
+                >
+                  {saving ? "Guardando..." : "Importar Receta"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* View Mode - Current Recipe Card */}
+        {!isEditing && displayRecipe && (
           <div className="bg-white rounded-xl border border-[var(--border-color)] overflow-hidden">
             {/* Recipe Image */}
             {getImagePreview(displayRecipe) && (
