@@ -472,140 +472,6 @@ export default function ImportReviewPage() {
     setOriginalEditedRecipe(null);
   };
 
-  const handleUndo = () => {
-    if (originalEditedRecipe) {
-      setEditedRecipe(JSON.parse(JSON.stringify(originalEditedRecipe)));
-    }
-  };
-
-  const hasChanges = () => {
-    if (!editedRecipe || !originalEditedRecipe) return false;
-    return JSON.stringify(editedRecipe) !== JSON.stringify(originalEditedRecipe);
-  };
-
-  const handleSaveEdit = async () => {
-    if (!session || !editedRecipe) return;
-    setSaving(true);
-    setError(""); // Clear any previous errors
-
-    try {
-      // Validate and clean ingredients - remove empty ones
-      const cleanedIngredients = (editedRecipe.ingredients || [])
-        .filter(ing => ing.name && ing.name.trim().length > 0)
-        .map(ing => ({
-          name: ing.name.trim(),
-          amount: ing.amount?.trim() || "",
-          unit: ing.unit?.trim() || "",
-        }));
-
-      if (cleanedIngredients.length === 0) {
-        setError("La receta debe tener al menos un ingrediente");
-        setSaving(false);
-        return;
-      }
-
-      // Validate and clean instructions - remove empty ones
-      const cleanedInstructions = (editedRecipe.instructions || [])
-        .filter(inst => {
-          const text = typeof inst === "string" ? inst : inst.text;
-          return text && text.trim().length > 0;
-        })
-        .map(inst => ({
-          text: (typeof inst === "string" ? inst : inst.text).trim(),
-          ingredientIndices: [],
-        }));
-
-      if (cleanedInstructions.length === 0) {
-        setError("La receta debe tener al menos una instrucción");
-        setSaving(false);
-        return;
-      }
-
-      // Validate title
-      if (!editedRecipe.title || editedRecipe.title.trim().length === 0) {
-        setError("La receta debe tener un título");
-        setSaving(false);
-        return;
-      }
-
-      // Upload image if needed
-      const imageUrl = await uploadImage(editedRecipe);
-
-      // Insert edited recipe into database
-      const recipeData = {
-        title: editedRecipe.title.trim(),
-        description: editedRecipe.description?.trim() || null,
-        source_url: editedRecipe.source_url || null,
-        image_url: imageUrl,
-        prep_time_minutes: editedRecipe.prep_time_minutes || null,
-        cook_time_minutes: editedRecipe.cook_time_minutes || null,
-        servings: editedRecipe.servings || null,
-        tags: editedRecipe.tags || [],
-        ingredients: cleanedIngredients,
-        instructions: cleanedInstructions,
-        notes: editedRecipe.notes?.trim() || null,
-        rating: editedRecipe.rating || null,
-        made_it: editedRecipe.made_it || false,
-        variant_1_label: editedRecipe.variant_1_label || null,
-        variant_2_label: editedRecipe.variant_2_label || null,
-      };
-
-      console.log("Saving recipe data:", recipeData);
-
-      const { data, error: insertError } = await supabase
-        .from("recipes")
-        .insert([recipeData])
-        .select("id")
-        .single();
-
-      if (insertError) {
-        console.error("Supabase insert error:", insertError);
-        throw new Error(insertError.message || "Error al insertar en base de datos");
-      }
-
-      // Update session
-      const response = await fetch("/api/import-session", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: session.id,
-          action: "edit",
-          recipeIndex: session.current_index,
-          editedRecipe,
-          importedId: data?.id,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to update session");
-      }
-
-      const result = await response.json();
-      
-      // Exit edit mode first
-      setIsEditing(false);
-      setEditedRecipe(null);
-      setOriginalEditedRecipe(null);
-      
-      if (result.isComplete) {
-        router.push("/recipes/import/complete");
-      } else if (result.session) {
-        setSession(result.session);
-      } else {
-        // Fallback: reload session if response is unexpected
-        await loadSession();
-      }
-    } catch (err) {
-      console.error("Error saving edited recipe:", err);
-      const errorMessage = err instanceof Error ? err.message : "Error desconocido";
-      setError(`Error al guardar: ${errorMessage}`);
-      // Scroll to top to show error
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleDiscard = async () => {
     if (!session) return;
     setSaving(true);
@@ -1366,43 +1232,11 @@ export default function ImportReviewPage() {
         )}
       </main>
 
-      {/* Fixed Bottom Actions */}
-      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-[var(--border-color)] p-4 safe-area-bottom">
-        <div className="max-w-7xl mx-auto px-4 lg:px-8">
-          {currentRecipe?.status === "pending" ? (
-            isEditing ? (
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setIsEditing(false);
-                    setEditedRecipe(null);
-                    setOriginalEditedRecipe(null);
-                  }}
-                  className="btn-secondary px-3"
-                  disabled={saving}
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleUndo}
-                  disabled={saving || !hasChanges()}
-                  className="px-3 py-2 rounded-lg border border-amber-200 text-amber-600 font-medium hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1"
-                  title="Deshacer todos los cambios"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                  </svg>
-                  Deshacer
-                </button>
-                <button
-                  onClick={handleSaveEdit}
-                  disabled={saving}
-                  className="btn-primary flex-1 disabled:opacity-50"
-                >
-                  {saving ? "Guardando..." : "Guardar"}
-                </button>
-              </div>
-            ) : (
+      {/* Fixed Bottom Actions - Hide when RecipeForm is active (it has its own buttons) */}
+      {!(isEditing && editedRecipe) && (
+        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-[var(--border-color)] p-4 safe-area-bottom">
+          <div className="max-w-7xl mx-auto px-4 lg:px-8">
+            {currentRecipe?.status === "pending" ? (
               <div className="space-y-2">
                 {/* Translate button for English recipes */}
                 {detectedLanguage === "en" && (
@@ -1447,8 +1281,7 @@ export default function ImportReviewPage() {
                   </button>
                 </div>
               </div>
-            )
-          ) : (
+            ) : (
             <div className="flex gap-3 items-center">
               <span className={`flex-1 text-center py-3 rounded-lg ${
                 currentRecipe?.status === "accepted" || currentRecipe?.status === "edited"
@@ -1470,6 +1303,7 @@ export default function ImportReviewPage() {
           )}
         </div>
       </div>
+      )}
 
       {/* Pause/Exit options */}
       <div className="fixed top-16 right-4 flex gap-2">
