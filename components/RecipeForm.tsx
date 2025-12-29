@@ -1291,7 +1291,8 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                       onFocus={handleInputFocus}
                       onSelect={handleInputSelect}
                       className="input"
-                      placeholder="taza"
+                      placeholder="g"
+                      list="unit-suggestions"
                     />
                     <input
                       type="text"
@@ -1386,6 +1387,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                         onSelect={handleInputSelect}
                         className="input text-sm"
                         placeholder="cdta"
+                        list="unit-suggestions"
                       />
                       <input
                         type="text"
@@ -1432,33 +1434,14 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                           className="input text-sm text-center"
                           placeholder="120"
                         />
-                        {showVariantLabels ? (
-                          <input
-                            type="text"
-                            value={ingredient.unit2 || ""}
-                            onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
-                            className="input text-sm"
-                            placeholder="unidad"
-                          />
-                        ) : (
-                          <select
-                            value={ingredient.unit2 || ""}
-                            onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
-                            className="input text-sm"
-                          >
-                            <option value="">unidad</option>
-                            <optgroup label="Peso">
-                              {COMMON_UNITS.weight.map(u => (
-                                <option key={u.value} value={u.value}>{u.label}</option>
-                              ))}
-                            </optgroup>
-                            <optgroup label="Volumen">
-                              {COMMON_UNITS.volume.map(u => (
-                                <option key={u.value} value={u.value}>{u.label}</option>
-                              ))}
-                            </optgroup>
-                          </select>
-                        )}
+                        <input
+                          type="text"
+                          value={ingredient.unit2 || ""}
+                          onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
+                          className="input text-sm"
+                          placeholder="g"
+                          list="unit-suggestions"
+                        />
                         <span className="text-xs text-[var(--color-slate-light)] flex items-center truncate">
                           {ingredient.name || "—"}
                         </span>
@@ -1521,7 +1504,8 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                               setIngredients(updated);
                             }}
                             className="input text-sm"
-                            placeholder="unidad"
+                            placeholder="g"
+                            list="unit-suggestions"
                           />
                           <span className="text-xs text-emerald-600 flex items-center truncate">
                             {ingredient.alternative?.name || "—"}
@@ -1681,6 +1665,13 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
           {saving ? "Guardando..." : mode === "edit" ? "Actualizar Receta" : "Guardar Receta"}
         </button>
       </div>
+
+      {/* Unit suggestions datalist - shared by all unit inputs */}
+      <datalist id="unit-suggestions">
+        {COMMON_UNITS.all.map(u => (
+          <option key={u.value} value={u.value} />
+        ))}
+      </datalist>
     </form>
   );
 }

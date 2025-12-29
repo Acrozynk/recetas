@@ -411,14 +411,14 @@ export function getSuggestedConversionUnit(currentUnit: string): string {
   return 'g'; // Default
 }
 
-// Get list of common units for dropdowns
+// Get list of common units for dropdowns (abbreviated for UI)
 export const COMMON_UNITS = {
   volume: [
-    { value: 'cup', label: 'taza' },
-    { value: 'tbsp', label: 'cucharada' },
-    { value: 'tsp', label: 'cucharadita' },
+    { value: 'taza', label: 'taza' },
+    { value: 'cda', label: 'cda' },
+    { value: 'cdta', label: 'cdta' },
     { value: 'ml', label: 'ml' },
-    { value: 'l', label: 'litro' },
+    { value: 'l', label: 'l' },
   ],
   weight: [
     { value: 'g', label: 'g' },
@@ -427,16 +427,16 @@ export const COMMON_UNITS = {
     { value: 'lb', label: 'lb' },
   ],
   all: [
-    { value: 'cup', label: 'taza' },
-    { value: 'tbsp', label: 'cucharada' },
-    { value: 'tsp', label: 'cucharadita' },
-    { value: 'ml', label: 'ml' },
-    { value: 'l', label: 'litro' },
     { value: 'g', label: 'g' },
     { value: 'kg', label: 'kg' },
+    { value: 'ml', label: 'ml' },
+    { value: 'l', label: 'l' },
+    { value: 'taza', label: 'taza' },
+    { value: 'cda', label: 'cda' },
+    { value: 'cdta', label: 'cdta' },
     { value: 'oz', label: 'oz' },
     { value: 'lb', label: 'lb' },
-    { value: '', label: 'unidad' },
+    { value: 'unidad', label: 'unidad' },
   ],
 };
 
