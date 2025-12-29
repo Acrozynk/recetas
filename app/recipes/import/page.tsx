@@ -286,7 +286,7 @@ export default function ImportPage() {
     return (
       <div className="min-h-screen pb-20">
         <Header title="Importar Recetas" showBack />
-        <main className="max-w-2xl mx-auto p-4 flex justify-center pt-20">
+        <main className="max-w-7xl mx-auto p-4 lg:px-8 flex justify-center pt-20">
           <div className="inline-block w-8 h-8 border-4 border-[var(--color-purple)] border-t-transparent rounded-full animate-spin" />
         </main>
         <BottomNav />
@@ -298,7 +298,7 @@ export default function ImportPage() {
     <div className="min-h-screen pb-20">
       <Header title="Importar Recetas" showBack />
 
-      <main className="max-w-2xl mx-auto p-4">
+      <main className="max-w-7xl mx-auto p-4 lg:px-8">
         {/* Active Session Banner */}
         {activeSession && (
           <div className="bg-[var(--color-purple-bg)] border border-[var(--color-purple)] rounded-xl p-4 mb-6">

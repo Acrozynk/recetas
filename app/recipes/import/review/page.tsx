@@ -606,7 +606,7 @@ export default function ImportReviewPage() {
     return (
       <div className="min-h-screen pb-20">
         <Header title="Revisar Importación" showBack backHref="/recipes/import" />
-        <main className="max-w-2xl mx-auto p-4">
+        <main className="max-w-7xl mx-auto p-4 lg:px-8">
           <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
             {error}
           </div>
@@ -626,7 +626,7 @@ export default function ImportReviewPage() {
     <div className="min-h-screen pb-24">
       <Header title="Revisar Recetas" showBack backHref="/recipes/import" />
 
-      <main className="max-w-2xl mx-auto p-4">
+      <main className="max-w-7xl mx-auto p-4 lg:px-8">
         {/* Progress Bar */}
         <div className="mb-6">
           <div className="flex justify-between text-sm mb-2">
@@ -1216,7 +1216,7 @@ export default function ImportReviewPage() {
 
       {/* Fixed Bottom Actions */}
       <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-[var(--border-color)] p-4 safe-area-bottom">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-7xl mx-auto px-4 lg:px-8">
           {currentRecipe?.status === "pending" ? (
             isEditing ? (
               <div className="flex gap-2">

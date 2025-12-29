@@ -7,7 +7,7 @@ export default function NewRecipePage() {
     <div className="min-h-screen pb-20">
       <Header title="Nueva Receta" showBack />
 
-      <main className="max-w-4xl mx-auto p-4">
+      <main className="max-w-7xl mx-auto p-4 lg:px-8">
         <RecipeForm mode="create" />
       </main>
 

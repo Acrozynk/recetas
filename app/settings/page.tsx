@@ -359,7 +359,7 @@ export default function SettingsPage() {
     <div className="min-h-screen pb-20">
       <Header title="Ajustes" showBack />
 
-      <main className="max-w-2xl mx-auto p-4 space-y-6">
+      <main className="max-w-7xl mx-auto p-4 lg:px-8 space-y-6">
         {/* Export Section */}
         <section className="bg-white rounded-xl border border-[var(--border-color)] overflow-hidden">
           <div className="p-4 border-b border-[var(--border-color)]">

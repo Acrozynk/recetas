@@ -252,6 +252,7 @@ export default function RecipeDetailPage() {
   const [loading, setLoading] = useState(true);
   const [adults, setAdults] = useState(0); // Will be initialized from recipe.servings
   const [children, setChildren] = useState(0);
+  const [unitsQuantity, setUnitsQuantity] = useState(0); // For units-based recipes
   const [portionsInitialized, setPortionsInitialized] = useState(false);
   // Container-based scaling
   const [containerQuantity, setContainerQuantity] = useState(1);
@@ -339,7 +340,13 @@ export default function RecipeDetailPage() {
   // Initialize portions when recipe loads
   useEffect(() => {
     if (recipe?.servings && !portionsInitialized) {
-      setAdults(recipe.servings);
+      if (recipe.servings_unit) {
+        // Units-based recipe: initialize unitsQuantity
+        setUnitsQuantity(recipe.servings);
+      } else {
+        // Person-based recipe: initialize adults
+        setAdults(recipe.servings);
+      }
       setPortionsInitialized(true);
     }
   }, [recipe, portionsInitialized]);
@@ -377,10 +384,14 @@ export default function RecipeDetailPage() {
 
   // Calculate total portions (children = 0.5 portions each)
   // For container-based recipes, use containerQuantity instead
+  // For units-based recipes, use unitsQuantity
   const usesContainer = !!recipe?.container_id;
+  const usesUnits = !!recipe?.servings_unit;
   const totalPortions = usesContainer 
     ? containerQuantity 
-    : adults + (children * 0.5);
+    : usesUnits
+      ? unitsQuantity
+      : adults + (children * 0.5);
   const originalServings = usesContainer 
     ? (recipe?.container_quantity || 1) 
     : (recipe?.servings || 1);
@@ -619,7 +630,7 @@ export default function RecipeDetailPage() {
     return (
       <div className="min-h-screen pb-20">
         <Header title="Cargando..." showBack />
-        <div className="animate-pulse p-4 max-w-4xl mx-auto">
+        <div className="animate-pulse p-4 max-w-7xl mx-auto lg:px-8">
           <div className="flex gap-4 sm:gap-6 items-start mb-6">
             <div className="flex-1">
               <div className="h-8 bg-[var(--color-purple-bg-dark)] rounded w-3/4 mb-3" />
@@ -717,7 +728,7 @@ export default function RecipeDetailPage() {
       />
 
       <main>
-        <div className="max-w-4xl mx-auto p-4">
+        <div className="max-w-7xl mx-auto p-4 lg:px-8">
           {/* Title, Meta and Image */}
           <div className="mb-6">
             <div className="flex gap-4 sm:gap-6 items-start">
@@ -867,8 +878,8 @@ export default function RecipeDetailPage() {
             </div>
           </div>
 
-          {/* Serving Adjuster - for person-based recipes (hide when using ingredient variants) */}
-          {recipe.servings && !usesContainer && !recipe.variant_1_label && (
+          {/* Serving Adjuster - for person-based recipes (hide when using ingredient variants or units) */}
+          {recipe.servings && !usesContainer && !recipe.variant_1_label && !recipe.servings_unit && (
             <div className="p-4 bg-white rounded-xl border border-[var(--border-color)] mb-6">
               <div className="flex items-center justify-between mb-4">
                 <span className="font-medium text-[var(--color-slate)]">
@@ -958,6 +969,72 @@ export default function RecipeDetailPage() {
                 </span>
                 <span className="text-xs text-[var(--color-slate-light)]">
                   Receta original: {recipe.servings} porciones
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Units Adjuster - for units-based recipes (tortitas, galletas, etc.) */}
+          {recipe.servings && !usesContainer && !recipe.variant_1_label && recipe.servings_unit && (
+            <div className="p-4 bg-white rounded-xl border border-[var(--border-color)] mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <span className="font-medium text-[var(--color-slate)]">
+                  Ajustar cantidad
+                </span>
+                {unitsQuantity !== recipe.servings && (
+                  <button
+                    onClick={() => setUnitsQuantity(recipe.servings || 1)}
+                    className="text-sm text-[var(--color-purple)] hover:underline"
+                  >
+                    Restablecer
+                  </button>
+                )}
+              </div>
+              
+              {/* Units quantity selector */}
+              <div className="flex flex-col items-center p-4 bg-blue-50 rounded-xl">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-2xl">📦</span>
+                  <span className="font-medium text-[var(--color-slate)] capitalize">
+                    {recipe.servings_unit}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setUnitsQuantity(Math.max(1, unitsQuantity - 1))}
+                    disabled={unitsQuantity <= 1}
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white border border-blue-200 hover:bg-blue-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-xl font-medium"
+                  >
+                    −
+                  </button>
+                  <span className="w-16 text-center text-2xl font-bold text-blue-700">
+                    {unitsQuantity}
+                  </span>
+                  <button
+                    onClick={() => setUnitsQuantity(unitsQuantity + 1)}
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-white border border-blue-200 hover:bg-blue-100 transition-colors text-xl font-medium"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              {/* Summary */}
+              <div className="mt-4 pt-3 border-t border-[var(--border-color)] flex items-center justify-between">
+                <span className="text-sm text-[var(--color-slate-light)]">
+                  {servingMultiplier !== 1 && (
+                    <span className="text-blue-600 font-medium">
+                      Ingredientes ×{servingMultiplier.toFixed(servingMultiplier % 1 === 0 ? 0 : 1)}
+                    </span>
+                  )}
+                  {servingMultiplier === 1 && (
+                    <span className="text-[var(--color-slate-light)]">
+                      Cantidad original
+                    </span>
+                  )}
+                </span>
+                <span className="text-xs text-[var(--color-slate-light)]">
+                  Receta original: {recipe.servings} {recipe.servings_unit}
                 </span>
               </div>
             </div>

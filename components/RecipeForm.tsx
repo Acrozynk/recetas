@@ -1250,7 +1250,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                     title={showAlternative.has(index) ? "Quitar alternativa" : "Añadir ingrediente alternativo (ej: polvo de hornear o bicarbonato)"}
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
                     </svg>
                   </button>
                   
