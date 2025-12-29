@@ -76,14 +76,23 @@ function extractIngredientKeywords(ingredientName: string): string[] {
   // Add the full normalized name
   keywords.push(normalized);
   
-  // Add individual significant words (skip common words)
+  // Add individual significant words (skip common words and cooking verbs)
   const skipWords = new Set([
+    // Articles and prepositions
     "para", "con", "sin", "del", "las", "los", "una", "uno", "unos", "unas",
+    // Quantities
     "poco", "poca", "mucho", "mucha", "mas", "menos", "bien", "mal",
+    // Adjectives
     "grande", "pequeno", "mediano", "fresco", "fresca", "seco", "seca",
     "rallado", "rallada", "picado", "picada", "cortado", "cortada",
     "troceado", "troceada", "molido", "molida", "entero", "entera",
-    "natural", "normal"
+    "natural", "normal",
+    // Cooking verbs (to avoid matching "hornear" with "polvo de hornear", etc.)
+    "hornear", "cocinar", "hervir", "freir", "asar", "saltear", "cocer",
+    "batir", "mezclar", "remover", "añadir", "agregar", "incorporar",
+    "cortar", "picar", "rallar", "pelar", "trocear", "laminar",
+    "calentar", "enfriar", "reposar", "dejar", "poner", "sacar",
+    "servir", "decorar", "espolvorear", "untar", "engrasar"
   ]);
   
   for (const word of words) {
