@@ -1176,35 +1176,37 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                     <span className="text-sm font-medium">📋 Colocar sección aquí</span>
                   </button>
                 )}
-                {/* Primary measurement row - horizontal layout */}
+                {/* Primary measurement row - horizontal layout with CSS Grid */}
                 <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={ingredient.amount}
-                    onChange={(e) => updateIngredient(index, "amount", e.target.value)}
-                    onFocus={handleInputFocus}
-                    onSelect={handleInputSelect}
-                    className="input w-20 shrink-0 text-center"
-                    placeholder="1"
-                  />
-                  <input
-                    type="text"
-                    value={ingredient.unit}
-                    onChange={(e) => updateIngredient(index, "unit", e.target.value)}
-                    onFocus={handleInputFocus}
-                    onSelect={handleInputSelect}
-                    className="input w-24 shrink-0"
-                    placeholder="taza"
-                  />
-                  <input
-                    type="text"
-                    value={ingredient.name}
-                    onChange={(e) => updateIngredient(index, "name", e.target.value)}
-                    onFocus={handleInputFocus}
-                    onSelect={handleInputSelect}
-                    className="input flex-1 min-w-0"
-                    placeholder="Nombre del ingrediente"
-                  />
+                  <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: '70px 100px 1fr' }}>
+                    <input
+                      type="text"
+                      value={ingredient.amount}
+                      onChange={(e) => updateIngredient(index, "amount", e.target.value)}
+                      onFocus={handleInputFocus}
+                      onSelect={handleInputSelect}
+                      className="input text-center"
+                      placeholder="1"
+                    />
+                    <input
+                      type="text"
+                      value={ingredient.unit}
+                      onChange={(e) => updateIngredient(index, "unit", e.target.value)}
+                      onFocus={handleInputFocus}
+                      onSelect={handleInputSelect}
+                      className="input"
+                      placeholder="taza"
+                    />
+                    <input
+                      type="text"
+                      value={ingredient.name}
+                      onChange={(e) => updateIngredient(index, "name", e.target.value)}
+                      onFocus={handleInputFocus}
+                      onSelect={handleInputSelect}
+                      className="input"
+                      placeholder="Nombre del ingrediente"
+                    />
+                  </div>
                   
                   {/* Convert button */}
                   <button
@@ -1267,36 +1269,38 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                 {/* Alternative ingredient row */}
                 {showAlternative.has(index) && (
                   <div className="ml-4 flex items-center gap-2 pl-2 border-l-2 border-emerald-300 bg-emerald-50/50 rounded-r-lg py-2 pr-2">
-                    <span className="text-xs text-emerald-700 font-medium shrink-0">
+                    <span className="text-xs text-emerald-700 font-medium" style={{ width: '20px' }}>
                       o
                     </span>
-                    <input
-                      type="text"
-                      value={ingredient.alternative?.amount || ""}
-                      onChange={(e) => updateAlternative(index, "amount", e.target.value)}
-                      onFocus={handleInputFocus}
-                      onSelect={handleInputSelect}
-                      className="input text-sm w-16 shrink-0 text-center"
-                      placeholder="⅛"
-                    />
-                    <input
-                      type="text"
-                      value={ingredient.alternative?.unit || ""}
-                      onChange={(e) => updateAlternative(index, "unit", e.target.value)}
-                      onFocus={handleInputFocus}
-                      onSelect={handleInputSelect}
-                      className="input text-sm w-20 shrink-0"
-                      placeholder="cdta"
-                    />
-                    <input
-                      type="text"
-                      value={ingredient.alternative?.name || ""}
-                      onChange={(e) => updateAlternative(index, "name", e.target.value)}
-                      onFocus={handleInputFocus}
-                      onSelect={handleInputSelect}
-                      className="input text-sm flex-1 min-w-0"
-                      placeholder="Nombre del ingrediente alternativo"
-                    />
+                    <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: '60px 90px 1fr' }}>
+                      <input
+                        type="text"
+                        value={ingredient.alternative?.amount || ""}
+                        onChange={(e) => updateAlternative(index, "amount", e.target.value)}
+                        onFocus={handleInputFocus}
+                        onSelect={handleInputSelect}
+                        className="input text-sm text-center"
+                        placeholder="⅛"
+                      />
+                      <input
+                        type="text"
+                        value={ingredient.alternative?.unit || ""}
+                        onChange={(e) => updateAlternative(index, "unit", e.target.value)}
+                        onFocus={handleInputFocus}
+                        onSelect={handleInputSelect}
+                        className="input text-sm"
+                        placeholder="cdta"
+                      />
+                      <input
+                        type="text"
+                        value={ingredient.alternative?.name || ""}
+                        onChange={(e) => updateAlternative(index, "name", e.target.value)}
+                        onFocus={handleInputFocus}
+                        onSelect={handleInputSelect}
+                        className="input text-sm"
+                        placeholder="Nombre del ingrediente alternativo"
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => toggleShowAlternative(index)}
@@ -1314,50 +1318,53 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                 {(isExpanded || hasSecondary) && (
                   <div className={`ml-4 flex items-center gap-2 pl-2 border-l-2 border-[var(--color-purple-bg-dark)] ${!isExpanded && hasSecondary ? 'opacity-60' : ''}`}>
                     <span 
-                      className="text-xs text-[var(--color-slate-light)] font-medium shrink-0"
+                      className="text-xs text-[var(--color-slate-light)] font-medium"
+                      style={{ width: '30px' }}
                       title={showVariantLabels && variant2Label ? variant2Label : "Alternativo"}
                     >
                       {showVariantLabels && variant2Label ? variant2Label : "Alt"}:
                     </span>
-                    <input
-                      type="text"
-                      value={ingredient.amount2 || ""}
-                      onChange={(e) => updateIngredient(index, "amount2", e.target.value)}
-                      onFocus={handleInputFocus}
-                      onSelect={handleInputSelect}
-                      className="input text-sm w-16 shrink-0 text-center"
-                      placeholder="120"
-                    />
-                    {showVariantLabels ? (
+                    <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: '60px 90px 1fr' }}>
                       <input
                         type="text"
-                        value={ingredient.unit2 || ""}
-                        onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
-                        className="input text-sm w-20 shrink-0"
-                        placeholder="unidad"
+                        value={ingredient.amount2 || ""}
+                        onChange={(e) => updateIngredient(index, "amount2", e.target.value)}
+                        onFocus={handleInputFocus}
+                        onSelect={handleInputSelect}
+                        className="input text-sm text-center"
+                        placeholder="120"
                       />
-                    ) : (
-                      <select
-                        value={ingredient.unit2 || ""}
-                        onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
-                        className="input text-sm w-20 shrink-0"
-                      >
-                        <option value="">unidad</option>
-                        <optgroup label="Peso">
-                          {COMMON_UNITS.weight.map(u => (
-                            <option key={u.value} value={u.value}>{u.label}</option>
-                          ))}
-                        </optgroup>
-                        <optgroup label="Volumen">
-                          {COMMON_UNITS.volume.map(u => (
-                            <option key={u.value} value={u.value}>{u.label}</option>
-                          ))}
-                        </optgroup>
-                      </select>
-                    )}
-                    <span className="text-xs text-[var(--color-slate-light)] flex-1 truncate">
-                      {ingredient.name || "—"}
-                    </span>
+                      {showVariantLabels ? (
+                        <input
+                          type="text"
+                          value={ingredient.unit2 || ""}
+                          onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
+                          className="input text-sm"
+                          placeholder="unidad"
+                        />
+                      ) : (
+                        <select
+                          value={ingredient.unit2 || ""}
+                          onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
+                          className="input text-sm"
+                        >
+                          <option value="">unidad</option>
+                          <optgroup label="Peso">
+                            {COMMON_UNITS.weight.map(u => (
+                              <option key={u.value} value={u.value}>{u.label}</option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Volumen">
+                            {COMMON_UNITS.volume.map(u => (
+                              <option key={u.value} value={u.value}>{u.label}</option>
+                            ))}
+                          </optgroup>
+                        </select>
+                      )}
+                      <span className="text-xs text-[var(--color-slate-light)] flex items-center truncate">
+                        {ingredient.name || "—"}
+                      </span>
+                    </div>
                     <button
                       type="button"
                       onClick={() => {

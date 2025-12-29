@@ -78,3 +78,5 @@ CREATE POLICY "Allow all for meal_plans" ON meal_plans FOR ALL USING (true) WITH
 CREATE POLICY "Allow all for shopping_items" ON shopping_items FOR ALL USING (true) WITH CHECK (true);
 
 
+
+

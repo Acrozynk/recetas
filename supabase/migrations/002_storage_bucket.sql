@@ -27,3 +27,5 @@ ON storage.objects FOR DELETE
 USING (bucket_id = 'recipe-images');
 
 
+
+

@@ -71,3 +71,5 @@ INSERT INTO supermarket_category_order (supermarket, category, sort_order) VALUE
 ON CONFLICT (supermarket, category) DO NOTHING;
 
 
+
+
