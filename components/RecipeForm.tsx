@@ -1141,8 +1141,8 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
           </div>
         </div>
         
-        {/* Fraction buttons toolbar */}
-        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-[var(--border-color)]">
+        {/* Fraction buttons toolbar - sticky */}
+        <div className="flex items-center gap-2 mb-4 pb-3 pt-3 -mt-3 border-b border-[var(--border-color)] sticky top-0 z-10 bg-[var(--background)]">
           <span className="text-sm text-[var(--color-slate-light)] mr-1">Fracciones:</span>
           {FRACTIONS.map((f) => (
             <button
