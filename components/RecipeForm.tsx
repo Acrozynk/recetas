@@ -226,15 +226,8 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     recipe?.container_id ? 'recipiente' : recipe?.servings_unit ? 'unidades' : 'personas'
   );
   // Support for multiple containers (each with quantity)
-  const [selectedContainers, setSelectedContainers] = useState<Array<{ id: string; quantity: string }>>(() => {
-    // Initialize from recipe data
-    if (recipe?.container_id) {
-      const initial = [{ id: recipe.container_id, quantity: recipe.container_quantity?.toString() || "1" }];
-      // If there's a second variant label that matches a container, we might have a second one
-      return initial;
-    }
-    return [];
-  });
+  // Note: containers list is loaded async, so we initialize empty and populate in useEffect
+  const [selectedContainers, setSelectedContainers] = useState<Array<{ id: string; quantity: string }>>([]);
   const [newContainerName, setNewContainerName] = useState("");
   const [addingContainer, setAddingContainer] = useState(false);
   const [ingredients, setIngredients] = useState<Ingredient[]>(
@@ -303,6 +296,33 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     fetchTags();
     fetchContainers();
   }, []);
+
+  // Initialize selectedContainers after containers list is loaded
+  useEffect(() => {
+    if (containers.length === 0 || selectedContainers.length > 0) return;
+    
+    const initial: Array<{ id: string; quantity: string }> = [];
+    
+    // Add primary container
+    if (recipe?.container_id) {
+      initial.push({ 
+        id: recipe.container_id, 
+        quantity: recipe.container_quantity?.toString() || "1" 
+      });
+    }
+    
+    // Add second container from variant_2_label (find by name)
+    if (recipe?.variant_2_label) {
+      const secondContainer = containers.find(c => c.name === recipe.variant_2_label);
+      if (secondContainer && secondContainer.id !== recipe?.container_id) {
+        initial.push({ id: secondContainer.id, quantity: "1" });
+      }
+    }
+    
+    if (initial.length > 0) {
+      setSelectedContainers(initial);
+    }
+  }, [containers, recipe, selectedContainers.length]);
 
   const handleAddContainer = async () => {
     if (!newContainerName.trim()) return;
@@ -918,7 +938,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                             type="number"
                             value={selected.quantity}
                             onChange={(e) => updateContainerQuantity(selected.id, e.target.value)}
-                            className="input text-center text-sm py-1 px-1"
+                            className="input text-center text-sm py-1 px-1 bg-white text-[var(--foreground)]"
                             placeholder="1"
                             min="0.5"
                             step="0.5"
