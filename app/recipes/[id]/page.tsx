@@ -121,12 +121,12 @@ function formatIngredientForStep(
   useVariant2: boolean,
   convertUnit?: (amount: string | undefined, unit: string | undefined, name: string) => { amount: string; unit: string }
 ): string {
-  const hasSecondary = ingredient.amount2 && ingredient.unit2;
+  const hasSecondary = !!ingredient.amount2;
   const displayAmount = useVariant2 && hasSecondary 
     ? ingredient.amount2 
     : ingredient.amount;
   const displayUnit = useVariant2 && hasSecondary 
-    ? ingredient.unit2 
+    ? (ingredient.unit2 || ingredient.unit)
     : ingredient.unit;
   
   const scaledAmount = scaleAmount(displayAmount || '');
@@ -1401,7 +1401,7 @@ export default function RecipeDetailPage() {
               {/* Variant info banner */}
               {recipe.variant_1_label && recipe.variant_2_label && (() => {
                 const ingredientsWithVariant2 = (recipe.ingredients as Ingredient[]).filter(
-                  i => !i.isHeader && i.amount2 && i.unit2
+                  i => !i.isHeader && i.amount2
                 ).length;
                 const totalIngredients = (recipe.ingredients as Ingredient[]).filter(
                   i => !i.isHeader && i.name
@@ -1443,7 +1443,8 @@ export default function RecipeDetailPage() {
                     );
                   }
                   
-                  const hasSecondary = ingredient.amount2 && ingredient.unit2;
+                  // Check if variant 2 amounts exist (only amount2 is required, unit2 can be empty)
+                  const hasSecondary = !!ingredient.amount2;
                   // Use variant selection when recipe has variant labels
                   const useVariant2 = recipe.variant_1_label 
                     ? selectedVariant === 2 
@@ -1451,8 +1452,9 @@ export default function RecipeDetailPage() {
                   const baseDisplayAmount = useVariant2 && hasSecondary 
                     ? ingredient.amount2 
                     : ingredient.amount;
+                  // For unit, use unit2 if it exists, otherwise fall back to original unit
                   const baseDisplayUnit = useVariant2 && hasSecondary 
-                    ? ingredient.unit2 
+                    ? (ingredient.unit2 || ingredient.unit)
                     : ingredient.unit;
                   
                   // Apply unit conversion based on mode
@@ -1473,12 +1475,12 @@ export default function RecipeDetailPage() {
                   // Check if this ingredient has an alternative
                   const hasAlternative = ingredient.alternative?.name;
                   // Use amount2/unit2 for alternative when variant 2 is selected
-                  const altHasVariant2 = ingredient.alternative?.amount2 && ingredient.alternative?.unit2;
+                  const altHasVariant2 = !!ingredient.alternative?.amount2;
                   const altBaseAmount = useVariant2 && altHasVariant2 
                     ? ingredient.alternative?.amount2 
                     : ingredient.alternative?.amount;
                   const altBaseUnit = useVariant2 && altHasVariant2 
-                    ? ingredient.alternative?.unit2 
+                    ? (ingredient.alternative?.unit2 || ingredient.alternative?.unit)
                     : ingredient.alternative?.unit;
                   const altScaledAmount = hasAlternative ? scaleAmount(altBaseAmount || '') : '';
                   
