@@ -562,6 +562,10 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
     setInstructions([...instructions, { text: "", ingredientIndices: [] }]);
   };
 
+  const addInstructionSectionHeader = () => {
+    setInstructions([...instructions, { text: "", ingredientIndices: [], isHeader: true }]);
+  };
+
   const updateInstructionText = (index: number, value: string) => {
     const updated = [...instructions];
     updated[index] = { ...updated[index], text: value };
@@ -1592,75 +1596,123 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
         </p>
 
         <div className="space-y-4">
-          {instructions.map((instruction, stepIndex) => (
-            <div key={stepIndex} className="border border-[var(--border-color)] rounded-lg p-3 bg-[var(--color-purple-bg)]">
-              <div className="flex gap-2 items-start mb-3">
-                <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-[var(--color-purple)] text-white text-sm font-medium mt-2">
-                  {stepIndex + 1}
-                </span>
-                <textarea
-                  value={instruction.text}
-                  onChange={(e) => updateInstructionText(stepIndex, e.target.value)}
-                  className="input flex-1 min-h-[60px] resize-y"
-                  placeholder="Describe este paso..."
-                  rows={2}
-                />
-                <button
-                  type="button"
-                  onClick={() => removeInstruction(stepIndex)}
-                  className="p-2 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
-                  disabled={instructions.length === 1}
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              
-              {/* Ingredient chips for this step */}
-              {ingredients.filter(i => i.name.trim()).length > 0 && (
-                <div className="ml-8">
-                  <div className="flex flex-wrap gap-2">
-                    {ingredients.map((ingredient, ingredientIndex) => {
-                      if (!ingredient.name.trim()) return null;
-                      const isSelected = instruction.ingredientIndices.includes(ingredientIndex);
-                      return (
-                        <button
-                          key={ingredientIndex}
-                          type="button"
-                          onClick={() => toggleIngredientInStep(stepIndex, ingredientIndex)}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
-                            isSelected
-                              ? "bg-[var(--color-purple)] text-white shadow-sm"
-                              : "bg-white border border-[var(--border-color)] text-[var(--color-slate)] hover:border-[var(--color-purple)] hover:text-[var(--color-purple)]"
-                          }`}
-                        >
-                          {isSelected && (
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                          {ingredient.name}
-                        </button>
-                      );
-                    })}
+          {instructions.map((instruction, stepIndex) => {
+            // Calculate step number (only counting non-headers)
+            const stepNumber = instructions.slice(0, stepIndex + 1).filter(i => !i.isHeader).length;
+            
+            // Render section header
+            if (instruction.isHeader) {
+              return (
+                <div key={stepIndex} className="flex gap-2 items-center pt-3 first:pt-0">
+                  <div className="flex-1 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-amber-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={instruction.text}
+                      onChange={(e) => updateInstructionText(stepIndex, e.target.value)}
+                      className="input flex-1 font-semibold text-amber-800 bg-amber-50 border-amber-200"
+                      placeholder="Nombre de la sección (ej: Para la base)"
+                    />
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => removeInstruction(stepIndex)}
+                    className="p-2 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
+                    title="Eliminar sección"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
-              )}
-            </div>
-          ))}
+              );
+            }
+            
+            // Render regular instruction step
+            return (
+              <div key={stepIndex} className="border border-[var(--border-color)] rounded-lg p-3 bg-[var(--color-purple-bg)]">
+                <div className="flex gap-2 items-start mb-3">
+                  <span className="flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full bg-[var(--color-purple)] text-white text-sm font-medium mt-2">
+                    {stepNumber}
+                  </span>
+                  <textarea
+                    value={instruction.text}
+                    onChange={(e) => updateInstructionText(stepIndex, e.target.value)}
+                    className="input flex-1 min-h-[60px] resize-y"
+                    placeholder="Describe este paso..."
+                    rows={2}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeInstruction(stepIndex)}
+                    className="p-2 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
+                    disabled={instructions.filter(i => !i.isHeader).length === 1}
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                
+                {/* Ingredient chips for this step */}
+                {ingredients.filter(i => i.name.trim()).length > 0 && (
+                  <div className="ml-8">
+                    <div className="flex flex-wrap gap-2">
+                      {ingredients.map((ingredient, ingredientIndex) => {
+                        if (!ingredient.name.trim() || ingredient.isHeader) return null;
+                        const isSelected = instruction.ingredientIndices.includes(ingredientIndex);
+                        return (
+                          <button
+                            key={ingredientIndex}
+                            type="button"
+                            onClick={() => toggleIngredientInStep(stepIndex, ingredientIndex)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                              isSelected
+                                ? "bg-[var(--color-purple)] text-white shadow-sm"
+                                : "bg-white border border-[var(--border-color)] text-[var(--color-slate)] hover:border-[var(--color-purple)] hover:text-[var(--color-purple)]"
+                            }`}
+                          >
+                            {isSelected && (
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            )}
+                            {ingredient.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
-        <button
-          type="button"
-          onClick={addInstruction}
-          className="mt-3 text-[var(--color-purple)] font-medium text-sm flex items-center gap-1 hover:underline"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Añadir paso
-        </button>
+        <div className="flex gap-4 mt-3">
+          <button
+            type="button"
+            onClick={addInstruction}
+            className="text-[var(--color-purple)] font-medium text-sm flex items-center gap-1 hover:underline"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Añadir paso
+          </button>
+          <button
+            type="button"
+            onClick={addInstructionSectionHeader}
+            className="text-amber-600 font-medium text-sm flex items-center gap-1 hover:underline"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+            </svg>
+            Añadir sección
+          </button>
+        </div>
       </div>
 
       {/* Notes */}

@@ -9,6 +9,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 export interface Instruction {
   text: string;
   ingredientIndices: number[]; // Índices de los ingredientes usados en este paso
+  // Section header (e.g., "Para la base:", "Para el relleno:")
+  isHeader?: boolean;
 }
 
 export interface Recipe {
