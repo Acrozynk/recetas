@@ -22,7 +22,7 @@ export default function Header({
 }: HeaderProps) {
   return (
     <header className="sticky top-0 bg-[var(--background)] border-b border-[var(--border-color)] z-40">
-      <div className="flex items-center justify-between h-14 px-4 max-w-4xl mx-auto">
+      <div className="flex items-center justify-between h-14 px-4 max-w-7xl mx-auto lg:px-8">
         <div className="flex items-center gap-3">
           {showBack && (
             <Link
