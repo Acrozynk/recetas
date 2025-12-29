@@ -420,7 +420,8 @@ export default function RecipeDetailPage() {
     setDuplicating(true);
     try {
       // Create a copy of the recipe without id and timestamps
-      const { id, created_at, updated_at, container, ...recipeData } = recipe as Recipe & { container?: Container };
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { id, created_at, container, ...recipeData } = recipe;
       
       const duplicatedRecipe = {
         ...recipeData,
