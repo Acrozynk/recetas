@@ -847,49 +847,84 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
             ) : (
               /* Container selection */
               <div className="space-y-3">
-                <div className="flex gap-2">
+                {/* Quantity input */}
+                <div>
+                  <label className="block text-xs text-[var(--color-slate-light)] mb-1">
+                    Cantidad
+                  </label>
                   <input
                     type="number"
                     value={containerQuantity}
                     onChange={(e) => setContainerQuantity(e.target.value)}
-                    className="input w-20"
+                    className="input w-24"
                     placeholder="1"
                     min="0.5"
                     step="0.5"
                   />
+                </div>
+                
+                {/* Container selector */}
+                <div>
+                  <label className="block text-xs text-[var(--color-slate-light)] mb-1">
+                    Tipo de recipiente
+                  </label>
                   <select
                     value={containerId || ""}
-                    onChange={(e) => setContainerId(e.target.value || null)}
-                    className="input flex-1"
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setContainerId(value || null);
+                    }}
+                    className="input w-full"
                   >
-                    <option value="">Selecciona recipiente...</option>
+                    <option value="">-- Selecciona recipiente --</option>
                     {containers.map((container) => (
                       <option key={container.id} value={container.id}>
                         {container.name}
                       </option>
                     ))}
                   </select>
+                  {containers.length === 0 && (
+                    <p className="text-xs text-amber-600 mt-1">
+                      No hay recipientes. Añade uno nuevo abajo.
+                    </p>
+                  )}
                 </div>
                 
                 {/* Add new container inline */}
-                <div className="flex gap-2 items-center">
-                  <input
-                    type="text"
-                    value={newContainerName}
-                    onChange={(e) => setNewContainerName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddContainer())}
-                    className="input flex-1 text-sm"
-                    placeholder="Añadir nuevo recipiente..."
-                    disabled={addingContainer}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddContainer}
-                    disabled={!newContainerName.trim() || addingContainer}
-                    className="px-3 py-2 text-sm bg-[var(--color-purple-bg)] text-[var(--color-purple)] rounded-lg hover:bg-[var(--color-purple-bg-dark)] transition-colors disabled:opacity-50"
-                  >
-                    {addingContainer ? "..." : "+ Añadir"}
-                  </button>
+                <div className="pt-2 border-t border-[var(--border-color)]">
+                  <label className="block text-xs text-[var(--color-slate-light)] mb-1">
+                    Crear nuevo recipiente
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newContainerName}
+                      onChange={(e) => setNewContainerName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (newContainerName.trim()) {
+                            handleAddContainer();
+                          }
+                        }
+                      }}
+                      className="input flex-1"
+                      placeholder="Ej: Molde redondo 26cm"
+                      disabled={addingContainer}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (newContainerName.trim()) {
+                          handleAddContainer();
+                        }
+                      }}
+                      disabled={!newContainerName.trim() || addingContainer}
+                      className="px-4 py-2 bg-[var(--color-purple)] text-white rounded-lg hover:bg-[var(--color-purple-dark)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed font-medium whitespace-nowrap"
+                    >
+                      {addingContainer ? "Añadiendo..." : "+ Añadir"}
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
