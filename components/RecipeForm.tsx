@@ -1458,10 +1458,10 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                         />
                         <input
                           type="text"
-                          value={ingredient.unit2 || ""}
+                          value={ingredient.unit2 || ingredient.unit || ""}
                           onChange={(e) => updateIngredient(index, "unit2", e.target.value)}
                           className="input text-sm"
-                          placeholder="g"
+                          placeholder={ingredient.unit || "g"}
                           list="unit-suggestions"
                         />
                         <span className="text-xs text-[var(--color-slate-light)] flex items-center truncate">
@@ -1515,7 +1515,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                           />
                           <input
                             type="text"
-                            value={ingredient.alternative?.unit2 || ""}
+                            value={ingredient.alternative?.unit2 || ingredient.alternative?.unit || ""}
                             onChange={(e) => {
                               const updated = [...ingredients];
                               const currentAlt = updated[index].alternative || { name: "", amount: "", unit: "" };
@@ -1526,7 +1526,7 @@ export default function RecipeForm({ recipe, mode }: RecipeFormProps) {
                               setIngredients(updated);
                             }}
                             className="input text-sm"
-                            placeholder="g"
+                            placeholder={ingredient.alternative?.unit || "g"}
                             list="unit-suggestions"
                           />
                           <span className="text-xs text-emerald-600 flex items-center truncate">
