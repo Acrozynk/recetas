@@ -94,6 +94,10 @@ export interface MealPlan {
   meal_type: "breakfast" | "lunch" | "dinner" | "snack";
   recipe_id: string;
   recipe?: Recipe;
+  // Variant selection for recipes with ingredient variants
+  selected_variant: 1 | 2; // 1 = primary amounts, 2 = secondary amounts
+  // Alternative ingredient selections: { "ingredientIndex": true } means use alternative
+  alternative_selections: Record<string, boolean>;
 }
 
 export interface ShoppingItem {

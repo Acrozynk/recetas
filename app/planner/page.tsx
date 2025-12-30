@@ -1,10 +1,220 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { supabase, type Recipe, type MealPlan } from "@/lib/supabase";
+import { supabase, type Recipe, type MealPlan, type Ingredient } from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import Link from "next/link";
+
+// Modal para seleccionar variantes de ingredientes
+interface VariantSelection {
+  selectedVariant: 1 | 2;
+  alternativeSelections: Record<string, boolean>;
+}
+
+function VariantSelectorModal({
+  isOpen,
+  onClose,
+  recipe,
+  onConfirm,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  recipe: Recipe;
+  onConfirm: (selection: VariantSelection) => void;
+}) {
+  const [selectedVariant, setSelectedVariant] = useState<1 | 2>(1);
+  const [alternativeSelections, setAlternativeSelections] = useState<Record<string, boolean>>({});
+
+  // Check what options this recipe has
+  const hasVariants = !!(recipe.variant_1_label && recipe.variant_2_label);
+  const ingredients = recipe.ingredients as Ingredient[];
+  const ingredientsWithAlternatives = ingredients
+    .map((ing, idx) => ({ ingredient: ing, index: idx }))
+    .filter(({ ingredient }) => ingredient.alternative?.name && !ingredient.isHeader);
+
+  const hasAlternatives = ingredientsWithAlternatives.length > 0;
+
+  const toggleAlternative = (index: number) => {
+    setAlternativeSelections(prev => ({
+      ...prev,
+      [index.toString()]: !prev[index.toString()]
+    }));
+  };
+
+  const handleConfirm = () => {
+    onConfirm({
+      selectedVariant,
+      alternativeSelections
+    });
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50">
+      <div className="bg-white rounded-t-2xl sm:rounded-xl w-full sm:max-w-md max-h-[85vh] flex flex-col animate-fade-in">
+        {/* Header */}
+        <div className="p-4 border-b border-[var(--border-color)] bg-[var(--color-purple-bg)]">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-display text-lg font-semibold text-[var(--foreground)]">
+                Seleccionar Variantes
+              </h3>
+              <p className="text-sm text-[var(--color-slate)] mt-1 line-clamp-1">
+                {recipe.title}
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/50 rounded-full transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          {/* Variant Selection (size variants like "molde grande" vs "molde pequeño") */}
+          {hasVariants && (
+            <div>
+              <h4 className="font-semibold text-[var(--foreground)] mb-3 flex items-center gap-2">
+                <span className="text-lg">📏</span>
+                Tamaño de la receta
+              </h4>
+              <div className="space-y-2">
+                <label
+                  className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                    selectedVariant === 1
+                      ? "border-[var(--color-purple)] bg-[var(--color-purple-bg)]"
+                      : "border-[var(--border-color)] hover:border-[var(--color-purple-light)]"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="variant"
+                    checked={selectedVariant === 1}
+                    onChange={() => setSelectedVariant(1)}
+                    className="w-4 h-4 text-[var(--color-purple)]"
+                  />
+                  <span className="font-medium">{recipe.variant_1_label}</span>
+                </label>
+                <label
+                  className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                    selectedVariant === 2
+                      ? "border-[var(--color-purple)] bg-[var(--color-purple-bg)]"
+                      : "border-[var(--border-color)] hover:border-[var(--color-purple-light)]"
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="variant"
+                    checked={selectedVariant === 2}
+                    onChange={() => setSelectedVariant(2)}
+                    className="w-4 h-4 text-[var(--color-purple)]"
+                  />
+                  <span className="font-medium">{recipe.variant_2_label}</span>
+                </label>
+              </div>
+            </div>
+          )}
+
+          {/* Alternative Ingredients Selection */}
+          {hasAlternatives && (
+            <div>
+              <h4 className="font-semibold text-[var(--foreground)] mb-3 flex items-center gap-2">
+                <span className="text-lg">🔄</span>
+                Ingredientes alternativos
+              </h4>
+              <p className="text-sm text-[var(--color-slate)] mb-3">
+                Algunos ingredientes tienen alternativas. Elige cuál prefieres:
+              </p>
+              <div className="space-y-3">
+                {ingredientsWithAlternatives.map(({ ingredient, index }) => {
+                  const useAlternative = alternativeSelections[index.toString()] || false;
+                  const alt = ingredient.alternative!;
+                  
+                  // Format ingredient display
+                  const primaryText = `${ingredient.amount} ${ingredient.unit} ${ingredient.name}`.trim();
+                  const altText = `${alt.amount} ${alt.unit} ${alt.name}`.trim();
+                  
+                  return (
+                    <div key={index} className="bg-[var(--color-purple-bg)] rounded-xl p-3">
+                      <div className="space-y-2">
+                        <label
+                          className={`flex items-start gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                            !useAlternative
+                              ? "bg-white border-2 border-[var(--color-purple)]"
+                              : "hover:bg-white/50"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name={`alt-${index}`}
+                            checked={!useAlternative}
+                            onChange={() => setAlternativeSelections(prev => ({
+                              ...prev,
+                              [index.toString()]: false
+                            }))}
+                            className="mt-0.5 w-4 h-4 text-[var(--color-purple)]"
+                          />
+                          <span className={!useAlternative ? "font-medium" : "text-[var(--color-slate)]"}>
+                            {primaryText}
+                          </span>
+                        </label>
+                        <label
+                          className={`flex items-start gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                            useAlternative
+                              ? "bg-white border-2 border-[var(--color-purple)]"
+                              : "hover:bg-white/50"
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name={`alt-${index}`}
+                            checked={useAlternative}
+                            onChange={() => toggleAlternative(index)}
+                            className="mt-0.5 w-4 h-4 text-[var(--color-purple)]"
+                          />
+                          <span className={useAlternative ? "font-medium" : "text-[var(--color-slate)]"}>
+                            {altText}
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-[var(--border-color)] flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 btn-secondary"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleConfirm}
+            className="flex-1 btn-primary flex items-center justify-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface Suggestion {
   recipe_id: string;
@@ -63,6 +273,12 @@ export default function PlannerPage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [excludedTags, setExcludedTags] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  // Variant selection modal state
+  const [showVariantSelector, setShowVariantSelector] = useState<{
+    recipe: Recipe;
+    date: string;
+    mealType: MealType;
+  } | null>(null);
 
   const weekDates = getWeekDates(weekOffset);
   const weekStart = formatDateKey(weekDates[0]);
@@ -102,10 +318,33 @@ export default function PlannerPage() {
     );
   };
 
-  const addMealPlan = async (recipeId: string) => {
+  // Check if a recipe needs variant selection
+  const recipeNeedsVariantSelection = (recipe: Recipe): boolean => {
+    // Has size variants?
+    const hasVariants = !!(recipe.variant_1_label && recipe.variant_2_label);
+    
+    // Has alternative ingredients?
+    const ingredients = recipe.ingredients as Ingredient[];
+    const hasAlternatives = ingredients.some(
+      ing => ing.alternative?.name && !ing.isHeader
+    );
+    
+    return hasVariants || hasAlternatives;
+  };
+
+  const addMealPlan = async (recipeId: string, variantSelection?: VariantSelection) => {
     if (!showRecipeSelector) return;
 
     const { date, mealType } = showRecipeSelector;
+    
+    // Find the recipe to check if it needs variant selection
+    const recipe = recipes.find(r => r.id === recipeId);
+    
+    // If recipe needs variant selection and we don't have one yet, show the modal
+    if (recipe && recipeNeedsVariantSelection(recipe) && !variantSelection) {
+      setShowVariantSelector({ recipe, date, mealType });
+      return;
+    }
 
     try {
       // Delete existing plan for this slot if any
@@ -115,21 +354,31 @@ export default function PlannerPage() {
         .eq("plan_date", date)
         .eq("meal_type", mealType);
 
-      // Insert new plan
+      // Insert new plan with variant selection if provided
       const { error } = await supabase.from("meal_plans").insert([
         {
           plan_date: date,
           meal_type: mealType,
           recipe_id: recipeId,
+          selected_variant: variantSelection?.selectedVariant ?? 1,
+          alternative_selections: variantSelection?.alternativeSelections ?? {},
         },
       ]);
 
       if (error) throw error;
 
       setShowRecipeSelector(null);
+      setShowVariantSelector(null);
       loadData();
     } catch (error) {
       console.error("Error adding meal plan:", error);
+    }
+  };
+  
+  // Handle variant selection confirmation
+  const handleVariantConfirm = (selection: VariantSelection) => {
+    if (showVariantSelector) {
+      addMealPlan(showVariantSelector.recipe.id, selection);
     }
   };
 
@@ -488,6 +737,19 @@ export default function PlannerPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Variant Selector Modal */}
+      {showVariantSelector && (
+        <VariantSelectorModal
+          isOpen={true}
+          onClose={() => {
+            setShowVariantSelector(null);
+            setShowRecipeSelector(null);
+          }}
+          recipe={showVariantSelector.recipe}
+          onConfirm={handleVariantConfirm}
+        />
       )}
 
       <BottomNav />
