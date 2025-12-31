@@ -821,6 +821,24 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
         </div>
       )}
 
+      {/* Fraction buttons toolbar - sticky floating bar */}
+      <div className="sticky top-14 z-40 -mx-4 px-4 py-2 bg-white/95 backdrop-blur-sm border-b border-[var(--border-color)] shadow-sm">
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
+          <span className="text-sm text-[var(--color-slate-light)] mr-1 flex-shrink-0">Fracciones:</span>
+          {FRACTIONS.map((f) => (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => insertFraction(f.value)}
+              className="px-3 py-2 text-lg font-medium bg-[var(--color-purple-bg)] hover:bg-[var(--color-purple-bg-dark)] text-[var(--color-purple)] rounded-lg transition-colors min-w-[44px] flex-shrink-0"
+              title={`Insertar ${f.label}`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Top Save Buttons (only in edit mode, hide if hideNavButtons) */}
       {mode === "edit" && !hideNavButtons && (
         <div className="flex gap-3">
@@ -1290,24 +1308,6 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
               </button>
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* Fraction buttons toolbar - sticky floating bar */}
-      <div className="sticky top-14 z-30 -mx-4 px-4 py-2 bg-white/95 backdrop-blur-sm border-b border-[var(--border-color)] shadow-sm">
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-          <span className="text-sm text-[var(--color-slate-light)] mr-1 flex-shrink-0">Fracciones:</span>
-          {FRACTIONS.map((f) => (
-            <button
-              key={f.value}
-              type="button"
-              onClick={() => insertFraction(f.value)}
-              className="px-3 py-2 text-lg font-medium bg-[var(--color-purple-bg)] hover:bg-[var(--color-purple-bg-dark)] text-[var(--color-purple)] rounded-lg transition-colors min-w-[44px] flex-shrink-0"
-              title={`Insertar ${f.label}`}
-            >
-              {f.label}
-            </button>
-          ))}
         </div>
       </div>
 
