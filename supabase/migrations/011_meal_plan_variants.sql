@@ -17,3 +17,5 @@ COMMENT ON COLUMN meal_plans.selected_variant IS 'Which ingredient variant to us
 COMMENT ON COLUMN meal_plans.alternative_selections IS 'JSON object mapping ingredient indices to boolean (true = use alternative ingredient)';
 
 
+
+

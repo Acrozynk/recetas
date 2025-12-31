@@ -6,13 +6,14 @@ import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import Link from "next/link";
 
-// Modal para seleccionar variantes de ingredientes
+// Modal para seleccionar variantes de ingredientes y porciones
 interface VariantSelection {
   selectedVariant: 1 | 2;
   alternativeSelections: Record<string, boolean>;
+  servingsMultiplier: number;
 }
 
-function VariantSelectorModal({
+function RecipeOptionsModal({
   isOpen,
   onClose,
   recipe,
@@ -25,6 +26,7 @@ function VariantSelectorModal({
 }) {
   const [selectedVariant, setSelectedVariant] = useState<1 | 2>(1);
   const [alternativeSelections, setAlternativeSelections] = useState<Record<string, boolean>>({});
+  const [servingsMultiplier, setServingsMultiplier] = useState(1);
 
   // Check what options this recipe has
   const hasVariants = !!(recipe.variant_1_label && recipe.variant_2_label);
@@ -34,6 +36,11 @@ function VariantSelectorModal({
     .filter(({ ingredient }) => ingredient.alternative?.name && !ingredient.isHeader);
 
   const hasAlternatives = ingredientsWithAlternatives.length > 0;
+
+  // Get servings display
+  const baseServings = recipe.servings || 4;
+  const servingsUnit = recipe.servings_unit || "personas";
+  const calculatedServings = Math.round(baseServings * servingsMultiplier * 10) / 10;
 
   const toggleAlternative = (index: number) => {
     setAlternativeSelections(prev => ({
@@ -45,10 +52,14 @@ function VariantSelectorModal({
   const handleConfirm = () => {
     onConfirm({
       selectedVariant,
-      alternativeSelections
+      alternativeSelections,
+      servingsMultiplier
     });
     onClose();
   };
+
+  // Quick multiplier buttons
+  const quickMultipliers = [0.5, 1, 1.5, 2, 3];
 
   if (!isOpen) return null;
 
@@ -60,7 +71,7 @@ function VariantSelectorModal({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-display text-lg font-semibold text-[var(--foreground)]">
-                Seleccionar Variantes
+                Opciones de la Receta
               </h3>
               <p className="text-sm text-[var(--color-slate)] mt-1 line-clamp-1">
                 {recipe.title}
@@ -79,6 +90,79 @@ function VariantSelectorModal({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 space-y-6">
+          {/* Servings/Portions Selector */}
+          <div>
+            <h4 className="font-semibold text-[var(--foreground)] mb-3 flex items-center gap-2">
+              <span className="text-lg">👥</span>
+              Porciones
+            </h4>
+            <div className="bg-[var(--color-purple-bg)] rounded-xl p-4">
+              <div className="text-center mb-3">
+                <span className="text-3xl font-bold text-[var(--color-purple)]">
+                  {calculatedServings}
+                </span>
+                <span className="text-[var(--color-slate)] ml-2">
+                  {servingsUnit}
+                </span>
+                {servingsMultiplier !== 1 && (
+                  <span className="text-sm text-[var(--color-slate-light)] block mt-1">
+                    (Original: {baseServings} {servingsUnit})
+                  </span>
+                )}
+              </div>
+              
+              {/* Quick multiplier buttons */}
+              <div className="flex gap-2 justify-center flex-wrap">
+                {quickMultipliers.map((mult) => (
+                  <button
+                    key={mult}
+                    onClick={() => setServingsMultiplier(mult)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      servingsMultiplier === mult
+                        ? "bg-[var(--color-purple)] text-white"
+                        : "bg-white border border-[var(--border-color)] text-[var(--color-slate)] hover:border-[var(--color-purple)]"
+                    }`}
+                  >
+                    {mult === 1 ? "×1" : mult < 1 ? `×${mult}` : `×${mult}`}
+                  </button>
+                ))}
+              </div>
+              
+              {/* Custom input */}
+              <div className="mt-3 flex items-center justify-center gap-2">
+                <button
+                  onClick={() => setServingsMultiplier(Math.max(0.25, servingsMultiplier - 0.25))}
+                  className="w-8 h-8 rounded-full bg-white border border-[var(--border-color)] flex items-center justify-center hover:border-[var(--color-purple)] transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                  </svg>
+                </button>
+                <input
+                  type="number"
+                  value={servingsMultiplier}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value);
+                    if (!isNaN(val) && val > 0) {
+                      setServingsMultiplier(val);
+                    }
+                  }}
+                  step="0.25"
+                  min="0.25"
+                  className="w-20 text-center border border-[var(--border-color)] rounded-lg py-1 px-2 text-sm"
+                />
+                <button
+                  onClick={() => setServingsMultiplier(servingsMultiplier + 0.25)}
+                  className="w-8 h-8 rounded-full bg-white border border-[var(--border-color)] flex items-center justify-center hover:border-[var(--color-purple)] transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Variant Selection (size variants like "molde grande" vs "molde pequeño") */}
           {hasVariants && (
             <div>
@@ -273,8 +357,8 @@ export default function PlannerPage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [excludedTags, setExcludedTags] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-  // Variant selection modal state
-  const [showVariantSelector, setShowVariantSelector] = useState<{
+  // Recipe options modal state (for servings, variants, alternatives)
+  const [showRecipeOptions, setShowRecipeOptions] = useState<{
     recipe: Recipe;
     date: string;
     mealType: MealType;
@@ -318,31 +402,17 @@ export default function PlannerPage() {
     );
   };
 
-  // Check if a recipe needs variant selection
-  const recipeNeedsVariantSelection = (recipe: Recipe): boolean => {
-    // Has size variants?
-    const hasVariants = !!(recipe.variant_1_label && recipe.variant_2_label);
-    
-    // Has alternative ingredients?
-    const ingredients = recipe.ingredients as Ingredient[];
-    const hasAlternatives = ingredients.some(
-      ing => ing.alternative?.name && !ing.isHeader
-    );
-    
-    return hasVariants || hasAlternatives;
-  };
-
   const addMealPlan = async (recipeId: string, variantSelection?: VariantSelection) => {
     if (!showRecipeSelector) return;
 
     const { date, mealType } = showRecipeSelector;
     
-    // Find the recipe to check if it needs variant selection
+    // Find the recipe
     const recipe = recipes.find(r => r.id === recipeId);
     
-    // If recipe needs variant selection and we don't have one yet, show the modal
-    if (recipe && recipeNeedsVariantSelection(recipe) && !variantSelection) {
-      setShowVariantSelector({ recipe, date, mealType });
+    // Always show options modal to allow adjusting servings
+    if (recipe && !variantSelection) {
+      setShowRecipeOptions({ recipe, date, mealType });
       return;
     }
 
@@ -354,7 +424,7 @@ export default function PlannerPage() {
         .eq("plan_date", date)
         .eq("meal_type", mealType);
 
-      // Insert new plan with variant selection if provided
+      // Insert new plan with all options
       const { error } = await supabase.from("meal_plans").insert([
         {
           plan_date: date,
@@ -362,23 +432,24 @@ export default function PlannerPage() {
           recipe_id: recipeId,
           selected_variant: variantSelection?.selectedVariant ?? 1,
           alternative_selections: variantSelection?.alternativeSelections ?? {},
+          servings_multiplier: variantSelection?.servingsMultiplier ?? 1,
         },
       ]);
 
       if (error) throw error;
 
       setShowRecipeSelector(null);
-      setShowVariantSelector(null);
+      setShowRecipeOptions(null);
       loadData();
     } catch (error) {
       console.error("Error adding meal plan:", error);
     }
   };
   
-  // Handle variant selection confirmation
-  const handleVariantConfirm = (selection: VariantSelection) => {
-    if (showVariantSelector) {
-      addMealPlan(showVariantSelector.recipe.id, selection);
+  // Handle recipe options confirmation
+  const handleRecipeOptionsConfirm = (selection: VariantSelection) => {
+    if (showRecipeOptions) {
+      addMealPlan(showRecipeOptions.recipe.id, selection);
     }
   };
 
@@ -739,16 +810,16 @@ export default function PlannerPage() {
         </div>
       )}
 
-      {/* Variant Selector Modal */}
-      {showVariantSelector && (
-        <VariantSelectorModal
+      {/* Recipe Options Modal (servings, variants, alternatives) */}
+      {showRecipeOptions && (
+        <RecipeOptionsModal
           isOpen={true}
           onClose={() => {
-            setShowVariantSelector(null);
+            setShowRecipeOptions(null);
             setShowRecipeSelector(null);
           }}
-          recipe={showVariantSelector.recipe}
-          onConfirm={handleVariantConfirm}
+          recipe={showRecipeOptions.recipe}
+          onConfirm={handleRecipeOptionsConfirm}
         />
       )}
 

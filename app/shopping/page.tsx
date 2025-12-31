@@ -1003,6 +1003,7 @@ export default function ShoppingPage() {
         const ingredients = plan.recipe.ingredients as Ingredient[];
         const selectedVariant = plan.selected_variant || 1;
         const alternativeSelections = plan.alternative_selections || {};
+        const servingsMultiplier = plan.servings_multiplier || 1;
         
         for (let idx = 0; idx < ingredients.length; idx++) {
           const ing = ingredients[idx];
@@ -1042,9 +1043,21 @@ export default function ShoppingPage() {
             }
           }
           
+          // Apply servings multiplier to the amount
+          let adjustedAmount = ingredientAmount;
+          if (ingredientAmount && servingsMultiplier !== 1) {
+            const parsed = parseQuantity(ingredientAmount);
+            if (parsed) {
+              const multipliedValue = parsed.value * servingsMultiplier;
+              // Format nicely - round to 2 decimal places and remove trailing zeros
+              const formattedValue = Math.round(multipliedValue * 100) / 100;
+              adjustedAmount = formattedValue.toString();
+            }
+          }
+          
           const key = ingredientName.toLowerCase().trim();
           const existing = ingredientMap.get(key);
-          const newQuantity = ingredientAmount ? `${ingredientAmount} ${ingredientUnit}`.trim() : "";
+          const newQuantity = adjustedAmount ? `${adjustedAmount} ${ingredientUnit}`.trim() : "";
 
           if (existing) {
             // Combine quantities intelligently
@@ -1110,7 +1123,7 @@ export default function ShoppingPage() {
       }
 
       // Separate items to update and items to insert
-      const itemsToUpdate: { id: string; quantity: string }[] = [];
+      const itemsToUpdate: { id: string; quantity: string; recipe_sources: string[] }[] = [];
       const itemsToInsert: { 
         name: string; 
         quantity: string | null; 
@@ -1118,6 +1131,7 @@ export default function ShoppingPage() {
         checked: boolean; 
         week_start: string; 
         recipe_id: string | null;
+        recipe_sources: string[];
       }[] = [];
 
       for (const ing of selectedIngredients) {
@@ -1130,9 +1144,15 @@ export default function ShoppingPage() {
             ? combineQuantities(existingItem.quantity, ing.quantity, ing.name)
             : ing.quantity || existingItem.quantity || "";
           
+          // Merge recipe sources, removing duplicates
+          const existingSources = existingItem.recipe_sources || [];
+          const newSources = ing.recipes || [];
+          const mergedSources = [...new Set([...existingSources, ...newSources])];
+          
           itemsToUpdate.push({
             id: existingItem.id,
             quantity: combinedQuantity,
+            recipe_sources: mergedSources,
           });
         } else {
           // New item to insert
@@ -1142,16 +1162,17 @@ export default function ShoppingPage() {
             category: ing.category,
             checked: false,
             week_start: weekStart,
-            recipe_id: null, // We don't track recipe_id for combined items
+            recipe_id: null,
+            recipe_sources: ing.recipes || [],
           });
         }
       }
 
-      // Update existing items with combined quantities
+      // Update existing items with combined quantities and merged recipe sources
       for (const update of itemsToUpdate) {
         await supabase
           .from("shopping_items")
-          .update({ quantity: update.quantity })
+          .update({ quantity: update.quantity, recipe_sources: update.recipe_sources })
           .eq("id", update.id);
       }
 
@@ -1502,30 +1523,37 @@ export default function ShoppingPage() {
                           type="checkbox"
                           checked={item.checked}
                           onChange={() => toggleItem(item)}
-                          className="checkbox"
+                          className="checkbox flex-shrink-0"
                         />
                         <button
                           onClick={() => setEditingItem(item)}
                           className="flex-1 min-w-0 text-left hover:bg-[var(--color-purple-bg)] rounded-lg px-2 py-1 transition-colors"
                         >
-                          <span
-                            className={`${
-                              item.checked
-                                ? "line-through text-[var(--color-slate-light)]"
-                                : "text-[var(--foreground)]"
-                            }`}
-                          >
-                            {item.name}
-                          </span>
-                          {item.quantity && (
-                            <span className="text-sm text-[var(--color-purple)] font-medium ml-2">
-                              {item.quantity}
+                          <div className="flex items-baseline gap-2 flex-wrap">
+                            <span
+                              className={`${
+                                item.checked
+                                  ? "line-through text-[var(--color-slate-light)]"
+                                  : "text-[var(--foreground)]"
+                              }`}
+                            >
+                              {item.name}
                             </span>
+                            {item.quantity && (
+                              <span className={`text-sm font-medium ${item.checked ? "text-[var(--color-slate-light)]" : "text-[var(--color-purple)]"}`}>
+                                {item.quantity}
+                              </span>
+                            )}
+                          </div>
+                          {item.recipe_sources && item.recipe_sources.length > 0 && (
+                            <p className={`text-xs mt-0.5 truncate ${item.checked ? "text-[var(--color-slate-light)]" : "text-[var(--color-slate)]"}`}>
+                              📖 {item.recipe_sources.join(", ")}
+                            </p>
                           )}
                         </button>
                         <button
                           onClick={() => deleteItem(item.id)}
-                          className="p-1 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
+                          className="p-1 text-[var(--color-slate-light)] hover:text-red-600 transition-colors flex-shrink-0"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />

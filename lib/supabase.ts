@@ -98,6 +98,8 @@ export interface MealPlan {
   selected_variant: 1 | 2; // 1 = primary amounts, 2 = secondary amounts
   // Alternative ingredient selections: { "ingredientIndex": true } means use alternative
   alternative_selections: Record<string, boolean>;
+  // Servings multiplier (1 = recipe default, 2 = double, 0.5 = half, etc.)
+  servings_multiplier: number;
 }
 
 export interface ShoppingItem {
@@ -108,6 +110,7 @@ export interface ShoppingItem {
   checked: boolean;
   recipe_id: string | null;
   week_start: string;
+  recipe_sources: string[]; // Recipe titles that contributed to this item
 }
 
 // Supermarket types
