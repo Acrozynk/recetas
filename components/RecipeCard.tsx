@@ -5,25 +5,64 @@ import type { Recipe } from "@/lib/supabase";
 interface RecipeCardProps {
   recipe: Recipe;
   onTagClick?: (tag: string) => void;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onSelect?: (id: string, selected: boolean) => void;
 }
 
-export default function RecipeCard({ recipe, onTagClick }: RecipeCardProps) {
+export default function RecipeCard({ 
+  recipe, 
+  onTagClick,
+  selectionMode = false,
+  isSelected = false,
+  onSelect,
+}: RecipeCardProps) {
   const totalTime =
     (recipe.prep_time_minutes || 0) + (recipe.cook_time_minutes || 0);
 
-  return (
-    <Link href={`/recipes/${recipe.id}`} className="block h-full">
-      <article className="recipe-card group h-full flex flex-col">
-        <div className="relative aspect-[4/3] bg-[var(--color-purple-bg-dark)]">
-          {/* Made it badge */}
-          {recipe.made_it && (
-            <div className="absolute top-2 left-2 z-10 flex items-center gap-1 px-2 py-1 bg-green-500 text-white text-xs font-semibold rounded-full shadow-sm">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-              </svg>
-              Hecho
+  const handleCardClick = (e: React.MouseEvent) => {
+    if (selectionMode && onSelect) {
+      e.preventDefault();
+      e.stopPropagation();
+      onSelect(recipe.id, !isSelected);
+    }
+  };
+
+  const CardContent = (
+    <article 
+      className={`recipe-card group h-full flex flex-col transition-all ${
+        selectionMode ? 'cursor-pointer' : ''
+      } ${isSelected ? 'ring-2 ring-[var(--color-purple)] ring-offset-2' : ''}`}
+      onClick={handleCardClick}
+    >
+      <div className="relative aspect-[4/3] bg-[var(--color-purple-bg-dark)]">
+        {/* Selection checkbox */}
+        {selectionMode && (
+          <div className="absolute top-2 left-2 z-20">
+            <div 
+              className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                isSelected 
+                  ? 'bg-[var(--color-purple)] border-[var(--color-purple)]' 
+                  : 'bg-white/90 border-[var(--color-slate-light)] hover:border-[var(--color-purple)]'
+              }`}
+            >
+              {isSelected && (
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
             </div>
-          )}
+          </div>
+        )}
+        {/* Made it badge */}
+        {recipe.made_it && !selectionMode && (
+          <div className="absolute top-2 left-2 z-10 flex items-center gap-1 px-2 py-1 bg-green-500 text-white text-xs font-semibold rounded-full shadow-sm">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+            </svg>
+            Hecho
+          </div>
+        )}
           {/* Rating stars */}
           {recipe.rating && (
             <div className="absolute top-2 right-2 z-10 flex items-center gap-0.5 px-2 py-1 bg-black/50 backdrop-blur-sm rounded-full">
@@ -182,7 +221,7 @@ export default function RecipeCard({ recipe, onTagClick }: RecipeCardProps) {
                   key={tag}
                   className="tag text-xs hover:bg-[var(--color-purple)] hover:text-white transition-colors"
                   onClick={(e) => {
-                    if (onTagClick) {
+                    if (!selectionMode && onTagClick) {
                       e.preventDefault();
                       e.stopPropagation();
                       onTagClick(tag);
@@ -199,6 +238,16 @@ export default function RecipeCard({ recipe, onTagClick }: RecipeCardProps) {
           )}
         </div>
       </article>
+  );
+
+  // In selection mode, don't wrap in Link
+  if (selectionMode) {
+    return CardContent;
+  }
+
+  return (
+    <Link href={`/recipes/${recipe.id}`} className="block h-full">
+      {CardContent}
     </Link>
   );
 }

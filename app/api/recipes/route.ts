@@ -103,6 +103,80 @@ export async function DELETE(request: Request) {
   }
 }
 
+// PATCH batch update multiple recipes
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const { ids, updates, tagOperation } = body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json(
+        { error: "Recipe IDs array is required" },
+        { status: 400 }
+      );
+    }
+
+    // Handle tag operations specially
+    if (tagOperation && updates.tags) {
+      // Get current recipes to merge tags
+      const { data: currentRecipes, error: fetchError } = await supabase
+        .from("recipes")
+        .select("id, tags")
+        .in("id", ids);
+
+      if (fetchError) throw fetchError;
+
+      // Update each recipe based on tag operation
+      const updatePromises = (currentRecipes || []).map((recipe) => {
+        let newTags: string[] = recipe.tags || [];
+        
+        if (tagOperation === "add") {
+          // Add tags that aren't already present
+          const tagsToAdd = updates.tags.filter((t: string) => !newTags.includes(t));
+          newTags = [...newTags, ...tagsToAdd];
+        } else if (tagOperation === "remove") {
+          // Remove specified tags
+          newTags = newTags.filter((t: string) => !updates.tags.includes(t));
+        } else if (tagOperation === "replace") {
+          // Replace all tags
+          newTags = updates.tags;
+        }
+
+        return supabase
+          .from("recipes")
+          .update({ tags: newTags })
+          .eq("id", recipe.id);
+      });
+
+      await Promise.all(updatePromises);
+
+      return NextResponse.json({ 
+        success: true, 
+        updated: ids.length 
+      });
+    }
+
+    // For non-tag updates, apply the same updates to all recipes
+    const { error } = await supabase
+      .from("recipes")
+      .update(updates)
+      .in("id", ids);
+
+    if (error) throw error;
+
+    return NextResponse.json({ 
+      success: true, 
+      updated: ids.length 
+    });
+  } catch (error) {
+    console.error("Error batch updating recipes:", error);
+    return NextResponse.json(
+      { error: "Failed to batch update recipes" },
+      { status: 500 }
+    );
+  }
+}
+
 
 
 

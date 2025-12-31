@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase, type Recipe, type Ingredient } from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import RecipeCard from "@/components/RecipeCard";
 import BackupReminder from "@/components/BackupReminder";
+import TagInput from "@/components/TagInput";
 import Link from "next/link";
 
 // Time filter options
@@ -14,6 +15,8 @@ type TimeFilter = "all" | "quick" | "medium" | "long";
 type MadeItFilter = "all" | "made" | "not_made";
 // Rating filter options (null = any, 0 = not rated, 1-3 = stars)
 type RatingFilter = null | 0 | 1 | 2 | 3;
+// Tag operation for batch editing
+type TagOperation = "add" | "remove" | "replace";
 
 interface ActiveImportSession {
   id: string;
@@ -37,6 +40,14 @@ export default function HomePage() {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
   const [madeItFilter, setMadeItFilter] = useState<MadeItFilter>("all");
   const [ratingFilter, setRatingFilter] = useState<RatingFilter>(null);
+
+  // Batch selection state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedRecipes, setSelectedRecipes] = useState<Set<string>>(new Set());
+  const [showBatchEditModal, setShowBatchEditModal] = useState(false);
+  const [batchEditTags, setBatchEditTags] = useState<string[]>([]);
+  const [tagOperation, setTagOperation] = useState<TagOperation>("add");
+  const [batchUpdating, setBatchUpdating] = useState(false);
 
   useEffect(() => {
     loadRecipes();
@@ -154,6 +165,89 @@ export default function HomePage() {
     );
   };
 
+  // Batch selection handlers
+  const toggleSelectionMode = () => {
+    setSelectionMode(!selectionMode);
+    if (selectionMode) {
+      setSelectedRecipes(new Set());
+    }
+  };
+
+  const handleRecipeSelect = useCallback((id: string, selected: boolean) => {
+    setSelectedRecipes(prev => {
+      const next = new Set(prev);
+      if (selected) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  }, []);
+
+  const selectAllVisible = () => {
+    setSelectedRecipes(new Set(filteredRecipes.map(r => r.id)));
+  };
+
+  const clearSelection = () => {
+    setSelectedRecipes(new Set());
+  };
+
+  const openBatchEditModal = () => {
+    setBatchEditTags([]);
+    setTagOperation("add");
+    setShowBatchEditModal(true);
+  };
+
+  const handleBatchUpdate = async () => {
+    if (selectedRecipes.size === 0 || batchEditTags.length === 0) return;
+    
+    setBatchUpdating(true);
+    try {
+      const response = await fetch("/api/recipes", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: Array.from(selectedRecipes),
+          updates: { tags: batchEditTags },
+          tagOperation,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to update recipes");
+
+      // Reload recipes
+      await loadRecipes();
+      
+      // Reset state
+      setShowBatchEditModal(false);
+      setSelectedRecipes(new Set());
+      setSelectionMode(false);
+      setBatchEditTags([]);
+    } catch (error) {
+      console.error("Error updating recipes:", error);
+      alert("Error al actualizar las recetas");
+    } finally {
+      setBatchUpdating(false);
+    }
+  };
+
+  // Get common tags from selected recipes
+  const getSelectedRecipesTags = useMemo(() => {
+    if (selectedRecipes.size === 0) return { common: [], all: [] };
+    
+    const selectedRecipesList = recipes.filter(r => selectedRecipes.has(r.id));
+    const allTagsFromSelected = selectedRecipesList.flatMap(r => r.tags || []);
+    const uniqueTags = Array.from(new Set(allTagsFromSelected));
+    
+    // Tags that appear in ALL selected recipes
+    const commonTags = uniqueTags.filter(tag => 
+      selectedRecipesList.every(r => (r.tags || []).includes(tag))
+    );
+    
+    return { common: commonTags, all: uniqueTags };
+  }, [selectedRecipes, recipes]);
+
   return (
     <div className="min-h-screen pb-20">
       <Header title="Recetas" showAdd showMascot />
@@ -233,7 +327,68 @@ export default function HomePage() {
               <span className="text-xs font-bold">•</span>
             )}
           </button>
+          {/* Selection mode toggle */}
+          <button
+            onClick={toggleSelectionMode}
+            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-xl border transition-all ${
+              selectionMode
+                ? "bg-[var(--color-purple)] text-white border-[var(--color-purple)]"
+                : "bg-[var(--card-bg)] border-[var(--border-color)] text-[var(--foreground)] hover:border-[var(--color-purple)]"
+            }`}
+            title={selectionMode ? "Salir de selección" : "Seleccionar múltiples"}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </button>
         </div>
+
+        {/* Batch selection action bar */}
+        {selectionMode && (
+          <div className="mb-4 p-4 bg-[var(--color-purple-bg)] rounded-xl border border-[var(--color-purple)]/30 animate-fade-in">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-[var(--color-purple)]">
+                  {selectedRecipes.size} {selectedRecipes.size === 1 ? 'receta seleccionada' : 'recetas seleccionadas'}
+                </span>
+              </div>
+              <div className="flex-1" />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={selectAllVisible}
+                  className="text-sm px-3 py-1.5 rounded-lg bg-white border border-[var(--border-color)] text-[var(--color-slate)] hover:border-[var(--color-purple)] transition-colors"
+                >
+                  Seleccionar todas ({filteredRecipes.length})
+                </button>
+                {selectedRecipes.size > 0 && (
+                  <>
+                    <button
+                      onClick={clearSelection}
+                      className="text-sm px-3 py-1.5 rounded-lg bg-white border border-[var(--border-color)] text-[var(--color-slate)] hover:border-[var(--color-purple)] transition-colors"
+                    >
+                      Limpiar selección
+                    </button>
+                    <button
+                      onClick={openBatchEditModal}
+                      className="text-sm px-3 py-1.5 rounded-lg bg-[var(--color-purple)] text-white hover:bg-[var(--color-purple-dark)] transition-colors flex items-center gap-1.5"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                      </svg>
+                      Editar etiquetas
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={toggleSelectionMode}
+                  className="text-sm px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Advanced filters panel */}
         {showFilters && (
@@ -458,7 +613,13 @@ export default function HomePage() {
                 className="animate-fade-in h-full"
                 style={{ animationDelay: `${i * 50}ms` }}
               >
-                <RecipeCard recipe={recipe} onTagClick={toggleTag} />
+                <RecipeCard 
+                  recipe={recipe} 
+                  onTagClick={toggleTag}
+                  selectionMode={selectionMode}
+                  isSelected={selectedRecipes.has(recipe.id)}
+                  onSelect={handleRecipeSelect}
+                />
               </div>
             ))}
           </div>
@@ -507,6 +668,199 @@ export default function HomePage() {
 
       <BackupReminder />
       <BottomNav />
+
+      {/* Batch Edit Tags Modal */}
+      {showBatchEditModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-fade-in">
+          <div 
+            className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-hidden animate-fade-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border-color)]">
+              <h2 className="font-display text-xl font-semibold text-[var(--foreground)]">
+                Editar etiquetas
+              </h2>
+              <button
+                onClick={() => setShowBatchEditModal(false)}
+                className="p-2 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <svg className="w-5 h-5 text-[var(--color-slate)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 space-y-4 overflow-y-auto max-h-[calc(90vh-140px)]">
+              {/* Selection info */}
+              <div className="p-3 bg-[var(--color-purple-bg)] rounded-xl">
+                <p className="text-sm text-[var(--color-purple)] font-medium">
+                  Editando {selectedRecipes.size} {selectedRecipes.size === 1 ? 'receta' : 'recetas'}
+                </p>
+                {getSelectedRecipesTags.common.length > 0 && (
+                  <p className="text-xs text-[var(--color-slate)] mt-1">
+                    Etiquetas en común: {getSelectedRecipesTags.common.join(", ")}
+                  </p>
+                )}
+              </div>
+
+              {/* Tag operation selector */}
+              <div>
+                <label className="block text-sm font-medium text-[var(--color-slate)] mb-2">
+                  Operación
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => setTagOperation("add")}
+                    className={`p-3 rounded-xl border-2 transition-all text-center ${
+                      tagOperation === "add"
+                        ? "border-[var(--color-purple)] bg-[var(--color-purple-bg)]"
+                        : "border-[var(--border-color)] hover:border-[var(--color-purple)]"
+                    }`}
+                  >
+                    <svg className={`w-5 h-5 mx-auto mb-1 ${tagOperation === "add" ? "text-[var(--color-purple)]" : "text-[var(--color-slate)]"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span className={`text-sm font-medium ${tagOperation === "add" ? "text-[var(--color-purple)]" : "text-[var(--foreground)]"}`}>
+                      Añadir
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setTagOperation("remove")}
+                    className={`p-3 rounded-xl border-2 transition-all text-center ${
+                      tagOperation === "remove"
+                        ? "border-red-500 bg-red-50"
+                        : "border-[var(--border-color)] hover:border-red-500"
+                    }`}
+                  >
+                    <svg className={`w-5 h-5 mx-auto mb-1 ${tagOperation === "remove" ? "text-red-500" : "text-[var(--color-slate)]"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                    </svg>
+                    <span className={`text-sm font-medium ${tagOperation === "remove" ? "text-red-500" : "text-[var(--foreground)]"}`}>
+                      Quitar
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setTagOperation("replace")}
+                    className={`p-3 rounded-xl border-2 transition-all text-center ${
+                      tagOperation === "replace"
+                        ? "border-amber-500 bg-amber-50"
+                        : "border-[var(--border-color)] hover:border-amber-500"
+                    }`}
+                  >
+                    <svg className={`w-5 h-5 mx-auto mb-1 ${tagOperation === "replace" ? "text-amber-500" : "text-[var(--color-slate)]"}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span className={`text-sm font-medium ${tagOperation === "replace" ? "text-amber-500" : "text-[var(--foreground)]"}`}>
+                      Reemplazar
+                    </span>
+                  </button>
+                </div>
+                <p className="text-xs text-[var(--color-slate-light)] mt-2">
+                  {tagOperation === "add" && "Las etiquetas se añadirán a las existentes"}
+                  {tagOperation === "remove" && "Las etiquetas se quitarán de las recetas seleccionadas"}
+                  {tagOperation === "replace" && "Las etiquetas reemplazarán todas las existentes"}
+                </p>
+              </div>
+
+              {/* Quick tag buttons for remove operation */}
+              {tagOperation === "remove" && getSelectedRecipesTags.all.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium text-[var(--color-slate)] mb-2">
+                    Etiquetas en las recetas seleccionadas
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {getSelectedRecipesTags.all.map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => {
+                          if (batchEditTags.includes(tag)) {
+                            setBatchEditTags(batchEditTags.filter(t => t !== tag));
+                          } else {
+                            setBatchEditTags([...batchEditTags, tag]);
+                          }
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-sm font-medium transition-colors ${
+                          batchEditTags.includes(tag)
+                            ? "bg-red-500 text-white"
+                            : "bg-gray-100 text-[var(--color-slate)] hover:bg-red-100 hover:text-red-600"
+                        }`}
+                      >
+                        {batchEditTags.includes(tag) && (
+                          <svg className="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tag input */}
+              <div>
+                <label className="block text-sm font-medium text-[var(--color-slate)] mb-2">
+                  {tagOperation === "add" && "Etiquetas a añadir"}
+                  {tagOperation === "remove" && "Etiquetas a quitar"}
+                  {tagOperation === "replace" && "Nuevas etiquetas"}
+                </label>
+                <TagInput
+                  tags={batchEditTags}
+                  onChange={setBatchEditTags}
+                  suggestions={allTags}
+                  placeholder={
+                    tagOperation === "add" ? "Añadir etiqueta..." :
+                    tagOperation === "remove" ? "Etiqueta a quitar..." :
+                    "Nueva etiqueta..."
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex gap-3 p-4 border-t border-[var(--border-color)] bg-gray-50">
+              <button
+                onClick={() => setShowBatchEditModal(false)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-[var(--border-color)] text-[var(--foreground)] font-medium hover:bg-gray-100 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBatchUpdate}
+                disabled={batchEditTags.length === 0 || batchUpdating}
+                className={`flex-1 py-2.5 px-4 rounded-xl font-medium transition-colors flex items-center justify-center gap-2 ${
+                  batchEditTags.length === 0 || batchUpdating
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    : tagOperation === "remove"
+                      ? "bg-red-500 text-white hover:bg-red-600"
+                      : tagOperation === "replace"
+                        ? "bg-amber-500 text-white hover:bg-amber-600"
+                        : "bg-[var(--color-purple)] text-white hover:bg-[var(--color-purple-dark)]"
+                }`}
+              >
+                {batchUpdating ? (
+                  <>
+                    <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                    </svg>
+                    Actualizando...
+                  </>
+                ) : (
+                  <>
+                    {tagOperation === "add" && "Añadir etiquetas"}
+                    {tagOperation === "remove" && "Quitar etiquetas"}
+                    {tagOperation === "replace" && "Reemplazar etiquetas"}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
