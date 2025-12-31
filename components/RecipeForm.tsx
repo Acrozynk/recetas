@@ -886,6 +886,8 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              onFocus={handleInputFocus}
+              onSelect={handleInputSelect}
               className="input min-h-[80px] resize-y"
               placeholder="Breve descripción de la receta"
               rows={2}
@@ -1834,6 +1836,8 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                         type="text"
                         value={instruction.text}
                         onChange={(e) => updateInstructionText(stepIndex, e.target.value)}
+                        onFocus={handleInputFocus}
+                        onSelect={handleInputSelect}
                         className="input flex-1 font-semibold text-amber-800 bg-amber-50 border-amber-200"
                         placeholder="Nombre de la sección (ej: Para la base)"
                       />
@@ -1893,6 +1897,8 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                   <textarea
                     value={instruction.text}
                     onChange={(e) => updateInstructionText(stepIndex, e.target.value)}
+                    onFocus={handleInputFocus}
+                    onSelect={handleInputSelect}
                     className="input flex-1 min-h-[60px] resize-y"
                     placeholder="Describe este paso..."
                     rows={2}
@@ -2009,6 +2015,8 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
+          onFocus={handleInputFocus}
+          onSelect={handleInputSelect}
           className="input min-h-[120px] resize-y"
           placeholder="Añade notas personales, consejos, variaciones o cualquier cosa que quieras recordar sobre esta receta..."
           rows={4}
