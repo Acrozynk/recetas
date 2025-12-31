@@ -16,3 +16,4 @@ ALTER TABLE meal_plans
 COMMENT ON COLUMN meal_plans.selected_variant IS 'Which ingredient variant to use: 1 = primary amounts, 2 = secondary amounts';
 COMMENT ON COLUMN meal_plans.alternative_selections IS 'JSON object mapping ingredient indices to boolean (true = use alternative ingredient)';
 
+

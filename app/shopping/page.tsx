@@ -1506,7 +1506,7 @@ export default function ShoppingPage() {
                         />
                         <button
                           onClick={() => setEditingItem(item)}
-                          className="flex-1 min-w-0 text-left hover:bg-[var(--color-purple-bg)] rounded-lg px-2 py-1 -mx-2 -my-1 transition-colors"
+                          className="flex-1 min-w-0 text-left hover:bg-[var(--color-purple-bg)] rounded-lg px-2 py-1 transition-colors"
                         >
                           <span
                             className={`${
