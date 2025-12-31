@@ -52,19 +52,9 @@ const TAG_GROUPS: TagGroup[] = [
     keywords: ["horno", "microondas", "mambo", "thermomix", "airfryer", "freidora", "olla", "sartén", "plancha", "vapor", "sous vide", "batch cooking", "meal prep"],
   },
   {
-    name: "Rapidez",
-    icon: "⚡",
-    keywords: ["rápido", "fácil", "sencillo", "express", "15 min", "20 min", "30 min"],
-  },
-  {
-    name: "Ocasión",
-    icon: "🎉",
-    keywords: ["navidad", "fiesta", "cumpleaños", "especial", "invitados", "picnic", "verano", "invierno"],
-  },
-  {
-    name: "Dieta",
-    icon: "🥗",
-    keywords: ["vegano", "vegetariano", "sin gluten", "light", "saludable", "keto", "bajo en calorías", "proteico", "fitness"],
+    name: "Otros",
+    icon: "🏷️",
+    keywords: ["rápido", "fácil", "sencillo", "express", "fitness", "vegetariano", "vegano", "fiesta", "bebé", "frío", "george", "navidad", "cumpleaños", "especial", "invitados", "picnic", "verano", "invierno", "sin gluten", "light", "saludable", "keto", "bajo en calorías", "proteico"],
   },
 ];
 
@@ -679,8 +669,8 @@ export default function HomePage() {
               </div>
             )}
             
-            {/* Grouped tags - 2 columns */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
+            {/* Grouped tags - 1 column */}
+            <div className="space-y-1.5">
               {Array.from(groupTags(allTags)).map(([category, tags]) => {
                 const groupConfig = TAG_GROUPS.find(g => g.name === category);
                 const icon = groupConfig?.icon || "🏷️";
