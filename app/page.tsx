@@ -34,7 +34,7 @@ const TAG_GROUPS: TagGroup[] = [
   {
     name: "Dulces",
     icon: "🍰",
-    keywords: ["postre", "dulce", "tarta", "bizcocho", "galleta", "pastel", "brownie", "magdalena", "muffin", "cupcake", "flan", "natillas", "helado", "mousse", "cheesecake", "cookie", "crema", "chocolate"],
+    keywords: ["postre", "dulce", "tarta", "bizcocho", "galleta", "pastel", "brownie", "magdalena", "muffin", "cupcake", "flan", "natillas", "helado", "mousse", "cheesecake", "cookie", "chocolate"],
   },
   {
     name: "Bases",
