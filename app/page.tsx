@@ -18,6 +18,99 @@ type RatingFilter = null | 0 | 1 | 2 | 3;
 // Tag operation for batch editing
 type TagOperation = "add" | "remove" | "replace";
 
+// Tag grouping configuration
+interface TagGroup {
+  name: string;
+  icon: string;
+  keywords: string[];
+}
+
+const TAG_GROUPS: TagGroup[] = [
+  {
+    name: "Comidas",
+    icon: "🍽️",
+    keywords: ["desayuno", "comida", "cena", "merienda", "almuerzo", "brunch", "aperitivo", "entrante", "principal", "acompañamiento"],
+  },
+  {
+    name: "Dulces",
+    icon: "🍰",
+    keywords: ["postre", "dulce", "tarta", "bizcocho", "galleta", "pastel", "brownie", "magdalena", "muffin", "cupcake", "flan", "natillas", "helado", "mousse", "cheesecake", "cookie", "crema", "chocolate"],
+  },
+  {
+    name: "Bases",
+    icon: "🍚",
+    keywords: ["arroz", "pasta", "patata", "pan", "hojaldre", "pizza", "legumbres", "lentejas", "garbanzos", "quinoa", "cuscús", "fideos", "macarrones", "espagueti"],
+  },
+  {
+    name: "Proteínas",
+    icon: "🥩",
+    keywords: ["pollo", "carne", "pescado", "cerdo", "ternera", "cordero", "pavo", "marisco", "gambas", "atún", "salmón", "huevo", "tofu", "seitan"],
+  },
+  {
+    name: "Cocina",
+    icon: "👨‍🍳",
+    keywords: ["horno", "microondas", "mambo", "thermomix", "airfryer", "freidora", "olla", "sartén", "plancha", "vapor", "sous vide", "batch cooking", "meal prep"],
+  },
+  {
+    name: "Rapidez",
+    icon: "⚡",
+    keywords: ["rápido", "fácil", "sencillo", "express", "15 min", "20 min", "30 min"],
+  },
+  {
+    name: "Ocasión",
+    icon: "🎉",
+    keywords: ["navidad", "fiesta", "cumpleaños", "especial", "invitados", "picnic", "verano", "invierno"],
+  },
+  {
+    name: "Dieta",
+    icon: "🥗",
+    keywords: ["vegano", "vegetariano", "sin gluten", "light", "saludable", "keto", "bajo en calorías", "proteico", "fitness"],
+  },
+];
+
+// Function to categorize a tag
+function categorizeTag(tag: string): string {
+  const normalizedTag = tag.toLowerCase();
+  
+  for (const group of TAG_GROUPS) {
+    for (const keyword of group.keywords) {
+      if (normalizedTag.includes(keyword.toLowerCase()) || keyword.toLowerCase().includes(normalizedTag)) {
+        return group.name;
+      }
+    }
+  }
+  
+  return "Otros";
+}
+
+// Group tags by category
+function groupTags(tags: string[]): Map<string, string[]> {
+  const grouped = new Map<string, string[]>();
+  
+  // Initialize with empty arrays for defined groups
+  TAG_GROUPS.forEach(group => {
+    grouped.set(group.name, []);
+  });
+  grouped.set("Otros", []);
+  
+  // Categorize each tag
+  tags.forEach(tag => {
+    const category = categorizeTag(tag);
+    const categoryTags = grouped.get(category) || [];
+    categoryTags.push(tag);
+    grouped.set(category, categoryTags);
+  });
+  
+  // Remove empty categories
+  grouped.forEach((tags, category) => {
+    if (tags.length === 0) {
+      grouped.delete(category);
+    }
+  });
+  
+  return grouped;
+}
+
 interface ActiveImportSession {
   id: string;
   total_recipes: number;
@@ -558,38 +651,65 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Tag filters */}
+        {/* Tag filters - Grouped */}
         {allTags.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-2 mb-4 -mx-4 px-4 scrollbar-hide">
+          <div className="mb-4 space-y-2">
+            {/* Selected tags summary and clear button */}
             {selectedTags.length > 0 && (
-              <button
-                onClick={() => setSelectedTags([])}
-                className="tag whitespace-nowrap transition-colors bg-[var(--color-slate-light)]/20 hover:bg-[var(--color-slate-light)]/30 text-[var(--color-slate)] flex items-center gap-1"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                Quitar filtros ({selectedTags.length})
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-[var(--color-slate)]">Filtros activos:</span>
+                {selectedTags.map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => toggleTag(tag)}
+                    className="tag whitespace-nowrap bg-[var(--color-purple)] text-white flex items-center gap-1"
+                  >
+                    {tag}
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                ))}
+                <button
+                  onClick={() => setSelectedTags([])}
+                  className="text-sm text-[var(--color-purple)] hover:underline"
+                >
+                  Quitar todos
+                </button>
+              </div>
             )}
-            {allTags.map((tag) => (
-              <button
-                key={tag}
-                onClick={() => toggleTag(tag)}
-                className={`tag whitespace-nowrap transition-colors ${
-                  selectedTags.includes(tag)
-                    ? "bg-[var(--color-purple)] text-white"
-                    : "hover:bg-[var(--border-color)]"
-                }`}
-              >
-                {selectedTags.includes(tag) && (
-                  <svg className="w-3.5 h-3.5 mr-1 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-                {tag}
-              </button>
-            ))}
+            
+            {/* Grouped tags */}
+            <div className="space-y-1.5">
+              {Array.from(groupTags(allTags)).map(([category, tags]) => {
+                const groupConfig = TAG_GROUPS.find(g => g.name === category);
+                const icon = groupConfig?.icon || "🏷️";
+                
+                return (
+                  <div key={category} className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm text-[var(--color-slate)] w-20 flex-shrink-0 flex items-center gap-1">
+                      <span>{icon}</span>
+                      <span className="truncate">{category}</span>
+                    </span>
+                    <div className="flex gap-1.5 flex-wrap flex-1">
+                      {tags.map((tag) => (
+                        <button
+                          key={tag}
+                          onClick={() => toggleTag(tag)}
+                          className={`tag whitespace-nowrap transition-colors text-sm py-1 ${
+                            selectedTags.includes(tag)
+                              ? "bg-[var(--color-purple)] text-white"
+                              : "hover:bg-[var(--border-color)]"
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
