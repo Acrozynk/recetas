@@ -679,24 +679,23 @@ export default function HomePage() {
               </div>
             )}
             
-            {/* Grouped tags */}
-            <div className="space-y-1.5">
+            {/* Grouped tags - 2 columns */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5">
               {Array.from(groupTags(allTags)).map(([category, tags]) => {
                 const groupConfig = TAG_GROUPS.find(g => g.name === category);
                 const icon = groupConfig?.icon || "🏷️";
                 
                 return (
-                  <div key={category} className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm text-[var(--color-slate)] w-20 flex-shrink-0 flex items-center gap-1">
+                  <div key={category} className="flex items-start gap-1.5">
+                    <span className="text-xs text-[var(--color-slate)] flex-shrink-0 flex items-center gap-0.5 pt-1">
                       <span>{icon}</span>
-                      <span className="truncate">{category}</span>
                     </span>
-                    <div className="flex gap-1.5 flex-wrap flex-1">
+                    <div className="flex gap-1 flex-wrap flex-1">
                       {tags.map((tag) => (
                         <button
                           key={tag}
                           onClick={() => toggleTag(tag)}
-                          className={`tag whitespace-nowrap transition-colors text-sm py-1 ${
+                          className={`tag whitespace-nowrap transition-colors text-xs py-0.5 px-2 ${
                             selectedTags.includes(tag)
                               ? "bg-[var(--color-purple)] text-white"
                               : "hover:bg-[var(--border-color)]"
