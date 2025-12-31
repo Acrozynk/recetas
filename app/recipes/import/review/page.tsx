@@ -913,6 +913,42 @@ export default function ImportReviewPage() {
                         return (
                           <div key={`ing-${i}`}>
                             <div className="flex gap-2 items-center pt-2">
+                              {/* Move up/down buttons for header */}
+                              <div className="flex flex-col gap-0.5 flex-shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (i === 0) return;
+                                    const newIngredients = [...(editedRecipe?.ingredients || [])];
+                                    [newIngredients[i], newIngredients[i - 1]] = [newIngredients[i - 1], newIngredients[i]];
+                                    setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                                  }}
+                                  disabled={i === 0}
+                                  className="p-0.5 text-amber-400 hover:text-amber-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                  title="Mover arriba"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const ingredients = editedRecipe?.ingredients || [];
+                                    if (i === ingredients.length - 1) return;
+                                    const newIngredients = [...ingredients];
+                                    [newIngredients[i], newIngredients[i + 1]] = [newIngredients[i + 1], newIngredients[i]];
+                                    setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                                  }}
+                                  disabled={i === (editedRecipe?.ingredients?.length || 0) - 1}
+                                  className="p-0.5 text-amber-400 hover:text-amber-600 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                  title="Mover abajo"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                              </div>
                               <span className="text-amber-600">📋</span>
                               <input
                                 type="text"
@@ -967,6 +1003,42 @@ export default function ImportReviewPage() {
                         <div key={`ing-${i}`}>
                           {/* Primary amount row */}
                           <div className="flex gap-2 items-center">
+                            {/* Move up/down buttons */}
+                            <div className="flex flex-col gap-0.5 flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (i === 0) return;
+                                  const newIngredients = [...(editedRecipe?.ingredients || [])];
+                                  [newIngredients[i], newIngredients[i - 1]] = [newIngredients[i - 1], newIngredients[i]];
+                                  setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                                }}
+                                disabled={i === 0}
+                                className="p-0.5 text-[var(--color-slate-light)] hover:text-[var(--color-purple)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                title="Mover arriba"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const ingredients = editedRecipe?.ingredients || [];
+                                  if (i === ingredients.length - 1) return;
+                                  const newIngredients = [...ingredients];
+                                  [newIngredients[i], newIngredients[i + 1]] = [newIngredients[i + 1], newIngredients[i]];
+                                  setEditedRecipe(prev => prev ? { ...prev, ingredients: newIngredients } : null);
+                                }}
+                                disabled={i === (editedRecipe?.ingredients?.length || 0) - 1}
+                                className="p-0.5 text-[var(--color-slate-light)] hover:text-[var(--color-purple)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                title="Mover abajo"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+                            </div>
                             <input
                               type="text"
                               defaultValue={ing.amount || ""}

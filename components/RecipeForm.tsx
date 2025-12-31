@@ -398,6 +398,30 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
     })));
   };
 
+  // Move ingredient up or down
+  const moveIngredient = (index: number, direction: "up" | "down") => {
+    if (direction === "up" && index === 0) return;
+    if (direction === "down" && index === ingredients.length - 1) return;
+    
+    const newIndex = direction === "up" ? index - 1 : index + 1;
+    const newIngredients = [...ingredients];
+    
+    // Swap the ingredients
+    [newIngredients[index], newIngredients[newIndex]] = [newIngredients[newIndex], newIngredients[index]];
+    
+    setIngredients(newIngredients);
+    
+    // Update instruction indices: swap references to the moved ingredients
+    setInstructions(instructions.map(instruction => ({
+      ...instruction,
+      ingredientIndices: instruction.ingredientIndices.map(i => {
+        if (i === index) return newIndex;
+        if (i === newIndex) return index;
+        return i;
+      }).sort((a, b) => a - b)
+    })));
+  };
+
   const addSectionHeader = () => {
     setIngredients([...ingredients, { name: "", amount: "", unit: "", isHeader: true }]);
   };
@@ -1471,6 +1495,31 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                 )}
                 {/* Primary measurement row - horizontal layout with CSS Grid */}
                 <div className="flex items-center gap-2">
+                  {/* Move up/down buttons */}
+                  <div className="flex flex-col gap-0.5">
+                    <button
+                      type="button"
+                      onClick={() => moveIngredient(index, "up")}
+                      disabled={index === 0}
+                      className="p-1 text-[var(--color-slate-light)] hover:text-[var(--color-purple)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="Mover arriba"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveIngredient(index, "down")}
+                      disabled={index === ingredients.length - 1}
+                      className="p-1 text-[var(--color-slate-light)] hover:text-[var(--color-purple)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                      title="Mover abajo"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
                   <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: '70px 100px 1fr' }}>
                     <input
                       type="text"
