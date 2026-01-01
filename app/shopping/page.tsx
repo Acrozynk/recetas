@@ -1392,79 +1392,36 @@ export default function ShoppingPage() {
         {/* Action Buttons */}
         <div className="flex gap-3 mb-6">
           <button
+            onClick={() => setIsGroceryModalOpen(true)}
+            className="flex-1 btn-primary flex items-center justify-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Añadir Producto
+          </button>
+          
+          <button
             onClick={generateFromMealPlan}
             disabled={generating}
-            className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-50"
+            className="btn-secondary flex items-center justify-center gap-2 px-4"
           >
             {generating ? (
               <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Generando...
+                <div className="w-5 h-5 border-2 border-[var(--color-purple)] border-t-transparent rounded-full animate-spin" />
+                <span className="hidden sm:inline">Generando...</span>
               </>
             ) : (
               <>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                Desde Menús
+                <span className="hidden sm:inline">Desde Menús</span>
+                <span className="sm:hidden">Menús</span>
               </>
             )}
           </button>
-          
-          <button
-            onClick={() => setIsGroceryModalOpen(true)}
-            className="btn-secondary flex items-center justify-center gap-2 px-4"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <span className="hidden sm:inline">Buscar Producto</span>
-            <span className="sm:hidden">Buscar</span>
-          </button>
         </div>
-
-        {/* Add Item Form */}
-        <form onSubmit={addItem} className="mb-6">
-          <div className="flex gap-2 mb-2">
-            <input
-              type="text"
-              value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              className="input flex-1"
-              placeholder="Añadir artículo..."
-            />
-            <input
-              type="text"
-              value={newItemQuantity}
-              onChange={(e) => setNewItemQuantity(e.target.value)}
-              className="input w-24 sm:w-32"
-              placeholder="Cantidad"
-            />
-          </div>
-          <div className="flex gap-2">
-            <select
-              value={newItemCategory}
-              onChange={(e) => setNewItemCategory(e.target.value)}
-              className="input flex-1"
-            >
-              {categoryOrder.map((cat) => (
-                <option key={cat} value={cat}>
-                  {CATEGORY_ICONS[cat] || "📦"} {cat}
-                </option>
-              ))}
-            </select>
-            <button
-              type="submit"
-              disabled={!newItemName.trim()}
-              className="btn-primary px-6 disabled:opacity-50 flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              <span className="hidden sm:inline">Añadir</span>
-            </button>
-          </div>
-        </form>
 
         {/* Progress */}
         {totalCount > 0 && (
@@ -1586,16 +1543,16 @@ export default function ShoppingPage() {
               Aún no hay artículos
             </h2>
             <p className="text-[var(--color-slate-light)] mb-4">
-              Genera una lista desde tu planificador o añade artículos manualmente
+              Genera una lista desde tu planificador o añade productos
             </p>
             <button
               onClick={() => setIsGroceryModalOpen(true)}
-              className="btn-secondary inline-flex items-center gap-2"
+              className="btn-primary inline-flex items-center gap-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Buscar en Base de Productos
+              Añadir Producto
             </button>
           </div>
         )}
@@ -1608,6 +1565,8 @@ export default function ShoppingPage() {
         isOpen={isGroceryModalOpen}
         onClose={() => setIsGroceryModalOpen(false)}
         onSelectProduct={addProductFromDatabase}
+        onAddManual={addManualItem}
+        categoryOrder={categoryOrder}
       />
 
       {/* Category Order Modal */}
