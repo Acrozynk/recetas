@@ -60,8 +60,8 @@ function RecipeOptionsModal({
     }));
   };
 
-  const handleConfirm = () => {
-    onConfirm({
+  const handleConfirm = async () => {
+    await onConfirm({
       selectedVariant,
       alternativeSelections,
       servingsMultiplier
@@ -468,9 +468,9 @@ export default function PlannerPage() {
     
     const { recipe, date, mealType, existingPlanId } = showRecipeOptions;
     
-    if (existingPlanId) {
-      // Update existing meal plan
-      try {
+    try {
+      if (existingPlanId) {
+        // Update existing meal plan
         const { error } = await supabase
           .from("meal_plans")
           .update({
@@ -481,15 +481,37 @@ export default function PlannerPage() {
           .eq("id", existingPlanId);
 
         if (error) throw error;
+      } else {
+        // Add new meal plan - handle directly here instead of delegating to addMealPlan
+        // to avoid race condition with showRecipeSelector being cleared
         
-        setShowRecipeOptions(null);
-        loadData();
-      } catch (error) {
-        console.error("Error updating meal plan:", error);
+        // Delete existing plan for this slot if any
+        await supabase
+          .from("meal_plans")
+          .delete()
+          .eq("plan_date", date)
+          .eq("meal_type", mealType);
+
+        // Insert new plan with all options
+        const { error } = await supabase.from("meal_plans").insert([
+          {
+            plan_date: date,
+            meal_type: mealType,
+            recipe_id: recipe.id,
+            selected_variant: selection.selectedVariant,
+            alternative_selections: selection.alternativeSelections,
+            servings_multiplier: selection.servingsMultiplier,
+          },
+        ]);
+
+        if (error) throw error;
       }
-    } else {
-      // Add new meal plan
-      addMealPlan(recipe.id, selection);
+      
+      setShowRecipeSelector(null);
+      setShowRecipeOptions(null);
+      loadData();
+    } catch (error) {
+      console.error("Error saving meal plan:", error);
     }
   };
 
