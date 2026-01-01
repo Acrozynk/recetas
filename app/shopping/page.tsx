@@ -875,10 +875,12 @@ export default function ShoppingPage() {
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [newItemName, setNewItemName] = useState("");
+  const [newItemQuantity, setNewItemQuantity] = useState("");
+  const [newItemCategory, setNewItemCategory] = useState("Otros");
   const [isGroceryModalOpen, setIsGroceryModalOpen] = useState(false);
   const [isCategoryOrderModalOpen, setIsCategoryOrderModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
-  const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
   
   // Preview modal state
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -946,7 +948,6 @@ export default function ShoppingPage() {
         .from("shopping_items")
         .select("*")
         .eq("week_start", weekStart)
-        .eq("supermarket", selectedSupermarket)
         .order("category")
         .order("checked")
         .order("name");
@@ -958,7 +959,7 @@ export default function ShoppingPage() {
     } finally {
       setLoading(false);
     }
-  }, [weekStart, selectedSupermarket]);
+  }, [weekStart]);
 
   useEffect(() => {
     loadItems();
@@ -1131,6 +1132,7 @@ export default function ShoppingPage() {
         week_start: string; 
         recipe_id: string | null;
         recipe_sources: string[];
+        supermarket: SupermarketName;
       }[] = [];
 
       for (const ing of selectedIngredients) {
@@ -1163,7 +1165,6 @@ export default function ShoppingPage() {
             week_start: weekStart,
             recipe_id: null,
             recipe_sources: ing.recipes || [],
-            supermarket: selectedSupermarket,
           });
         }
       }
@@ -1211,68 +1212,23 @@ export default function ShoppingPage() {
     }
   };
 
-  const adjustQuantity = async (item: ShoppingItem, delta: number) => {
-    const parsed = parseQuantity(item.quantity || "");
-    let newAmount: number;
-    let newQuantity: string;
-
-    if (parsed.amount !== null) {
-      // Si hay un número, incrementar/decrementar
-      newAmount = Math.max(0, parsed.amount + delta);
-      if (newAmount === 0) {
-        // Si llega a 0, poner vacío o eliminar
-        newQuantity = "";
-      } else {
-        newQuantity = formatQuantity(newAmount, parsed.unit);
-      }
-    } else {
-      // Si no hay cantidad, empezar en 1 (solo para incremento)
-      if (delta > 0) {
-        newQuantity = parsed.unit ? `1 ${parsed.unit}` : "1";
-      } else {
-        return; // No decrementar si no hay cantidad
-      }
-    }
-
-    try {
-      const { error } = await supabase
-        .from("shopping_items")
-        .update({ quantity: newQuantity || null })
-        .eq("id", item.id);
-
-      if (error) throw error;
-
-      setItems(
-        items.map((i) =>
-          i.id === item.id ? { ...i, quantity: newQuantity || null } : i
-        )
-      );
-    } catch (error) {
-      console.error("Error adjusting quantity:", error);
-    }
-  };
-
-  const addItem = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newItemName.trim()) return;
+  const addManualItem = async (name: string, quantity: string, category: string) => {
+    if (!name.trim()) return;
 
     try {
       const { error } = await supabase.from("shopping_items").insert([
         {
-          name: newItemName.trim(),
-          quantity: newItemQuantity.trim() || null,
-          category: newItemCategory,
+          name: name.trim(),
+          quantity: quantity.trim() || null,
+          category: category,
           checked: false,
           week_start: weekStart,
           recipe_id: null,
-          supermarket: selectedSupermarket,
         },
       ]);
 
       if (error) throw error;
 
-      setNewItemName("");
-      setNewItemQuantity("");
       loadItems();
     } catch (error) {
       console.error("Error adding item:", error);
@@ -1317,7 +1273,6 @@ export default function ShoppingPage() {
           checked: false,
           week_start: weekStart,
           recipe_id: null,
-          supermarket: selectedSupermarket,
         },
       ]);
 
@@ -1350,6 +1305,7 @@ export default function ShoppingPage() {
         .from("shopping_items")
         .delete()
         .eq("week_start", weekStart)
+        .eq("supermarket", selectedSupermarket)
         .eq("checked", true);
 
       if (error) throw error;
@@ -1360,28 +1316,8 @@ export default function ShoppingPage() {
     }
   };
 
-  const clearAllItems = async () => {
-    try {
-      const { error } = await supabase
-        .from("shopping_items")
-        .delete()
-        .eq("week_start", weekStart);
-
-      if (error) throw error;
-
-      setItems([]);
-      setShowClearAllConfirm(false);
-    } catch (error) {
-      console.error("Error clearing all items:", error);
-    }
-  };
-
-  // Separate checked and unchecked items
-  const uncheckedItems = items.filter((i) => !i.checked);
-  const checkedItems = items.filter((i) => i.checked);
-
-  // Group only unchecked items by category
-  const groupedItems = uncheckedItems.reduce(
+  // Group items by category
+  const groupedItems = items.reduce(
     (acc, item) => {
       const category = item.category || "Otros";
       if (!acc[category]) acc[category] = [];
@@ -1391,7 +1327,7 @@ export default function ShoppingPage() {
     {} as Record<string, ShoppingItem[]>
   );
 
-  const checkedCount = checkedItems.length;
+  const checkedCount = items.filter((i) => i.checked).length;
   const totalCount = items.length;
 
   const supermarketColor = SUPERMARKET_COLORS[selectedSupermarket];
@@ -1401,29 +1337,16 @@ export default function ShoppingPage() {
       <Header
         title="Lista de Compras"
         rightAction={
-          items.length > 0 ? (
-            <div className="flex items-center gap-1">
-              {checkedCount > 0 && (
-                <button
-                  onClick={clearChecked}
-                  className="p-2 text-[var(--color-slate)] hover:text-red-600 transition-colors"
-                  title="Eliminar artículos marcados"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </button>
-              )}
-              <button
-                onClick={() => setShowClearAllConfirm(true)}
-                className="p-2 text-[var(--color-slate)] hover:text-red-600 transition-colors"
-                title="Borrar toda la lista"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
+          items.length > 0 && checkedCount > 0 ? (
+            <button
+              onClick={clearChecked}
+              className="p-2 text-[var(--color-slate)] hover:text-red-600 transition-colors"
+              title="Eliminar artículos marcados"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
           ) : undefined
         }
       />
@@ -1591,7 +1514,9 @@ export default function ShoppingPage() {
                     {groupedItems[category].map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-center gap-3 p-3 transition-colors"
+                        className={`flex items-center gap-3 p-3 transition-colors ${
+                          item.checked ? "bg-[var(--color-purple-bg-dark)]" : ""
+                        }`}
                       >
                         <input
                           type="checkbox"
@@ -1604,27 +1529,25 @@ export default function ShoppingPage() {
                           className="flex-1 min-w-0 text-left hover:bg-[var(--color-purple-bg)] rounded-lg px-2 py-1 transition-colors"
                         >
                           <div className="flex items-baseline gap-2 flex-wrap">
-                            <span className="text-[var(--foreground)]">
+                            <span
+                              className={`${
+                                item.checked
+                                  ? "line-through text-[var(--color-slate-light)]"
+                                  : "text-[var(--foreground)]"
+                              }`}
+                            >
                               {item.name}
                             </span>
                             {item.quantity && (
-                              <span className="text-sm font-medium text-[var(--color-purple)]">
+                              <span className={`text-sm font-medium ${item.checked ? "text-[var(--color-slate-light)]" : "text-[var(--color-purple)]"}`}>
                                 {item.quantity}
                               </span>
                             )}
                           </div>
                           {item.recipe_sources && item.recipe_sources.length > 0 && (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {item.recipe_sources.map((recipe, idx) => (
-                                <span 
-                                  key={idx}
-                                  className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200"
-                                >
-                                  <span className="text-[10px]">📖</span>
-                                  {recipe}
-                                </span>
-                              ))}
-                            </div>
+                            <p className={`text-xs mt-0.5 truncate ${item.checked ? "text-[var(--color-slate-light)]" : "text-[var(--color-slate)]"}`}>
+                              📖 {item.recipe_sources.join(", ")}
+                            </p>
                           )}
                         </button>
                         <button
@@ -1640,68 +1563,6 @@ export default function ShoppingPage() {
                   </div>
                 </div>
               )
-            )}
-
-            {/* Checked items section - at the bottom, outside categories */}
-            {checkedItems.length > 0 && (
-              <div className="mt-8 pt-6 border-t-2 border-dashed border-[var(--border-color)]">
-                <h3 className="font-display text-lg font-semibold text-[var(--color-slate-light)] mb-2 flex items-center gap-2">
-                  <span className="text-xl">✓</span>
-                  En el carrito
-                  <span className="text-sm font-normal">({checkedItems.length})</span>
-                </h3>
-                <div className="bg-[var(--color-purple-bg)] rounded-xl border border-[var(--border-color)] divide-y divide-[var(--border-color)]">
-                  {checkedItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-3 p-3 transition-colors"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={item.checked}
-                        onChange={() => toggleItem(item)}
-                        className="checkbox flex-shrink-0"
-                      />
-                      <button
-                        onClick={() => setEditingItem(item)}
-                        className="flex-1 min-w-0 text-left hover:bg-white/50 rounded-lg px-2 py-1 transition-colors"
-                      >
-                        <div className="flex items-baseline gap-2 flex-wrap">
-                          <span className="line-through text-[var(--color-slate-light)]">
-                            {item.name}
-                          </span>
-                          {item.quantity && (
-                            <span className="text-sm font-medium text-[var(--color-slate-light)]">
-                              {item.quantity}
-                            </span>
-                          )}
-                        </div>
-                        {item.recipe_sources && item.recipe_sources.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1 opacity-50">
-                            {item.recipe_sources.map((recipe, idx) => (
-                              <span 
-                                key={idx}
-                                className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200"
-                              >
-                                <span className="text-[10px]">📖</span>
-                                {recipe}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => deleteItem(item.id)}
-                        className="p-1 text-[var(--color-slate-light)] hover:text-red-600 transition-colors flex-shrink-0"
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
             )}
           </div>
         ) : (
@@ -1776,55 +1637,6 @@ export default function ShoppingPage() {
         onConfirm={confirmAddIngredients}
         categoryOrder={categoryOrder}
       />
-
-      {/* Clear All Confirmation Modal */}
-      {showClearAllConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setShowClearAllConfirm(false)}
-          />
-          
-          {/* Modal */}
-          <div className="relative bg-white w-full max-w-sm mx-4 rounded-2xl shadow-2xl animate-fade-in">
-            {/* Icon */}
-            <div className="pt-6 flex justify-center">
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </div>
-            </div>
-
-            {/* Content */}
-            <div className="p-6 text-center">
-              <h2 className="font-display text-xl font-semibold text-[var(--foreground)] mb-2">
-                ¿Borrar toda la lista?
-              </h2>
-              <p className="text-[var(--color-slate)]">
-                Se eliminarán los <strong>{totalCount} artículos</strong> de la lista de compras. Esta acción no se puede deshacer.
-              </p>
-            </div>
-
-            {/* Actions */}
-            <div className="p-4 border-t border-[var(--border-color)] flex gap-3">
-              <button
-                onClick={() => setShowClearAllConfirm(false)}
-                className="flex-1 btn-secondary"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={clearAllItems}
-                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-4 rounded-xl transition-colors"
-              >
-                Borrar Todo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
