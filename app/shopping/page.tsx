@@ -881,6 +881,7 @@ export default function ShoppingPage() {
   const [isGroceryModalOpen, setIsGroceryModalOpen] = useState(false);
   const [isCategoryOrderModalOpen, setIsCategoryOrderModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
+  const [showClearAllConfirm, setShowClearAllConfirm] = useState(false);
   
   // Preview modal state
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -1317,6 +1318,22 @@ export default function ShoppingPage() {
     }
   };
 
+  const clearAllItems = async () => {
+    try {
+      const { error } = await supabase
+        .from("shopping_items")
+        .delete()
+        .eq("week_start", weekStart);
+
+      if (error) throw error;
+
+      setItems([]);
+      setShowClearAllConfirm(false);
+    } catch (error) {
+      console.error("Error clearing all items:", error);
+    }
+  };
+
   // Group items by category
   const groupedItems = items.reduce(
     (acc, item) => {
@@ -1338,16 +1355,29 @@ export default function ShoppingPage() {
       <Header
         title="Lista de Compras"
         rightAction={
-          items.length > 0 && checkedCount > 0 ? (
-            <button
-              onClick={clearChecked}
-              className="p-2 text-[var(--color-slate)] hover:text-red-600 transition-colors"
-              title="Eliminar artículos marcados"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            </button>
+          items.length > 0 ? (
+            <div className="flex items-center gap-1">
+              {checkedCount > 0 && (
+                <button
+                  onClick={clearChecked}
+                  className="p-2 text-[var(--color-slate)] hover:text-red-600 transition-colors"
+                  title="Eliminar artículos marcados"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </button>
+              )}
+              <button
+                onClick={() => setShowClearAllConfirm(true)}
+                className="p-2 text-[var(--color-slate)] hover:text-red-600 transition-colors"
+                title="Borrar toda la lista"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
           ) : undefined
         }
       />
@@ -1638,6 +1668,55 @@ export default function ShoppingPage() {
         onConfirm={confirmAddIngredients}
         categoryOrder={categoryOrder}
       />
+
+      {/* Clear All Confirmation Modal */}
+      {showClearAllConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowClearAllConfirm(false)}
+          />
+          
+          {/* Modal */}
+          <div className="relative bg-white w-full max-w-sm mx-4 rounded-2xl shadow-2xl animate-fade-in">
+            {/* Icon */}
+            <div className="pt-6 flex justify-center">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 text-center">
+              <h2 className="font-display text-xl font-semibold text-[var(--foreground)] mb-2">
+                ¿Borrar toda la lista?
+              </h2>
+              <p className="text-[var(--color-slate)]">
+                Se eliminarán los <strong>{totalCount} artículos</strong> de la lista de compras. Esta acción no se puede deshacer.
+              </p>
+            </div>
+
+            {/* Actions */}
+            <div className="p-4 border-t border-[var(--border-color)] flex gap-3">
+              <button
+                onClick={() => setShowClearAllConfirm(false)}
+                className="flex-1 btn-secondary"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={clearAllItems}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-4 rounded-xl transition-colors"
+              >
+                Borrar Todo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

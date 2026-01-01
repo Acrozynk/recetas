@@ -357,6 +357,9 @@ export default function PlannerPage() {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [excludedTags, setExcludedTags] = useState<string[]>([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  // Tag filtering state
+  const [allTags, setAllTags] = useState<string[]>([]);
+  const [selectedFilterTags, setSelectedFilterTags] = useState<string[]>([]);
   // Recipe options modal state (for servings, variants, alternatives)
   const [showRecipeOptions, setShowRecipeOptions] = useState<{
     recipe: Recipe;
@@ -492,11 +495,33 @@ export default function PlannerPage() {
     [weekStart, weekEnd]
   );
 
+  const fetchTags = useCallback(async () => {
+    try {
+      const response = await fetch("/api/tags");
+      if (response.ok) {
+        const data = await response.json();
+        setAllTags(data.tags || []);
+      }
+    } catch (error) {
+      console.error("Error fetching tags:", error);
+    }
+  }, []);
+
   const openRecipeSelector = (date: string, mealType: MealType) => {
     setShowRecipeSelector({ date, mealType });
     setSearch("");
     setSuggestions([]);
+    setSelectedFilterTags([]);
     fetchSuggestions(date, mealType);
+    fetchTags();
+  };
+
+  const toggleTagFilter = (tag: string) => {
+    setSelectedFilterTags(prev => 
+      prev.includes(tag) 
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
   };
 
   const isToday = (date: Date): boolean => {
