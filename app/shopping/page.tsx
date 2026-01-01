@@ -1106,8 +1106,8 @@ export default function ShoppingPage() {
           let adjustedAmount = ingredientAmount;
           if (ingredientAmount && servingsMultiplier !== 1) {
             const parsed = parseQuantity(ingredientAmount);
-            if (parsed) {
-              const multipliedValue = parsed.value * servingsMultiplier;
+            if (parsed && parsed.amount !== null) {
+              const multipliedValue = parsed.amount * servingsMultiplier;
               // Format nicely - round to 2 decimal places and remove trailing zeros
               const formattedValue = Math.round(multipliedValue * 100) / 100;
               adjustedAmount = formattedValue.toString();
