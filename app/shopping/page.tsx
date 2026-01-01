@@ -1212,6 +1212,47 @@ export default function ShoppingPage() {
     }
   };
 
+  const adjustQuantity = async (item: ShoppingItem, delta: number) => {
+    const parsed = parseQuantity(item.quantity || "");
+    let newAmount: number;
+    let newQuantity: string;
+
+    if (parsed.amount !== null) {
+      // Si hay un número, incrementar/decrementar
+      newAmount = Math.max(0, parsed.amount + delta);
+      if (newAmount === 0) {
+        // Si llega a 0, poner vacío o eliminar
+        newQuantity = "";
+      } else {
+        newQuantity = formatQuantity(newAmount, parsed.unit);
+      }
+    } else {
+      // Si no hay cantidad, empezar en 1 (solo para incremento)
+      if (delta > 0) {
+        newQuantity = parsed.unit ? `1 ${parsed.unit}` : "1";
+      } else {
+        return; // No decrementar si no hay cantidad
+      }
+    }
+
+    try {
+      const { error } = await supabase
+        .from("shopping_items")
+        .update({ quantity: newQuantity || null })
+        .eq("id", item.id);
+
+      if (error) throw error;
+
+      setItems(
+        items.map((i) =>
+          i.id === item.id ? { ...i, quantity: newQuantity || null } : i
+        )
+      );
+    } catch (error) {
+      console.error("Error adjusting quantity:", error);
+    }
+  };
+
   const addItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newItemName.trim()) return;
@@ -1334,8 +1375,12 @@ export default function ShoppingPage() {
     }
   };
 
-  // Group items by category
-  const groupedItems = items.reduce(
+  // Separate checked and unchecked items
+  const uncheckedItems = items.filter((i) => !i.checked);
+  const checkedItems = items.filter((i) => i.checked);
+
+  // Group only unchecked items by category
+  const groupedItems = uncheckedItems.reduce(
     (acc, item) => {
       const category = item.category || "Otros";
       if (!acc[category]) acc[category] = [];
@@ -1345,7 +1390,7 @@ export default function ShoppingPage() {
     {} as Record<string, ShoppingItem[]>
   );
 
-  const checkedCount = items.filter((i) => i.checked).length;
+  const checkedCount = checkedItems.length;
   const totalCount = items.length;
 
   const supermarketColor = SUPERMARKET_COLORS[selectedSupermarket];

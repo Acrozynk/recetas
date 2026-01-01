@@ -111,6 +111,7 @@ export interface ShoppingItem {
   recipe_id: string | null;
   week_start: string;
   recipe_sources: string[]; // Recipe titles that contributed to this item
+  supermarket: SupermarketName; // Which supermarket this item belongs to
 }
 
 // Supermarket types
