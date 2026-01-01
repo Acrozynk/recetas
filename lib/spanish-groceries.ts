@@ -921,9 +921,18 @@ export const spanishGroceries: GroceryProduct[] = [
   { name: "Papilla de cereales", category: "Otros", subcategory: "Bebés" },
 ];
 
+// Helper function to normalize text (remove accents and convert to lowercase)
+function normalizeText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
 // Helper function to search products
 export function searchGroceries(query: string, limit: number = 20): GroceryProduct[] {
-  const normalizedQuery = query.toLowerCase().trim();
+  const normalizedQuery = normalizeText(query);
   
   if (!normalizedQuery) return [];
   
@@ -932,10 +941,10 @@ export function searchGroceries(query: string, limit: number = 20): GroceryProdu
   
   return spanishGroceries
     .filter((product) => {
-      const normalizedName = product.name.toLowerCase();
-      const normalizedCategory = product.category.toLowerCase();
-      const normalizedSubcategory = (product.subcategory || "").toLowerCase();
-      const normalizedBrand = (product.brand || "").toLowerCase();
+      const normalizedName = normalizeText(product.name);
+      const normalizedCategory = normalizeText(product.category);
+      const normalizedSubcategory = normalizeText(product.subcategory || "");
+      const normalizedBrand = normalizeText(product.brand || "");
       
       // Check if all query words are found in the product name, category, subcategory or brand
       return queryWords.every(
