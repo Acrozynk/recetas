@@ -465,9 +465,16 @@ export default function PlannerPage() {
     }
   };
 
-  const filteredRecipes = recipes.filter((recipe) =>
-    recipe.title.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredRecipes = recipes.filter((recipe) => {
+    // Filter by search text
+    const matchesSearch = recipe.title.toLowerCase().includes(search.toLowerCase());
+    
+    // Filter by selected tags (recipe must have ALL selected tags)
+    const matchesTags = selectedFilterTags.length === 0 || 
+      selectedFilterTags.every(tag => recipe.tags?.includes(tag));
+    
+    return matchesSearch && matchesTags;
+  });
 
   const fetchSuggestions = useCallback(
     async (date: string, mealType: MealType) => {

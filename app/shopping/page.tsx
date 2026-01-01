@@ -1576,9 +1576,17 @@ export default function ShoppingPage() {
                             )}
                           </div>
                           {item.recipe_sources && item.recipe_sources.length > 0 && (
-                            <p className={`text-xs mt-0.5 truncate ${item.checked ? "text-[var(--color-slate-light)]" : "text-[var(--color-slate)]"}`}>
-                              📖 {item.recipe_sources.join(", ")}
-                            </p>
+                            <div className={`flex flex-wrap gap-1 mt-1 ${item.checked ? "opacity-50" : ""}`}>
+                              {item.recipe_sources.map((recipe, idx) => (
+                                <span 
+                                  key={idx}
+                                  className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200"
+                                >
+                                  <span className="text-[10px]">📖</span>
+                                  {recipe}
+                                </span>
+                              ))}
+                            </div>
                           )}
                         </button>
                         <button
