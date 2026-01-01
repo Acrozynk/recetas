@@ -1394,6 +1394,34 @@ export default function ShoppingPage() {
     }
   };
 
+  const adjustQuantity = async (item: ShoppingItem, delta: number) => {
+    const parsed = parseQuantity(item.quantity || "1");
+    const currentAmount = parsed.amount ?? 1;
+    const newAmount = Math.max(1, currentAmount + delta);
+    
+    // Format the new quantity with the original unit
+    const newQuantity = parsed.unit 
+      ? formatQuantity(newAmount, parsed.unit)
+      : newAmount.toString();
+    
+    try {
+      const { error } = await supabase
+        .from("shopping_items")
+        .update({ quantity: newQuantity })
+        .eq("id", item.id);
+
+      if (error) throw error;
+
+      setItems(
+        items.map((i) =>
+          i.id === item.id ? { ...i, quantity: newQuantity } : i
+        )
+      );
+    } catch (error) {
+      console.error("Error updating quantity:", error);
+    }
+  };
+
   // Group items by category
   const groupedItems = items.reduce(
     (acc, item) => {
@@ -1589,7 +1617,7 @@ export default function ShoppingPage() {
                     {groupedItems[category].map((item) => (
                       <div
                         key={item.id}
-                        className={`flex items-center gap-3 p-3 transition-colors ${
+                        className={`flex items-center gap-2 p-3 transition-colors ${
                           item.checked ? "bg-[var(--color-purple-bg-dark)]" : ""
                         }`}
                       >
@@ -1625,6 +1653,37 @@ export default function ShoppingPage() {
                             </p>
                           )}
                         </button>
+                        {/* Quantity controls */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => adjustQuantity(item, -1)}
+                            disabled={item.checked}
+                            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                              item.checked 
+                                ? "bg-gray-100 text-gray-300 cursor-not-allowed" 
+                                : "bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] active:scale-95"
+                            }`}
+                            title="Reducir cantidad"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => adjustQuantity(item, 1)}
+                            disabled={item.checked}
+                            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
+                              item.checked 
+                                ? "bg-gray-100 text-gray-300 cursor-not-allowed" 
+                                : "bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] active:scale-95"
+                            }`}
+                            title="Aumentar cantidad"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                          </button>
+                        </div>
                         <button
                           onClick={() => deleteItem(item.id)}
                           className="p-1 text-[var(--color-slate-light)] hover:text-red-600 transition-colors flex-shrink-0"
