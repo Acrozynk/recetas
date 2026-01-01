@@ -1763,24 +1763,24 @@ export default function RecipeDetailPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl p-6 max-w-sm w-full animate-fade-in">
             <h3 className="font-display text-xl font-semibold mb-2">
-              Delete Recipe?
+              ¿Eliminar receta?
             </h3>
             <p className="text-[var(--color-slate)] mb-6">
-              Are you sure you want to delete &quot;{recipe.title}&quot;? This action
-              cannot be undone.
+              ¿Seguro que quieres eliminar &quot;{recipe.title}&quot;? Esta acción
+              no se puede deshacer.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDeleteConfirm(false)}
                 className="btn-secondary flex-1"
               >
-                Cancel
+                Cancelar
               </button>
               <button
                 onClick={handleDelete}
                 className="flex-1 bg-red-600 text-white font-semibold py-3 px-4 rounded-lg hover:bg-red-700 transition-colors"
               >
-                Delete
+                Eliminar
               </button>
             </div>
           </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { supabase, type Recipe, type MealPlan, type Ingredient } from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
@@ -709,7 +709,7 @@ export default function PlannerPage() {
 
               {/* Meal Slots */}
               {MEAL_TYPES.map((mealType) => (
-                <>
+                <React.Fragment key={mealType}>
                   {weekDates.map((date) => {
                     const dateKey = formatDateKey(date);
                     const plan = getMealPlan(dateKey, mealType);
@@ -782,7 +782,7 @@ export default function PlannerPage() {
                       </div>
                     );
                   })}
-                </>
+                </React.Fragment>
               ))}
             </div>
           </div>
