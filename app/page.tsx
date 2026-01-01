@@ -7,6 +7,7 @@ import BottomNav from "@/components/BottomNav";
 import RecipeCard from "@/components/RecipeCard";
 import BackupReminder from "@/components/BackupReminder";
 import TagInput from "@/components/TagInput";
+import AddToPlannerModal from "@/components/AddToPlannerModal";
 import Link from "next/link";
 
 // Time filter options
@@ -131,6 +132,9 @@ export default function HomePage() {
   const [batchEditTags, setBatchEditTags] = useState<string[]>([]);
   const [tagOperation, setTagOperation] = useState<TagOperation>("add");
   const [batchUpdating, setBatchUpdating] = useState(false);
+
+  // Add to planner modal state
+  const [plannerModalRecipe, setPlannerModalRecipe] = useState<Recipe | null>(null);
 
   useEffect(() => {
     loadRecipes();
@@ -728,6 +732,7 @@ export default function HomePage() {
                   selectionMode={selectionMode}
                   isSelected={selectedRecipes.has(recipe.id)}
                   onSelect={handleRecipeSelect}
+                  onAddToPlanner={setPlannerModalRecipe}
                 />
               </div>
             ))}
@@ -777,6 +782,18 @@ export default function HomePage() {
 
       <BackupReminder />
       <BottomNav />
+
+      {/* Add to Planner Modal */}
+      {plannerModalRecipe && (
+        <AddToPlannerModal
+          isOpen={true}
+          onClose={() => setPlannerModalRecipe(null)}
+          recipe={plannerModalRecipe}
+          onSuccess={() => {
+            // Optional: show a toast or notification
+          }}
+        />
+      )}
 
       {/* Batch Edit Tags Modal */}
       {showBatchEditModal && (

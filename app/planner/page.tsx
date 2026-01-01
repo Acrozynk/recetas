@@ -18,15 +18,26 @@ function RecipeOptionsModal({
   onClose,
   recipe,
   onConfirm,
+  initialSelection,
 }: {
   isOpen: boolean;
   onClose: () => void;
   recipe: Recipe;
   onConfirm: (selection: VariantSelection) => void;
+  initialSelection?: VariantSelection;
 }) {
-  const [selectedVariant, setSelectedVariant] = useState<1 | 2>(1);
-  const [alternativeSelections, setAlternativeSelections] = useState<Record<string, boolean>>({});
-  const [servingsMultiplier, setServingsMultiplier] = useState(1);
+  const [selectedVariant, setSelectedVariant] = useState<1 | 2>(initialSelection?.selectedVariant ?? 1);
+  const [alternativeSelections, setAlternativeSelections] = useState<Record<string, boolean>>(initialSelection?.alternativeSelections ?? {});
+  const [servingsMultiplier, setServingsMultiplier] = useState(initialSelection?.servingsMultiplier ?? 1);
+
+  // Reset state when modal opens with new recipe/initial values
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedVariant(initialSelection?.selectedVariant ?? 1);
+      setAlternativeSelections(initialSelection?.alternativeSelections ?? {});
+      setServingsMultiplier(initialSelection?.servingsMultiplier ?? 1);
+    }
+  }, [isOpen, initialSelection]);
 
   // Check what options this recipe has
   const hasVariants = !!(recipe.variant_1_label && recipe.variant_2_label);
@@ -71,7 +82,7 @@ function RecipeOptionsModal({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-display text-lg font-semibold text-[var(--foreground)]">
-                Opciones de la Receta
+                {initialSelection ? "Editar Porciones" : "Ajustar Porciones"}
               </h3>
               <p className="text-sm text-[var(--color-slate)] mt-1 line-clamp-1">
                 {recipe.title}
@@ -365,6 +376,8 @@ export default function PlannerPage() {
     recipe: Recipe;
     date: string;
     mealType: MealType;
+    existingPlanId?: string;
+    initialSelection?: VariantSelection;
   } | null>(null);
 
   const weekDates = getWeekDates(weekOffset);
@@ -450,10 +463,51 @@ export default function PlannerPage() {
   };
   
   // Handle recipe options confirmation
-  const handleRecipeOptionsConfirm = (selection: VariantSelection) => {
-    if (showRecipeOptions) {
-      addMealPlan(showRecipeOptions.recipe.id, selection);
+  const handleRecipeOptionsConfirm = async (selection: VariantSelection) => {
+    if (!showRecipeOptions) return;
+    
+    const { recipe, date, mealType, existingPlanId } = showRecipeOptions;
+    
+    if (existingPlanId) {
+      // Update existing meal plan
+      try {
+        const { error } = await supabase
+          .from("meal_plans")
+          .update({
+            selected_variant: selection.selectedVariant,
+            alternative_selections: selection.alternativeSelections,
+            servings_multiplier: selection.servingsMultiplier,
+          })
+          .eq("id", existingPlanId);
+
+        if (error) throw error;
+        
+        setShowRecipeOptions(null);
+        loadData();
+      } catch (error) {
+        console.error("Error updating meal plan:", error);
+      }
+    } else {
+      // Add new meal plan
+      addMealPlan(recipe.id, selection);
     }
+  };
+
+  // Open edit modal for existing plan
+  const openEditPlanOptions = (plan: MealPlan) => {
+    if (!plan.recipe) return;
+    
+    setShowRecipeOptions({
+      recipe: plan.recipe,
+      date: plan.plan_date,
+      mealType: plan.meal_type as MealType,
+      existingPlanId: plan.id,
+      initialSelection: {
+        selectedVariant: (plan.selected_variant as 1 | 2) || 1,
+        alternativeSelections: (plan.alternative_selections as Record<string, boolean>) || {},
+        servingsMultiplier: plan.servings_multiplier || 1,
+      },
+    });
   };
 
   const removeMealPlan = async (planId: string) => {
@@ -648,17 +702,19 @@ export default function PlannerPage() {
                         }`}
                       >
                         {plan && plan.recipe ? (
-                          <div className="relative h-full">
+                          <div className="relative h-full group/plan">
                             <button
-                              onClick={() => removeMealPlan(plan.id)}
-                              className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 hover:opacity-100 transition-opacity"
-                              style={{ opacity: 1 }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeMealPlan(plan.id);
+                              }}
+                              className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-70 sm:opacity-0 sm:group-hover/plan:opacity-100 hover:opacity-100 transition-opacity z-10"
                             >
                               ×
                             </button>
-                            <Link
-                              href={`/recipes/${plan.recipe.id}`}
-                              className="block h-full"
+                            <button
+                              onClick={() => openEditPlanOptions(plan)}
+                              className="w-full h-full text-left"
                             >
                               <span className="text-[10px] font-medium uppercase tracking-wide opacity-60">
                                 {MEAL_LABELS[mealType]}
@@ -666,7 +722,15 @@ export default function PlannerPage() {
                               <p className="text-xs font-medium line-clamp-2 mt-1">
                                 {plan.recipe.title}
                               </p>
-                            </Link>
+                              {/* Show servings info if different from default */}
+                              {plan.servings_multiplier && plan.servings_multiplier !== 1 && (
+                                <div className="flex items-center gap-1 mt-1">
+                                  <span className="text-[10px] bg-[var(--color-purple)] text-white px-1.5 py-0.5 rounded-full">
+                                    ×{plan.servings_multiplier}
+                                  </span>
+                                </div>
+                              )}
+                            </button>
                           </div>
                         ) : (
                           <button
@@ -704,7 +768,7 @@ export default function PlannerPage() {
       </main>
 
       {/* Recipe Selector Modal */}
-      {showRecipeSelector && (
+      {showRecipeSelector && !showRecipeOptions && (
         <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50">
           <div className="bg-white rounded-t-2xl sm:rounded-xl w-full sm:max-w-md max-h-[80vh] flex flex-col animate-fade-in">
             <div className="p-4 border-b border-[var(--border-color)]">
@@ -892,6 +956,7 @@ export default function PlannerPage() {
           }}
           recipe={showRecipeOptions.recipe}
           onConfirm={handleRecipeOptionsConfirm}
+          initialSelection={showRecipeOptions.initialSelection}
         />
       )}
 

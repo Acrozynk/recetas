@@ -8,6 +8,7 @@ interface RecipeCardProps {
   selectionMode?: boolean;
   isSelected?: boolean;
   onSelect?: (id: string, selected: boolean) => void;
+  onAddToPlanner?: (recipe: Recipe) => void;
 }
 
 export default function RecipeCard({ 
@@ -16,6 +17,7 @@ export default function RecipeCard({
   selectionMode = false,
   isSelected = false,
   onSelect,
+  onAddToPlanner,
 }: RecipeCardProps) {
   const totalTime =
     (recipe.prep_time_minutes || 0) + (recipe.cook_time_minutes || 0);
@@ -62,6 +64,22 @@ export default function RecipeCard({
             </svg>
             Hecho
           </div>
+        )}
+        {/* Add to planner button */}
+        {!selectionMode && onAddToPlanner && (
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onAddToPlanner(recipe);
+            }}
+            className="absolute bottom-2 right-2 z-10 w-8 h-8 flex items-center justify-center bg-white/90 backdrop-blur-sm text-[var(--color-purple)] rounded-full shadow-md opacity-0 group-hover:opacity-100 hover:bg-[var(--color-purple)] hover:text-white transition-all transform scale-90 group-hover:scale-100"
+            title="Añadir al menú"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </button>
         )}
           {/* Rating stars */}
           {recipe.rating && (
