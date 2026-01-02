@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { supabase, type Recipe, type Ingredient } from "@/lib/supabase";
+import { supabase, type Recipe, type Ingredient, type MealPlan } from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import RecipeCard from "@/components/RecipeCard";
@@ -111,12 +111,25 @@ interface ActiveImportSession {
   }[];
 }
 
+interface TodayMealPlan extends MealPlan {
+  recipe: Recipe;
+}
+
+const MEAL_LABELS: Record<string, string> = {
+  breakfast: "Desayuno",
+  lunch: "Comida",
+  snack: "Merienda",
+  dinner: "Cena",
+};
+
 export default function HomePage() {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [activeImportSession, setActiveImportSession] = useState<ActiveImportSession | null>(null);
+  const [todayMealPlans, setTodayMealPlans] = useState<TodayMealPlan[]>([]);
+  const [todayBannerDismissed, setTodayBannerDismissed] = useState(false);
   
   // Advanced filters
   const [showFilters, setShowFilters] = useState(false);
@@ -139,6 +152,17 @@ export default function HomePage() {
   useEffect(() => {
     loadRecipes();
     checkActiveImportSession();
+    checkTodayMealPlans();
+  }, []);
+
+  // Reset banner dismissal when date changes
+  useEffect(() => {
+    const today = new Date().toISOString().split("T")[0];
+    const lastDismissedDate = sessionStorage.getItem("todayBannerDismissedDate");
+    if (lastDismissedDate !== today) {
+      setTodayBannerDismissed(false);
+      sessionStorage.removeItem("todayBannerDismissedDate");
+    }
   }, []);
 
   const checkActiveImportSession = async () => {
@@ -151,6 +175,33 @@ export default function HomePage() {
     } catch (err) {
       console.error("Error checking import session:", err);
     }
+  };
+
+  const checkTodayMealPlans = async () => {
+    try {
+      const today = new Date().toISOString().split("T")[0];
+      const { data, error } = await supabase
+        .from("meal_plans")
+        .select("*, recipe:recipes(*)")
+        .eq("plan_date", today);
+
+      if (error) throw error;
+      
+      // Filter to only include plans with recipes
+      const plansWithRecipes = (data || []).filter(
+        (plan): plan is TodayMealPlan => plan.recipe !== null
+      );
+      
+      setTodayMealPlans(plansWithRecipes);
+    } catch (err) {
+      console.error("Error checking today's meal plans:", err);
+    }
+  };
+
+  const dismissTodayBanner = () => {
+    setTodayBannerDismissed(true);
+    const today = new Date().toISOString().split("T")[0];
+    sessionStorage.setItem("todayBannerDismissedDate", today);
   };
 
   const getImportProgress = () => {
@@ -372,6 +423,79 @@ export default function HomePage() {
               />
             </div>
           </Link>
+        )}
+
+        {/* Today's Recipes Banner */}
+        {todayMealPlans.length > 0 && !todayBannerDismissed && (
+          <div className="mb-4 p-4 bg-emerald-50 border border-emerald-300 rounded-xl animate-fade-in">
+            <div className="flex items-start gap-3">
+              <div className="flex-shrink-0 w-10 h-10 bg-emerald-200 rounded-full flex items-center justify-center">
+                <span className="text-xl">👨‍🍳</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-emerald-900">
+                  ¡Hoy toca cocinar!
+                </p>
+                <p className="text-sm text-emerald-700 mt-0.5">
+                  {todayMealPlans.length === 1
+                    ? `Tienes 1 receta planeada para hoy`
+                    : `Tienes ${todayMealPlans.length} recetas planeadas para hoy`}
+                </p>
+                
+                {/* Recipe list */}
+                <div className="mt-3 space-y-2">
+                  {todayMealPlans.map((plan) => (
+                    <Link
+                      key={plan.id}
+                      href={`/recipes/${plan.recipe_id}`}
+                      className="flex items-center gap-3 p-2 bg-white rounded-lg border border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50 transition-colors group"
+                    >
+                      {plan.recipe.image_url ? (
+                        <img
+                          src={plan.recipe.image_url}
+                          alt=""
+                          className="w-10 h-10 rounded-md object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-md bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                          <span className="text-lg">🍽️</span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-emerald-900 truncate group-hover:text-emerald-700">
+                          {plan.recipe.title}
+                        </p>
+                        <p className="text-xs text-emerald-600">
+                          {MEAL_LABELS[plan.meal_type] || plan.meal_type}
+                          {plan.servings_multiplier && plan.servings_multiplier !== 1 && (
+                            <span className="ml-1.5 px-1.5 py-0.5 bg-emerald-100 rounded-full text-emerald-700">
+                              ×{plan.servings_multiplier}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex-shrink-0 text-emerald-500 group-hover:text-emerald-700">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Dismiss button */}
+              <button
+                onClick={dismissTodayBanner}
+                className="flex-shrink-0 p-1 text-emerald-400 hover:text-emerald-600 transition-colors"
+                title="Ocultar por hoy"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Search bar with filter toggle */}

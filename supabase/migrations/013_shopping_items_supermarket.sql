@@ -18,3 +18,4 @@ ON shopping_items(supermarket);
 CREATE INDEX IF NOT EXISTS idx_shopping_items_week_supermarket 
 ON shopping_items(week_start, supermarket);
 
+
