@@ -99,9 +99,29 @@ export default function AddToPlannerModal({
 
   const hasAlternatives = ingredientsWithAlternatives.length > 0;
 
-  // Get servings display
-  const baseServings = recipe.servings || 4;
-  const servingsUnit = recipe.servings_unit || "personas";
+  // Determine if recipe uses containers (for baking recipes)
+  const usesContainer = !!recipe.container_id;
+  
+  // Get servings display based on recipe type
+  // Priority: container > servings_unit > personas
+  const getServingsUnit = () => {
+    if (usesContainer) {
+      // For container-based recipes, use variant label or container name
+      if (recipe.variant_1_label) {
+        return recipe.variant_1_label;
+      }
+      if (recipe.container?.name) {
+        return recipe.container.name;
+      }
+      return "recipiente";
+    }
+    return recipe.servings_unit || "personas";
+  };
+  
+  const baseServings = usesContainer 
+    ? (recipe.container_quantity || 1)
+    : (recipe.servings || 4);
+  const servingsUnit = getServingsUnit();
   const calculatedServings = Math.round(baseServings * servingsMultiplier * 10) / 10;
 
   // Get appropriate icon for servings unit
@@ -110,7 +130,8 @@ export default function AddToPlannerModal({
     if (unitLower === "personas" || unitLower === "persona" || unitLower === "porciones" || unitLower === "porción") {
       return "👥";
     }
-    if (unitLower === "recipiente" || unitLower === "recipientes" || unitLower === "molde" || unitLower === "moldes") {
+    if (unitLower === "recipiente" || unitLower === "recipientes" || unitLower === "molde" || unitLower === "moldes" ||
+        unitLower.includes("molde") || unitLower.includes("bandeja") || unitLower.includes("fuente")) {
       return "🥧";
     }
     if (unitLower === "unidades" || unitLower === "unidad") {
