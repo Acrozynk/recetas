@@ -31,6 +31,15 @@ function getWeekStart(): string {
 function categorizeIngredient(name: string): string {
   const lowerName = name.toLowerCase();
 
+  // Carnes y Mariscos (check first - meat products may contain vegetable names like "morcilla de cebolla")
+  if (
+    /\b(chicken|beef|pork|lamb|turkey|fish|salmon|shrimp|bacon|sausage|meat|steak|ground|pollo|res|cerdo|cordero|pavo|pescado|salmón|camarón|tocino|salchicha|carne|bistec|molida|panceta|jamón|chorizo|lomo|solomillo|chuleta|costilla|ternera|gambas?|langostinos?|mejillones?|almejas?|calamares?|pulpo|sepia|lonchas?|morcillas?|butifarras?|sobrasada|fuet|salchichón)\b/.test(
+      lowerName
+    )
+  ) {
+    return "Carnes y Mariscos";
+  }
+
   // Frutas y Verduras
   if (
     /\b(lettuce|tomato|onion|garlic|pepper|carrot|celery|potato|broccoli|spinach|kale|cucumber|zucchini|squash|mushroom|avocado|lemon|lime|orange|apple|banana|berry|fruit|vegetable|herb|cilantro|parsley|basil|mint|thyme|rosemary|lechuga|tomate|cebolla|ajos?|pimiento|zanahoria|apio|patatas?|papa|brócoli|espinaca|pepino|calabacín|champiñón|aguacate|limón|naranja|manzana|plátanos?|fruta|verdura|hierba|perejil|albahaca|menta|romero|puerro|berenjena|calabaza|judías verdes|guisantes|habas|remolacha|rábano|nabo|jengibre|dátiles?)\b/.test(
@@ -45,15 +54,6 @@ function categorizeIngredient(name: string): string {
     /\b(milk|cheese|butter|cream|yogurt|sour cream|egg|eggs|leche|queso|mantequilla|nata|crema|yogur|huevo|huevos)\b/.test(lowerName)
   ) {
     return "Lácteos";
-  }
-
-  // Carnes y Mariscos
-  if (
-    /\b(chicken|beef|pork|lamb|turkey|fish|salmon|shrimp|bacon|sausage|meat|steak|ground|pollo|res|cerdo|cordero|pavo|pescado|salmón|camarón|tocino|salchicha|carne|bistec|molida|panceta|jamón|chorizo|lomo|solomillo|chuleta|costilla|ternera|gambas?|langostinos?|mejillones?|almejas?|calamares?|pulpo|sepia|lonchas?)\b/.test(
-      lowerName
-    )
-  ) {
-    return "Carnes y Mariscos";
   }
 
   // Panadería
