@@ -33,7 +33,7 @@ function categorizeIngredient(name: string): string {
 
   // Frutas y Verduras
   if (
-    /\b(lettuce|tomato|onion|garlic|pepper|carrot|celery|potato|broccoli|spinach|kale|cucumber|zucchini|squash|mushroom|avocado|lemon|lime|orange|apple|banana|berry|fruit|vegetable|herb|cilantro|parsley|basil|mint|thyme|rosemary|lechuga|tomate|cebolla|ajo|pimiento|zanahoria|apio|patata|papa|brócoli|espinaca|pepino|calabacín|champiñón|aguacate|limón|naranja|manzana|plátano|fruta|verdura|hierba|perejil|albahaca|menta|romero)\b/.test(
+    /\b(lettuce|tomato|onion|garlic|pepper|carrot|celery|potato|broccoli|spinach|kale|cucumber|zucchini|squash|mushroom|avocado|lemon|lime|orange|apple|banana|berry|fruit|vegetable|herb|cilantro|parsley|basil|mint|thyme|rosemary|lechuga|tomate|cebolla|ajos?|pimiento|zanahoria|apio|patatas?|papa|brócoli|espinaca|pepino|calabacín|champiñón|aguacate|limón|naranja|manzana|plátanos?|fruta|verdura|hierba|perejil|albahaca|menta|romero|puerro|berenjena|calabaza|judías verdes|guisantes|habas|remolacha|rábano|nabo|jengibre|dátiles?)\b/.test(
       lowerName
     )
   ) {
@@ -49,7 +49,7 @@ function categorizeIngredient(name: string): string {
 
   // Carnes y Mariscos
   if (
-    /\b(chicken|beef|pork|lamb|turkey|fish|salmon|shrimp|bacon|sausage|meat|steak|ground|pollo|res|cerdo|cordero|pavo|pescado|salmón|camarón|tocino|salchicha|carne|bistec|molida)\b/.test(
+    /\b(chicken|beef|pork|lamb|turkey|fish|salmon|shrimp|bacon|sausage|meat|steak|ground|pollo|res|cerdo|cordero|pavo|pescado|salmón|camarón|tocino|salchicha|carne|bistec|molida|panceta|jamón|chorizo|lomo|solomillo|chuleta|costilla|ternera|gambas?|langostinos?|mejillones?|almejas?|calamares?|pulpo|sepia|lonchas?)\b/.test(
       lowerName
     )
   ) {
@@ -71,9 +71,9 @@ function categorizeIngredient(name: string): string {
     return "Bebidas";
   }
 
-  // Despensa (default for most dry goods, canned items, etc.)
+  // Despensa (dry goods, canned items, spices, legumes, etc.)
   if (
-    /\b(flour|sugar|salt|oil|vinegar|sauce|pasta|rice|bean|can|stock|broth|spice|seasoning|harina|azúcar|sal|aceite|vinagre|salsa|arroz|frijol|lata|caldo|especia|condimento)\b/.test(
+    /\b(flour|sugar|salt|oil|vinegar|sauce|pasta|rice|bean|can|stock|broth|spice|seasoning|harina|azúcar|sal|aceite|vinagre|salsa|arroz|frijol|lata|caldo|especia|condimento|azafrán|canela|pimentón|orégano|tomillo|laurel|comino|cúrcuma|curry|nuez moscada|clavo|pimienta|garbanzos?|lentejas?|alubias?|conserva|cocidos?|bicarbonato|vainilla)\b/.test(
       lowerName
     )
   ) {
