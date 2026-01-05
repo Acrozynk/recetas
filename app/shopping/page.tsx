@@ -1123,11 +1123,18 @@ export default function ShoppingPage() {
         const alternativeSelections = plan.alternative_selections || {};
         const servingsMultiplier = plan.servings_multiplier || 1;
         
+        // Common pantry ingredients to exclude from shopping list
+        const excludedIngredients = ["sal", "agua", "especias", "pimienta", "pimienta negra"];
+        
         for (let idx = 0; idx < ingredients.length; idx++) {
           const ing = ingredients[idx];
           
           // Skip section headers
           if (ing.isHeader) continue;
+          
+          // Skip common pantry ingredients that most people already have
+          const ingredientNameLower = ing.name.toLowerCase().trim();
+          if (excludedIngredients.some(excluded => ingredientNameLower === excluded || ingredientNameLower.includes(excluded))) continue;
           
           // Check if we should use the alternative ingredient
           const useAlternative = alternativeSelections[idx.toString()] === true;
