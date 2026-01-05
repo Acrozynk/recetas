@@ -104,6 +104,42 @@ export default function AddToPlannerModal({
   const servingsUnit = recipe.servings_unit || "personas";
   const calculatedServings = Math.round(baseServings * servingsMultiplier * 10) / 10;
 
+  // Get appropriate icon for servings unit
+  const getServingsIcon = (unit: string) => {
+    const unitLower = unit.toLowerCase();
+    if (unitLower === "personas" || unitLower === "persona" || unitLower === "porciones" || unitLower === "porción") {
+      return "👥";
+    }
+    if (unitLower === "recipiente" || unitLower === "recipientes" || unitLower === "molde" || unitLower === "moldes") {
+      return "🥧";
+    }
+    if (unitLower === "unidades" || unitLower === "unidad") {
+      return "🔢";
+    }
+    if (unitLower.includes("tortita") || unitLower.includes("panqueque") || unitLower.includes("crepe")) {
+      return "🥞";
+    }
+    if (unitLower.includes("galleta") || unitLower.includes("cookie")) {
+      return "🍪";
+    }
+    if (unitLower.includes("muffin") || unitLower.includes("magdalena") || unitLower.includes("cupcake")) {
+      return "🧁";
+    }
+    if (unitLower.includes("pan") || unitLower.includes("barra") || unitLower.includes("hogaza")) {
+      return "🍞";
+    }
+    if (unitLower.includes("taza") || unitLower.includes("cup") || unitLower.includes("vaso")) {
+      return "🥤";
+    }
+    if (unitLower.includes("ración") || unitLower.includes("racion")) {
+      return "🍽️";
+    }
+    // Default icon for other units
+    return "📊";
+  };
+
+  const servingsIcon = getServingsIcon(servingsUnit);
+
   const quickMultipliers = [0.5, 1, 1.5, 2, 3];
 
   const handleDateMealSelect = (date: string, mealType: MealType) => {
@@ -295,7 +331,7 @@ export default function AddToPlannerModal({
               {/* Servings/Portions Selector */}
               <div>
                 <h4 className="font-semibold text-[var(--foreground)] mb-3 flex items-center gap-2">
-                  <span className="text-lg">👥</span>
+                  <span className="text-lg">{servingsIcon}</span>
                   Porciones
                 </h4>
                 <div className="bg-[var(--color-purple-bg)] rounded-xl p-4">
@@ -522,5 +558,6 @@ export default function AddToPlannerModal({
     </div>
   );
 }
+
 
 
