@@ -1007,6 +1007,7 @@ export default function ShoppingPage() {
         .from("shopping_items")
         .select("*")
         .eq("week_start", weekStart)
+        .eq("supermarket", selectedSupermarket)
         .order("category")
         .order("checked")
         .order("name");
@@ -1018,7 +1019,7 @@ export default function ShoppingPage() {
     } finally {
       setLoading(false);
     }
-  }, [weekStart]);
+  }, [weekStart, selectedSupermarket]);
 
   useEffect(() => {
     loadItems();
@@ -1284,6 +1285,7 @@ export default function ShoppingPage() {
           checked: false,
           week_start: weekStart,
           recipe_id: null,
+          supermarket: selectedSupermarket,
         },
       ]);
 
@@ -1333,6 +1335,7 @@ export default function ShoppingPage() {
           checked: false,
           week_start: weekStart,
           recipe_id: null,
+          supermarket: selectedSupermarket,
         },
       ]);
 
