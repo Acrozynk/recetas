@@ -1290,10 +1290,12 @@ export default function ShoppingPage() {
 
       // Update existing items with combined quantities and merged recipe sources
       for (const update of itemsToUpdate) {
-        await supabase
+        const { error: updateError } = await supabase
           .from("shopping_items")
           .update({ quantity: update.quantity, recipe_sources: update.recipe_sources })
           .eq("id", update.id);
+        
+        if (updateError) throw updateError;
       }
 
       // Insert new items
@@ -1308,7 +1310,11 @@ export default function ShoppingPage() {
       loadItems();
     } catch (error) {
       console.error("Error adding ingredients:", error);
-      alert("Error al añadir ingredientes. Por favor, inténtalo de nuevo.");
+      const errorMessage = error instanceof Error ? error.message : 
+        (typeof error === 'object' && error !== null && 'message' in error) 
+          ? (error as { message: string }).message 
+          : "Error desconocido";
+      alert(`Error al añadir ingredientes: ${errorMessage}`);
     }
   };
 
