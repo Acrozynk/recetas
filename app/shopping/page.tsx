@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { supabase, type ShoppingItem, type MealPlan, type Ingredient, type SupermarketName, type SupermarketCategoryOrder, SUPERMARKETS, SUPERMARKET_COLORS, DEFAULT_CATEGORIES } from "@/lib/supabase";
+import { supabase, type ShoppingItem, type MealPlan, type Ingredient, type SupermarketName, type SupermarketCategoryOrder, type ItemSupermarketHistory, SUPERMARKETS, SUPERMARKET_COLORS, DEFAULT_CATEGORIES } from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import { searchGroceries, type GroceryProduct, GROCERY_CATEGORIES } from "@/lib/spanish-groceries";
@@ -950,6 +950,11 @@ export default function ShoppingPage() {
   const [categoryOrder, setCategoryOrder] = useState<string[]>([...DEFAULT_CATEGORIES]);
   const [loadingCategoryOrder, setLoadingCategoryOrder] = useState(true);
 
+  // Suggestions state
+  const [suggestions, setSuggestions] = useState<ItemSupermarketHistory[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
   const weekStart = getWeekStart();
 
   // Load category order for selected supermarket
@@ -1024,6 +1029,59 @@ export default function ShoppingPage() {
   useEffect(() => {
     loadItems();
   }, [loadItems]);
+
+  // Load suggestions for the selected supermarket
+  const loadSuggestions = useCallback(async () => {
+    setLoadingSuggestions(true);
+    try {
+      const response = await fetch(`/api/shopping-lists/suggestions?supermarket=${selectedSupermarket}&limit=30`);
+      if (response.ok) {
+        const data: ItemSupermarketHistory[] = await response.json();
+        // Filter out items that are already in the current list
+        const currentItemNames = new Set(items.map(item => item.name.toLowerCase().trim()));
+        const filteredSuggestions = data.filter(
+          suggestion => !currentItemNames.has(suggestion.item_name_normalized)
+        );
+        setSuggestions(filteredSuggestions);
+      }
+    } catch (error) {
+      console.error("Error loading suggestions:", error);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  }, [selectedSupermarket, items]);
+
+  // Load suggestions when supermarket changes or items change
+  useEffect(() => {
+    if (showSuggestions) {
+      loadSuggestions();
+    }
+  }, [loadSuggestions, showSuggestions]);
+
+  const addSuggestionToList = async (suggestion: ItemSupermarketHistory) => {
+    try {
+      const category = categorizeIngredient(suggestion.item_name);
+      const { error } = await supabase.from("shopping_items").insert([
+        {
+          name: suggestion.item_name,
+          quantity: null,
+          category: category,
+          checked: false,
+          week_start: weekStart,
+          recipe_id: null,
+          supermarket: selectedSupermarket,
+        },
+      ]);
+
+      if (error) throw error;
+
+      // Remove from suggestions immediately for better UX
+      setSuggestions(prev => prev.filter(s => s.id !== suggestion.id));
+      loadItems();
+    } catch (error) {
+      console.error("Error adding suggestion:", error);
+    }
+  };
 
   const generateFromMealPlan = async () => {
     setGenerating(true);
@@ -1570,6 +1628,84 @@ export default function ShoppingPage() {
               </>
             )}
           </button>
+        </div>
+
+        {/* Suggestions Section */}
+        <div className="mb-6">
+          <button
+            onClick={() => {
+              setShowSuggestions(!showSuggestions);
+              if (!showSuggestions) {
+                loadSuggestions();
+              }
+            }}
+            className="w-full flex items-center justify-between p-3 bg-[var(--color-purple-bg)] rounded-xl hover:bg-[var(--color-purple-bg-dark)] transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-xl">💡</span>
+              <span className="font-medium text-[var(--foreground)]">
+                ¿Te falta algo?
+              </span>
+              <span className="text-sm text-[var(--color-slate)]">
+                Sugerencias de {selectedSupermarket}
+              </span>
+            </div>
+            <svg
+              className={`w-5 h-5 text-[var(--color-slate)] transition-transform ${showSuggestions ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          
+          {showSuggestions && (
+            <div className="mt-2 bg-white rounded-xl border border-[var(--border-color)] overflow-hidden">
+              {loadingSuggestions ? (
+                <div className="p-4 flex items-center justify-center gap-2 text-[var(--color-slate)]">
+                  <div className="w-4 h-4 border-2 border-[var(--color-purple)] border-t-transparent rounded-full animate-spin" />
+                  Cargando sugerencias...
+                </div>
+              ) : suggestions.length > 0 ? (
+                <>
+                  <div className="p-3 bg-[var(--color-purple-bg)] border-b border-[var(--border-color)]">
+                    <p className="text-sm text-[var(--color-slate)]">
+                      Productos que sueles comprar en <strong>{selectedSupermarket}</strong> y no están en tu lista:
+                    </p>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    <div className="flex flex-wrap gap-2 p-3">
+                      {suggestions.map((suggestion) => (
+                        <button
+                          key={suggestion.id}
+                          onClick={() => addSuggestionToList(suggestion)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--color-purple-bg)] hover:bg-[var(--color-purple-bg-dark)] rounded-full text-sm text-[var(--foreground)] transition-all hover:scale-105 active:scale-95"
+                        >
+                          <svg className="w-4 h-4 text-[var(--color-purple)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          {suggestion.item_name}
+                          {suggestion.frequency > 1 && (
+                            <span className="text-xs text-[var(--color-slate-light)]">
+                              ({suggestion.frequency}×)
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="p-4 text-center text-[var(--color-slate)]">
+                  <p>No hay sugerencias disponibles aún.</p>
+                  <p className="text-sm text-[var(--color-slate-light)] mt-1">
+                    A medida que uses la app, aprenderemos tus productos favoritos de cada supermercado.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Progress */}
