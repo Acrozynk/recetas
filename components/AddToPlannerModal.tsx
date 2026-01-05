@@ -175,14 +175,19 @@ export default function AddToPlannerModal({
     setSaving(true);
     try {
       // Delete existing plan for this slot if any
-      await supabase
+      const { error: deleteError } = await supabase
         .from("meal_plans")
         .delete()
         .eq("plan_date", selectedDate)
         .eq("meal_type", selectedMealType);
 
+      if (deleteError) {
+        console.error("Error deleting existing meal plan:", deleteError);
+        throw deleteError;
+      }
+
       // Insert new plan with all options
-      const { error } = await supabase.from("meal_plans").insert([
+      const { error: insertError } = await supabase.from("meal_plans").insert([
         {
           plan_date: selectedDate,
           meal_type: selectedMealType,
@@ -193,13 +198,20 @@ export default function AddToPlannerModal({
         },
       ]);
 
-      if (error) throw error;
+      if (insertError) {
+        console.error("Error inserting meal plan:", insertError);
+        throw insertError;
+      }
 
       onClose();
       onSuccess?.();
     } catch (error) {
       console.error("Error adding meal plan:", error);
-      alert("Error al añadir al planificador");
+      const errorMessage = error instanceof Error ? error.message : 
+        (typeof error === 'object' && error !== null && 'message' in error) 
+          ? (error as { message: string }).message 
+          : "Error desconocido";
+      alert(`Error al añadir al planificador: ${errorMessage}`);
     } finally {
       setSaving(false);
     }
