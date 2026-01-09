@@ -1496,8 +1496,12 @@ export default function ShoppingPage() {
     }
   };
 
-  // Group items by category
-  const groupedItems = items.reduce(
+  // Separate checked and unchecked items
+  const uncheckedItems = items.filter((item) => !item.checked);
+  const checkedItems = items.filter((item) => item.checked);
+
+  // Group only unchecked items by category
+  const groupedItems = uncheckedItems.reduce(
     (acc, item) => {
       const category = item.category || "Otros";
       if (!acc[category]) acc[category] = [];
@@ -1507,7 +1511,7 @@ export default function ShoppingPage() {
     {} as Record<string, ShoppingItem[]>
   );
 
-  const checkedCount = items.filter((i) => i.checked).length;
+  const checkedCount = checkedItems.length;
   const totalCount = items.length;
 
   const supermarketColor = SUPERMARKET_COLORS[selectedSupermarket];
@@ -1754,7 +1758,7 @@ export default function ShoppingPage() {
           </div>
         ) : totalCount > 0 ? (
           <div className="space-y-6">
-            {/* Use custom category order for this supermarket */}
+            {/* Unchecked items grouped by category */}
             {categoryOrder.filter((cat) => groupedItems[cat]?.length > 0).map(
               (category) => (
                 <div key={category}>
@@ -1769,9 +1773,7 @@ export default function ShoppingPage() {
                     {groupedItems[category].map((item) => (
                       <div
                         key={item.id}
-                        className={`flex items-center gap-2 p-3 transition-colors ${
-                          item.checked ? "bg-[var(--color-purple-bg-dark)]" : ""
-                        }`}
+                        className="flex items-center gap-2 p-3 transition-colors"
                       >
                         <input
                           type="checkbox"
@@ -1784,23 +1786,17 @@ export default function ShoppingPage() {
                           className="flex-1 min-w-0 text-left hover:bg-[var(--color-purple-bg)] rounded-lg px-2 py-1 transition-colors"
                         >
                           <div className="flex items-baseline gap-2 flex-wrap">
-                            <span
-                              className={`${
-                                item.checked
-                                  ? "line-through text-[var(--color-slate-light)]"
-                                  : "text-[var(--foreground)]"
-                              }`}
-                            >
+                            <span className="text-[var(--foreground)]">
                               {item.name}
                             </span>
                             {item.quantity && (
-                              <span className={`text-sm font-medium ${item.checked ? "text-[var(--color-slate-light)]" : "text-[var(--color-purple)]"}`}>
+                              <span className="text-sm font-medium text-[var(--color-purple)]">
                                 {item.quantity}
                               </span>
                             )}
                           </div>
                           {item.recipe_sources && item.recipe_sources.length > 0 && (
-                            <p className={`text-xs mt-0.5 truncate ${item.checked ? "text-[var(--color-slate-light)]" : "text-[var(--color-slate)]"}`}>
+                            <p className="text-xs mt-0.5 truncate text-[var(--color-slate)]">
                               📖 {item.recipe_sources.join(", ")}
                             </p>
                           )}
@@ -1809,12 +1805,7 @@ export default function ShoppingPage() {
                         <div className="flex items-center gap-1 flex-shrink-0">
                           <button
                             onClick={() => adjustQuantity(item, -1)}
-                            disabled={item.checked}
-                            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-                              item.checked 
-                                ? "bg-gray-100 text-gray-300 cursor-not-allowed" 
-                                : "bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] active:scale-95"
-                            }`}
+                            className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] active:scale-95"
                             title="Reducir cantidad"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1823,12 +1814,7 @@ export default function ShoppingPage() {
                           </button>
                           <button
                             onClick={() => adjustQuantity(item, 1)}
-                            disabled={item.checked}
-                            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
-                              item.checked 
-                                ? "bg-gray-100 text-gray-300 cursor-not-allowed" 
-                                : "bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] active:scale-95"
-                            }`}
+                            className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] active:scale-95"
                             title="Aumentar cantidad"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1849,6 +1835,52 @@ export default function ShoppingPage() {
                   </div>
                 </div>
               )
+            )}
+
+            {/* Checked items - all together at the bottom without categories */}
+            {checkedItems.length > 0 && (
+              <div className="pt-4 border-t-2 border-dashed border-[var(--border-color)]">
+                <h3 className="font-display text-lg font-semibold text-[var(--color-slate-light)] mb-2 flex items-center gap-2">
+                  <span className="text-xl">✓</span>
+                  En el carrito
+                  <span className="text-sm font-normal">({checkedItems.length})</span>
+                </h3>
+                <div className="bg-[var(--color-purple-bg)] rounded-xl border border-[var(--border-color)] divide-y divide-[var(--border-color)]">
+                  {checkedItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center gap-2 p-3 transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={item.checked}
+                        onChange={() => toggleItem(item)}
+                        className="checkbox flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2 flex-wrap">
+                          <span className="line-through text-[var(--color-slate-light)]">
+                            {item.name}
+                          </span>
+                          {item.quantity && (
+                            <span className="text-sm font-medium text-[var(--color-slate-light)] line-through">
+                              {item.quantity}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deleteItem(item.id)}
+                        className="p-1 text-[var(--color-slate-light)] hover:text-red-600 transition-colors flex-shrink-0"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         ) : (

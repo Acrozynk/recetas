@@ -31,3 +31,5 @@ CREATE TRIGGER learn_from_shopping_items_trigger
   FOR EACH ROW
   EXECUTE FUNCTION learn_from_shopping_items();
 
+
+
