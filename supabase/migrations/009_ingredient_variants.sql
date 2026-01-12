@@ -27,5 +27,3 @@ ALTER TABLE recipes
 
 
 
-
-

@@ -50,5 +50,3 @@ generateIcons().catch(console.error);
 
 
 
-
-

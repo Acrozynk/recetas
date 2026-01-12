@@ -22,5 +22,3 @@ ON shopping_items(week_start, supermarket);
 
 
 
-
-
