@@ -21,9 +21,11 @@ const CATEGORY_ICONS: Record<string, string> = {
   "Otros": "🛒",
 };
 
-// Trash item interface (items with deleted_at set)
-interface TrashItem extends ShoppingItem {
-  deleted_at: string;
+function getWeekStart(): string {
+  const today = new Date();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - today.getDay() + 1);
+  return monday.toISOString().split("T")[0];
 }
 
 function categorizeIngredient(name: string): string {
@@ -953,10 +955,7 @@ export default function ShoppingPage() {
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  // Trash state
-  const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
-  const [showTrash, setShowTrash] = useState(false);
-  const [loadingTrash, setLoadingTrash] = useState(false);
+  const weekStart = getWeekStart();
 
   // Load category order for selected supermarket
   const loadCategoryOrder = useCallback(async () => {
@@ -1012,8 +1011,8 @@ export default function ShoppingPage() {
       const { data, error } = await supabase
         .from("shopping_items")
         .select("*")
+        .eq("week_start", weekStart)
         .eq("supermarket", selectedSupermarket)
-        .is("deleted_at", null)
         .order("category")
         .order("checked")
         .order("name");
@@ -1025,45 +1024,11 @@ export default function ShoppingPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedSupermarket]);
-
-  // Load trash items for selected supermarket
-  const loadTrashItems = useCallback(async () => {
-    setLoadingTrash(true);
-    try {
-      // Clean up items older than 30 days first
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
-      await supabase
-        .from("shopping_items")
-        .delete()
-        .eq("supermarket", selectedSupermarket)
-        .not("deleted_at", "is", null)
-        .lt("deleted_at", thirtyDaysAgo.toISOString());
-
-      // Now load remaining trash items
-      const { data, error } = await supabase
-        .from("shopping_items")
-        .select("*")
-        .eq("supermarket", selectedSupermarket)
-        .not("deleted_at", "is", null)
-        .order("deleted_at", { ascending: false });
-
-      if (error) throw error;
-      setTrashItems((data as TrashItem[]) || []);
-    } catch (error) {
-      console.error("Error loading trash items:", error);
-    } finally {
-      setLoadingTrash(false);
-    }
-  }, [selectedSupermarket]);
+  }, [weekStart, selectedSupermarket]);
 
   useEffect(() => {
     loadItems();
-    // Also load trash count on initial load
-    loadTrashItems();
-  }, [loadItems, loadTrashItems]);
+  }, [loadItems]);
 
   // Load suggestions for the selected supermarket
   const loadSuggestions = useCallback(async () => {
@@ -1102,6 +1067,7 @@ export default function ShoppingPage() {
           quantity: null,
           category: category,
           checked: false,
+          week_start: weekStart,
           recipe_id: null,
           supermarket: selectedSupermarket,
         },
@@ -1121,15 +1087,9 @@ export default function ShoppingPage() {
     setGenerating(true);
 
     try {
-      // Calculate current week's start (Monday)
-      const today = new Date();
-      const weekStartDate = new Date(today);
-      weekStartDate.setDate(today.getDate() - today.getDay() + 1);
-      const weekStart = weekStartDate.toISOString().split("T")[0];
-      
       // Get this week's meal plans with recipe details
-      const weekEnd = new Date(weekStartDate);
-      weekEnd.setDate(weekStartDate.getDate() + 6);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
 
       const { data: mealPlans, error: plansError } = await supabase
         .from("meal_plans")
@@ -1294,6 +1254,7 @@ export default function ShoppingPage() {
         quantity: string | null; 
         category: string; 
         checked: boolean; 
+        week_start: string; 
         recipe_id: string | null;
         recipe_sources: string[];
         supermarket: SupermarketName;
@@ -1326,6 +1287,7 @@ export default function ShoppingPage() {
             quantity: ing.quantity || null,
             category: ing.category,
             checked: false,
+            week_start: weekStart,
             recipe_id: null,
             recipe_sources: ing.recipes || [],
             supermarket: selectedSupermarket,
@@ -1392,6 +1354,7 @@ export default function ShoppingPage() {
           quantity: quantity.trim() || null,
           category: category,
           checked: false,
+          week_start: weekStart,
           recipe_id: null,
           supermarket: selectedSupermarket,
         },
@@ -1441,6 +1404,7 @@ export default function ShoppingPage() {
           name: product.name,
           category: product.category,
           checked: false,
+          week_start: weekStart,
           recipe_id: null,
           supermarket: selectedSupermarket,
         },
@@ -1456,132 +1420,49 @@ export default function ShoppingPage() {
 
   const deleteItem = async (id: string) => {
     try {
-      // Soft delete: set deleted_at instead of actually deleting
       const { error } = await supabase
         .from("shopping_items")
-        .update({ deleted_at: new Date().toISOString() })
+        .delete()
         .eq("id", id);
 
       if (error) throw error;
 
       setItems(items.filter((i) => i.id !== id));
-      // Refresh trash if it's open
-      if (showTrash) {
-        loadTrashItems();
-      }
     } catch (error) {
       console.error("Error deleting item:", error);
     }
   };
 
-  // Restore item from trash
-  const restoreItem = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from("shopping_items")
-        .update({ deleted_at: null, checked: false })
-        .eq("id", id);
-
-      if (error) throw error;
-
-      setTrashItems(trashItems.filter((i) => i.id !== id));
-      loadItems();
-    } catch (error) {
-      console.error("Error restoring item:", error);
-    }
-  };
-
-  // Permanently delete item from trash
-  const permanentlyDeleteItem = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from("shopping_items")
-        .delete()
-        .eq("id", id);
-
-      if (error) throw error;
-
-      setTrashItems(trashItems.filter((i) => i.id !== id));
-    } catch (error) {
-      console.error("Error permanently deleting item:", error);
-    }
-  };
-
-  // Empty entire trash for current supermarket
-  const emptyTrash = async () => {
-    if (!confirm("¿Seguro que quieres vaciar la papelera? Esta acción es permanente.")) return;
-    
-    try {
-      const { error } = await supabase
-        .from("shopping_items")
-        .delete()
-        .eq("supermarket", selectedSupermarket)
-        .not("deleted_at", "is", null);
-
-      if (error) throw error;
-
-      setTrashItems([]);
-    } catch (error) {
-      console.error("Error emptying trash:", error);
-    }
-  };
-
-  // Restore all items from trash
-  const restoreAllTrash = async () => {
-    try {
-      const { error } = await supabase
-        .from("shopping_items")
-        .update({ deleted_at: null, checked: false })
-        .eq("supermarket", selectedSupermarket)
-        .not("deleted_at", "is", null);
-
-      if (error) throw error;
-
-      setTrashItems([]);
-      loadItems();
-    } catch (error) {
-      console.error("Error restoring all items:", error);
-    }
-  };
-
   const clearChecked = async () => {
     try {
-      // Soft delete: move to trash instead of deleting
       const { error } = await supabase
         .from("shopping_items")
-        .update({ deleted_at: new Date().toISOString() })
+        .delete()
+        .eq("week_start", weekStart)
         .eq("supermarket", selectedSupermarket)
-        .is("deleted_at", null)
         .eq("checked", true);
 
       if (error) throw error;
 
       loadItems();
-      if (showTrash) {
-        loadTrashItems();
-      }
     } catch (error) {
       console.error("Error clearing checked items:", error);
     }
   };
 
   const clearAll = async () => {
-    if (!confirm("¿Seguro que quieres vaciar toda la lista? Los productos irán a la papelera.")) return;
+    if (!confirm("¿Seguro que quieres vaciar toda la lista de compras?")) return;
     
     try {
-      // Soft delete: move to trash instead of deleting
       const { error } = await supabase
         .from("shopping_items")
-        .update({ deleted_at: new Date().toISOString() })
-        .eq("supermarket", selectedSupermarket)
-        .is("deleted_at", null);
+        .delete()
+        .eq("week_start", weekStart)
+        .eq("supermarket", selectedSupermarket);
 
       if (error) throw error;
 
       loadItems();
-      if (showTrash) {
-        loadTrashItems();
-      }
     } catch (error) {
       console.error("Error clearing all items:", error);
     }
@@ -1766,13 +1647,11 @@ export default function ShoppingPage() {
           </button>
         </div>
 
-        {/* Suggestions & Trash Section */}
-        <div className="mb-6 space-y-2">
-          {/* Suggestions Button */}
+        {/* Suggestions Section */}
+        <div className="mb-6">
           <button
             onClick={() => {
               setShowSuggestions(!showSuggestions);
-              setShowTrash(false);
               if (!showSuggestions) {
                 loadSuggestions();
               }
@@ -1790,42 +1669,6 @@ export default function ShoppingPage() {
             </div>
             <svg
               className={`w-5 h-5 text-[var(--color-slate)] transition-transform ${showSuggestions ? 'rotate-180' : ''}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-
-          {/* Trash Button */}
-          <button
-            onClick={() => {
-              setShowTrash(!showTrash);
-              setShowSuggestions(false);
-            }}
-            className={`w-full flex items-center justify-between p-3 rounded-xl transition-colors ${
-              showTrash 
-                ? 'bg-orange-100 hover:bg-orange-200' 
-                : 'bg-gray-100 hover:bg-gray-200'
-            }`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-xl">🗑️</span>
-              <span className="font-medium text-[var(--foreground)]">
-                Papelera
-              </span>
-              {trashItems.length > 0 && (
-                <span className="text-xs px-2 py-0.5 bg-orange-200 text-orange-700 rounded-full">
-                  {trashItems.length}
-                </span>
-              )}
-              <span className="text-sm text-[var(--color-slate)]">
-                Se vacía automáticamente en 30 días
-              </span>
-            </div>
-            <svg
-              className={`w-5 h-5 text-[var(--color-slate)] transition-transform ${showTrash ? 'rotate-180' : ''}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -1875,106 +1718,6 @@ export default function ShoppingPage() {
                   <p>No hay sugerencias disponibles aún.</p>
                   <p className="text-sm text-[var(--color-slate-light)] mt-1">
                     A medida que uses la app, aprenderemos tus productos favoritos de cada supermercado.
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Trash Content */}
-          {showTrash && (
-            <div className="mt-2 bg-white rounded-xl border border-orange-200 overflow-hidden">
-              {loadingTrash ? (
-                <div className="p-4 flex items-center justify-center gap-2 text-[var(--color-slate)]">
-                  <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                  Cargando papelera...
-                </div>
-              ) : trashItems.length > 0 ? (
-                <>
-                  <div className="p-3 bg-orange-50 border-b border-orange-200 flex items-center justify-between">
-                    <p className="text-sm text-orange-700">
-                      {trashItems.length} producto{trashItems.length !== 1 ? 's' : ''} en la papelera
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={restoreAllTrash}
-                        className="text-xs px-3 py-1.5 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors flex items-center gap-1"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                        </svg>
-                        Restaurar todo
-                      </button>
-                      <button
-                        onClick={emptyTrash}
-                        className="text-xs px-3 py-1.5 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors flex items-center gap-1"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                        Vaciar papelera
-                      </button>
-                    </div>
-                  </div>
-                  <div className="max-h-80 overflow-y-auto divide-y divide-orange-100">
-                    {trashItems.map((item) => {
-                      const deletedDate = new Date(item.deleted_at);
-                      const daysAgo = Math.floor((Date.now() - deletedDate.getTime()) / (1000 * 60 * 60 * 24));
-                      const daysLeft = 30 - daysAgo;
-                      
-                      return (
-                        <div
-                          key={item.id}
-                          className="flex items-center gap-3 p-3 hover:bg-orange-50 transition-colors"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-baseline gap-2 flex-wrap">
-                              <span className="text-[var(--foreground)]">{item.name}</span>
-                              {item.quantity && (
-                                <span className="text-sm text-[var(--color-slate)]">
-                                  {item.quantity}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-orange-600 mt-0.5">
-                              {daysAgo === 0 ? 'Hoy' : daysAgo === 1 ? 'Ayer' : `Hace ${daysAgo} días`} 
-                              {' · '}
-                              <span className={daysLeft <= 7 ? 'text-red-600 font-medium' : ''}>
-                                {daysLeft} día{daysLeft !== 1 ? 's' : ''} restante{daysLeft !== 1 ? 's' : ''}
-                              </span>
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => restoreItem(item.id)}
-                            className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition-colors"
-                            title="Restaurar"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => permanentlyDeleteItem(item.id)}
-                            className="p-2 text-red-500 hover:bg-red-100 rounded-lg transition-colors"
-                            title="Eliminar permanentemente"
-                          >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </>
-              ) : (
-                <div className="p-6 text-center text-[var(--color-slate)]">
-                  <div className="w-12 h-12 mx-auto mb-2 bg-gray-100 rounded-full flex items-center justify-center">
-                    <span className="text-2xl">🗑️</span>
-                  </div>
-                  <p>La papelera está vacía</p>
-                  <p className="text-sm text-[var(--color-slate-light)] mt-1">
-                    Los productos que borres aparecerán aquí
                   </p>
                 </div>
               )}
