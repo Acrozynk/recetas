@@ -33,7 +33,7 @@ function categorizeIngredient(name: string): string {
 
   // Carnes y Mariscos (check first - meat products may contain vegetable names like "morcilla de cebolla")
   if (
-    /\b(chicken|beef|pork|lamb|turkey|fish|salmon|shrimp|bacon|sausage|meat|steak|ground|pollo|res|cerdo|cordero|pavo|pescado|salmón|camarón|tocino|salchicha|carne|bistec|molida|panceta|jamón|chorizo|lomo|solomillo|chuleta|costilla|ternera|gambas?|langostinos?|mejillones?|almejas?|calamares?|pulpo|sepia|lonchas?|morcillas?|butifarras?|sobrasada|fuet|salchichón)\b/.test(
+    /\b(chicken|beef|pork|lamb|turkey|fish|salmon|shrimp|bacon|sausage|meat|steak|ground|pollo|res|cerdo|cordero|pavo|salmón|camarón|tocino|salchicha|carne|bistec|molida|panceta|jamón|chorizo|lomo|solomillo|chuleta|costilla|ternera|gambas?|langostinos?|mejillones?|almejas?|calamares?|pulpo|sepia|lonchas?|morcillas?|butifarras?|sobrasada|fuet|salchichón)\b/.test(
       lowerName
     )
   ) {
@@ -73,7 +73,7 @@ function categorizeIngredient(name: string): string {
 
   // Despensa (dry goods, canned items, spices, legumes, etc.)
   if (
-    /\b(flour|sugar|salt|oil|vinegar|sauce|pasta|rice|bean|can|stock|broth|spice|seasoning|harina|azúcar|sal|aceite|vinagre|salsa|arroz|frijol|lata|caldo|especia|condimento|azafrán|canela|pimentón|orégano|tomillo|laurel|comino|cúrcuma|curry|nuez moscada|clavo|pimienta|garbanzos?|lentejas?|alubias?|conserva|cocidos?|bicarbonato|vainilla)\b/.test(
+    /\b(flour|sugar|salt|oil|vinegar|sauce|pasta|rice|bean|can|stock|broth|spice|seasoning|harina|azúcar|sal|aceite|vinagre|salsa|arroz|frijol|lata|caldo|especia|condimento|azafrán|canela|pimentón|orégano|tomillo|laurel|comino|cúrcuma|curry|nuez moscada|clavo|pimienta|garbanzos?|lentejas?|alubias?|conserva|cocidos?|bicarbonato|vainilla|pescado)\b/.test(
       lowerName
     )
   ) {
