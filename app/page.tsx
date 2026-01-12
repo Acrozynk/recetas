@@ -830,6 +830,23 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* Recipe count */}
+        {!loading && recipes.length > 0 && (
+          <div className="mb-4 flex items-center gap-2">
+            <span className="text-sm text-[var(--color-slate)]">
+              {filteredRecipes.length === recipes.length ? (
+                <span className="font-semibold text-[var(--foreground)]">{recipes.length}</span>
+              ) : (
+                <>
+                  <span className="font-semibold text-[var(--foreground)]">{filteredRecipes.length}</span> de{" "}
+                  <span className="font-semibold text-[var(--foreground)]">{recipes.length}</span>
+                </>
+              )}{" "}
+              {recipes.length === 1 ? "receta" : "recetas"}
+            </span>
+          </div>
+        )}
+
         {loading ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
             {[...Array(8)].map((_, i) => (
