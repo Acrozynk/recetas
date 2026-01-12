@@ -40,12 +40,12 @@ const TAG_GROUPS: TagGroup[] = [
   {
     name: "Bases",
     icon: "🍚",
-    keywords: ["arroz", "pasta", "patata", "pan", "hojaldre", "pizza", "legumbres", "lentejas", "garbanzos", "quinoa", "cuscús", "fideos", "macarrones", "espagueti", "ensalada", "bocadillo", "tortitas", "tortita", "salsa", "sandwich", "wrap", "taco", "burrito", "sopa", "crema", "puré", "caldo", "guiso", "estofado"],
+    keywords: ["arroz", "pasta", "patata", "pan", "hojaldre", "pizza", "legumbres", "lentejas", "garbanzos", "quinoa", "cuscús", "fideos", "macarrones", "espagueti", "ensalada", "bocadillo", "tortitas", "tortita", "salsa", "sandwich", "wrap", "taco", "burrito", "sopa", "crema", "puré", "caldo", "guiso", "estofado", "pescado"],
   },
   {
     name: "Proteínas",
     icon: "🥩",
-    keywords: ["pollo", "carne", "pescado", "cerdo", "ternera", "cordero", "pavo", "marisco", "gambas", "atún", "salmón", "huevo", "tofu", "seitan"],
+    keywords: ["pollo", "carne", "cerdo", "ternera", "cordero", "pavo", "marisco", "gambas", "atún", "salmón", "huevo", "tofu", "seitan"],
   },
   {
     name: "Cocina",
