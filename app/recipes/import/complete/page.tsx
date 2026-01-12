@@ -23,7 +23,8 @@ export default function ImportCompletePage() {
 
   const loadStats = async () => {
     try {
-      const response = await fetch("/api/import-session");
+      // Include completed sessions since we arrive here after completing an import
+      const response = await fetch("/api/import-session?includeCompleted=true");
       const data = await response.json();
 
       if (data.session) {

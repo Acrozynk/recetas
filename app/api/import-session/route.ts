@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get("id");
+    const includeCompleted = searchParams.get("includeCompleted") === "true";
 
     if (sessionId) {
       // Get specific session
@@ -39,11 +40,11 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Session not found" }, { status: 404 });
       }
 
-      return NextResponse.json(data);
+      return NextResponse.json({ session: data });
     }
 
     // Get active session (most recent)
-    const { data, error } = await supabase
+    const { data: activeSession, error: activeError } = await supabase
       .from("import_sessions")
       .select("*")
       .eq("status", "active")
@@ -51,31 +52,46 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .single();
 
-    if (error && error.code !== "PGRST116") {
+    if (activeError && activeError.code !== "PGRST116") {
       // PGRST116 = no rows returned
-      console.error("Error fetching session:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("Error fetching session:", activeError);
+      return NextResponse.json({ error: activeError.message }, { status: 500 });
     }
 
-    // If we have a session, find the first pending recipe to resume from
-    if (data) {
-      const recipes: ImportRecipeEntry[] = data.recipes;
+    // If we have an active session, find the first pending recipe to resume from
+    if (activeSession) {
+      const recipes: ImportRecipeEntry[] = activeSession.recipes;
       const firstPendingIndex = recipes.findIndex((r) => r.status === "pending");
       
       // If there's a pending recipe and current_index is not pointing to a pending one,
       // update the session to point to the first pending recipe
-      if (firstPendingIndex !== -1 && recipes[data.current_index]?.status !== "pending") {
-        data.current_index = firstPendingIndex;
+      if (firstPendingIndex !== -1 && recipes[activeSession.current_index]?.status !== "pending") {
+        activeSession.current_index = firstPendingIndex;
         
         // Update the session in the database too
         await supabase
           .from("import_sessions")
           .update({ current_index: firstPendingIndex })
-          .eq("id", data.id);
+          .eq("id", activeSession.id);
       }
+      
+      return NextResponse.json({ session: activeSession });
     }
 
-    return NextResponse.json({ session: data || null });
+    // No active session - if includeCompleted, return the most recently completed session
+    if (includeCompleted) {
+      const { data: completedSession } = await supabase
+        .from("import_sessions")
+        .select("*")
+        .eq("status", "completed")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      return NextResponse.json({ session: completedSession || null });
+    }
+
+    return NextResponse.json({ session: null });
   } catch (error) {
     console.error("GET session error:", error);
     return NextResponse.json(
