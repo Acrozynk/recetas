@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { supabase, type Recipe, type Ingredient, type MealPlan } from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
@@ -18,6 +19,8 @@ type MadeItFilter = "all" | "made" | "not_made";
 type RatingFilter = null | 0 | 1 | 2 | 3;
 // Tag operation for batch editing
 type TagOperation = "add" | "remove" | "replace";
+// Tag filter mode (OR = any tag matches, AND = all tags must match)
+type TagFilterMode = "or" | "and";
 
 // Tag grouping configuration
 interface TagGroup {
@@ -123,20 +126,65 @@ const MEAL_LABELS: Record<string, string> = {
 };
 
 export default function HomePage() {
+  const searchParams = useSearchParams();
+  
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [activeImportSession, setActiveImportSession] = useState<ActiveImportSession | null>(null);
   const [todayMealPlans, setTodayMealPlans] = useState<TodayMealPlan[]>([]);
   const [todayBannerDismissed, setTodayBannerDismissed] = useState(false);
   
-  // Advanced filters
-  const [showFilters, setShowFilters] = useState(false);
-  const [ingredientSearch, setIngredientSearch] = useState("");
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>("all");
-  const [madeItFilter, setMadeItFilter] = useState<MadeItFilter>("all");
-  const [ratingFilter, setRatingFilter] = useState<RatingFilter>(null);
+  // Initialize filter state from URL params
+  const [search, setSearch] = useState(() => searchParams.get("q") || "");
+  const [selectedTags, setSelectedTags] = useState<string[]>(() => {
+    const tags = searchParams.get("tags");
+    return tags ? tags.split(",").filter(Boolean) : [];
+  });
+  const [tagFilterMode, setTagFilterMode] = useState<TagFilterMode>(() => {
+    const mode = searchParams.get("tagMode");
+    return mode === "and" ? "and" : "or";
+  });
+  
+  // Advanced filters - initialized from URL
+  const [showFilters, setShowFilters] = useState(() => {
+    // Auto-show filters panel if any advanced filter is active
+    return !!(searchParams.get("ing") || searchParams.get("time") || searchParams.get("made") || searchParams.get("rating"));
+  });
+  const [ingredientSearch, setIngredientSearch] = useState(() => searchParams.get("ing") || "");
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>(() => {
+    const tf = searchParams.get("time");
+    return (tf === "quick" || tf === "medium" || tf === "long") ? tf : "all";
+  });
+  const [madeItFilter, setMadeItFilter] = useState<MadeItFilter>(() => {
+    const mf = searchParams.get("made");
+    return (mf === "made" || mf === "not_made") ? mf : "all";
+  });
+  const [ratingFilter, setRatingFilter] = useState<RatingFilter>(() => {
+    const rf = searchParams.get("rating");
+    if (rf === "0") return 0;
+    if (rf === "1") return 1;
+    if (rf === "2") return 2;
+    if (rf === "3") return 3;
+    return null;
+  });
+  
+  // Sync filters to URL (debounced to avoid too many URL updates)
+  useEffect(() => {
+    const params = new URLSearchParams();
+    
+    if (search) params.set("q", search);
+    if (selectedTags.length > 0) params.set("tags", selectedTags.join(","));
+    if (tagFilterMode !== "or") params.set("tagMode", tagFilterMode);
+    if (ingredientSearch) params.set("ing", ingredientSearch);
+    if (timeFilter !== "all") params.set("time", timeFilter);
+    if (madeItFilter !== "all") params.set("made", madeItFilter);
+    if (ratingFilter !== null) params.set("rating", String(ratingFilter));
+    
+    const newUrl = params.toString() ? `?${params.toString()}` : "/";
+    
+    // Use replaceState to update URL without adding to history
+    window.history.replaceState(null, "", newUrl);
+  }, [search, selectedTags, tagFilterMode, ingredientSearch, timeFilter, madeItFilter, ratingFilter]);
 
   // Batch selection state
   const [selectionMode, setSelectionMode] = useState(false);
@@ -265,10 +313,12 @@ export default function HomePage() {
       normalizeText(recipe.title).includes(normalizedSearch) ||
       normalizeText(recipe.description || "").includes(normalizedSearch);
 
-    // Tag filter
+    // Tag filter (OR = any tag matches, AND = all tags must match)
     const matchesTags =
       selectedTags.length === 0 ||
-      selectedTags.every((tag) => recipe.tags && recipe.tags.includes(tag));
+      (tagFilterMode === "or"
+        ? selectedTags.some((tag) => recipe.tags && recipe.tags.includes(tag))
+        : selectedTags.every((tag) => recipe.tags && recipe.tags.includes(tag)));
 
     // Ingredient search
     const matchesIngredient = !ingredientSearch || 
@@ -776,6 +826,23 @@ export default function HomePage() {
             {selectedTags.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-sm text-[var(--color-slate)]">Filtros activos:</span>
+                {/* OR/AND toggle - only show when more than 1 tag selected */}
+                {selectedTags.length > 1 && (
+                  <button
+                    onClick={() => setTagFilterMode(tagFilterMode === "or" ? "and" : "or")}
+                    className={`px-2 py-0.5 rounded-lg text-xs font-bold transition-all border ${
+                      tagFilterMode === "or"
+                        ? "bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200"
+                        : "bg-amber-100 text-amber-700 border-amber-300 hover:bg-amber-200"
+                    }`}
+                    title={tagFilterMode === "or" 
+                      ? "OR: muestra recetas con cualquiera de las etiquetas" 
+                      : "AND: muestra recetas con todas las etiquetas"
+                    }
+                  >
+                    {tagFilterMode === "or" ? "OR" : "AND"}
+                  </button>
+                )}
                 {selectedTags.map((tag) => (
                   <button
                     key={tag}
