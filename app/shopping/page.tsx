@@ -2500,23 +2500,6 @@ export default function ShoppingPage() {
                           selectedItems.has(item.id) ? "bg-[var(--color-purple-bg)]" : ""
                         }`}
                       >
-                        {/* Selection checkbox - always visible on the left edge */}
-                        <button
-                          onClick={() => toggleItemSelection(item.id)}
-                          className={`w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                            selectedItems.has(item.id)
-                              ? "bg-[var(--color-purple)] border-[var(--color-purple)]"
-                              : "border-[var(--color-slate-light)] hover:border-[var(--color-purple)]"
-                          }`}
-                          title="Seleccionar para mover/copiar"
-                        >
-                          {selectedItems.has(item.id) && (
-                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </button>
-                        
                         {/* Normal checkbox for marking as bought */}
                         <input
                           type="checkbox"
@@ -2566,6 +2549,20 @@ export default function ShoppingPage() {
                             </svg>
                           </button>
                         </div>
+                        {/* Move/Copy button */}
+                        <button
+                          onClick={() => toggleItemSelection(item.id)}
+                          className={`w-7 h-7 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
+                            selectedItems.has(item.id)
+                              ? "bg-[var(--color-purple)] text-white"
+                              : "bg-blue-100 text-blue-600 hover:bg-blue-200"
+                          }`}
+                          title="Seleccionar para mover/copiar a otro supermercado"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                          </svg>
+                        </button>
                         <button
                           onClick={() => deleteItem(item.id)}
                           className="p-1 text-[var(--color-slate-light)] hover:text-red-600 transition-colors flex-shrink-0"

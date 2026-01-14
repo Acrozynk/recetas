@@ -736,12 +736,22 @@ export default function PlannerPage() {
                             </button>
                             <button
                               onClick={() => openEditPlanOptions(plan)}
-                              className="w-full h-full text-left"
+                              className="w-full h-full text-left flex flex-col"
                             >
+                              {/* Recipe image */}
+                              {plan.recipe.image_url && (
+                                <div className="w-full aspect-[4/3] rounded-md overflow-hidden mb-1.5 flex-shrink-0">
+                                  <img
+                                    src={plan.recipe.image_url}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              )}
                               <span className="text-[10px] font-medium uppercase tracking-wide opacity-60">
                                 {MEAL_LABELS[mealType]}
                               </span>
-                              <p className="text-xs font-medium line-clamp-2 mt-1">
+                              <p className="text-xs font-medium line-clamp-2 mt-0.5">
                                 {plan.recipe.title}
                               </p>
                               {/* Show servings info if different from default */}
@@ -933,16 +943,31 @@ export default function PlannerPage() {
                     <button
                       key={recipe.id}
                       onClick={() => addMealPlan(recipe.id)}
-                      className="w-full text-left p-3 rounded-lg hover:bg-[var(--color-purple-bg-dark)] transition-colors"
+                      className="w-full text-left p-3 rounded-lg hover:bg-[var(--color-purple-bg-dark)] transition-colors flex items-center gap-3"
                     >
-                      <p className="font-medium text-[var(--foreground)]">
-                        {recipe.title}
-                      </p>
-                      {recipe.tags && recipe.tags.length > 0 && (
-                        <p className="text-xs text-[var(--color-slate-light)] mt-1">
-                          {recipe.tags.slice(0, 3).join(", ")}
-                        </p>
+                      {recipe.image_url ? (
+                        <img
+                          src={recipe.image_url}
+                          alt=""
+                          className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-lg bg-[var(--color-purple-bg)] flex items-center justify-center flex-shrink-0">
+                          <svg className="w-6 h-6 text-[var(--color-slate-light)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
                       )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-[var(--foreground)] truncate">
+                          {recipe.title}
+                        </p>
+                        {recipe.tags && recipe.tags.length > 0 && (
+                          <p className="text-xs text-[var(--color-slate-light)] mt-0.5 truncate">
+                            {recipe.tags.slice(0, 3).join(", ")}
+                          </p>
+                        )}
+                      </div>
                     </button>
                   ))}
                 </div>
