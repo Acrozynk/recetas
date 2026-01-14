@@ -1930,6 +1930,24 @@ export default function ShoppingPage() {
     }
   };
 
+  const markAllAsChecked = async () => {
+    try {
+      const { error } = await supabase
+        .from("shopping_items")
+        .update({ checked: true })
+        .eq("supermarket", selectedSupermarket)
+        .is("deleted_at", null)
+        .eq("checked", false);
+
+      if (error) throw error;
+
+      // Update local state
+      setItems(items.map(item => ({ ...item, checked: true })));
+    } catch (error) {
+      console.error("Error marking all items as checked:", error);
+    }
+  };
+
   const clearAll = async () => {
     if (!confirm("¿Seguro que quieres vaciar toda la lista? Los productos irán a la papelera.")) return;
     
@@ -2126,6 +2144,20 @@ export default function ShoppingPage() {
                     onClick={() => setShowClearMenu(false)}
                   />
                   <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-[var(--border-color)] py-1 z-50 min-w-[180px]">
+                    {uncheckedItems.length > 0 && (
+                      <button
+                        onClick={() => {
+                          markAllAsChecked();
+                          setShowClearMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-green-50 text-green-700 transition-colors flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Marcar todo ({uncheckedItems.length})
+                      </button>
+                    )}
                     {checkedCount > 0 && (
                       <button
                         onClick={() => {
