@@ -1953,18 +1953,21 @@ export default function ShoppingPage() {
   };
 
   // Selection mode handlers
-  const toggleSelectionMode = () => {
-    setSelectionMode(!selectionMode);
-    setSelectedItems(new Set());
-  };
-
   const toggleItemSelection = (itemId: string) => {
     setSelectedItems(prev => {
       const newSet = new Set(prev);
       if (newSet.has(itemId)) {
         newSet.delete(itemId);
+        // If no items selected, exit selection mode
+        if (newSet.size === 0) {
+          setSelectionMode(false);
+        }
       } else {
         newSet.add(itemId);
+        // If first item selected, enter selection mode
+        if (newSet.size === 1) {
+          setSelectionMode(true);
+        }
       }
       return newSet;
     });
@@ -1973,10 +1976,19 @@ export default function ShoppingPage() {
   const selectAllItems = () => {
     const allItemIds = uncheckedItems.map(item => item.id);
     setSelectedItems(new Set(allItemIds));
+    setSelectionMode(true);
   };
 
-  const deselectAllItems = () => {
+  const cancelSelection = () => {
     setSelectedItems(new Set());
+    setSelectionMode(false);
+  };
+
+  // Change supermarket and clear selection
+  const changeSupermarket = (market: SupermarketName) => {
+    setSelectedSupermarket(market);
+    setSelectedItems(new Set());
+    setSelectionMode(false);
   };
 
   const openMoveModalForSelection = () => {
@@ -2172,7 +2184,7 @@ export default function ShoppingPage() {
               return (
                 <button
                   key={market}
-                  onClick={() => setSelectedSupermarket(market)}
+                  onClick={() => changeSupermarket(market)}
                   className={`flex-1 py-2.5 px-4 rounded-xl font-medium text-sm transition-all border-2 ${
                     isSelected
                       ? `${colors.bg} ${colors.text} ${colors.border} shadow-sm`
@@ -2188,83 +2200,36 @@ export default function ShoppingPage() {
 
         {/* Action Buttons */}
         <div className="flex gap-3 mb-6">
-          {selectionMode ? (
-            <>
-              {/* Selection mode actions */}
-              <button
-                onClick={toggleSelectionMode}
-                className="btn-secondary flex items-center justify-center gap-2 px-4"
-              >
+          <button
+            onClick={() => setIsGroceryModalOpen(true)}
+            className="flex-1 btn-primary flex items-center justify-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Añadir Producto
+          </button>
+          
+          <button
+            onClick={generateFromMealPlan}
+            disabled={generating}
+            className="btn-secondary flex items-center justify-center gap-2 px-4"
+          >
+            {generating ? (
+              <>
+                <div className="w-5 h-5 border-2 border-[var(--color-purple)] border-t-transparent rounded-full animate-spin" />
+                <span className="hidden sm:inline">Generando...</span>
+              </>
+            ) : (
+              <>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                Cancelar
-              </button>
-              <button
-                onClick={selectAllItems}
-                className="btn-secondary flex items-center justify-center gap-2 px-4"
-              >
-                Seleccionar todo
-              </button>
-              {selectedItems.size > 0 && (
-                <button
-                  onClick={openMoveModalForSelection}
-                  className="flex-1 btn-primary flex items-center justify-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                  </svg>
-                  Mover/Copiar ({selectedItems.size})
-                </button>
-              )}
-            </>
-          ) : (
-            <>
-              <button
-                onClick={() => setIsGroceryModalOpen(true)}
-                className="flex-1 btn-primary flex items-center justify-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Añadir Producto
-              </button>
-              
-              <button
-                onClick={generateFromMealPlan}
-                disabled={generating}
-                className="btn-secondary flex items-center justify-center gap-2 px-4"
-              >
-                {generating ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-[var(--color-purple)] border-t-transparent rounded-full animate-spin" />
-                    <span className="hidden sm:inline">Generando...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span className="hidden sm:inline">Desde Menús</span>
-                    <span className="sm:hidden">Menús</span>
-                  </>
-                )}
-              </button>
-              
-              {uncheckedItems.length > 0 && (
-                <button
-                  onClick={toggleSelectionMode}
-                  className="btn-secondary flex items-center justify-center gap-2 px-4"
-                  title="Seleccionar artículos para mover o copiar"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                  </svg>
-                  <span className="hidden sm:inline">Mover</span>
-                </button>
-              )}
-            </>
-          )}
+                <span className="hidden sm:inline">Desde Menús</span>
+                <span className="sm:hidden">Menús</span>
+              </>
+            )}
+          </button>
         </div>
 
         {/* Suggestions & Trash Section */}
@@ -2532,36 +2497,36 @@ export default function ShoppingPage() {
                       <div
                         key={item.id}
                         className={`flex items-center gap-2 p-3 transition-colors ${
-                          selectionMode && selectedItems.has(item.id) ? "bg-[var(--color-purple-bg)]" : ""
+                          selectedItems.has(item.id) ? "bg-[var(--color-purple-bg)]" : ""
                         }`}
                       >
-                        {selectionMode ? (
-                          // Selection checkbox
-                          <button
-                            onClick={() => toggleItemSelection(item.id)}
-                            className={`w-6 h-6 rounded-lg border-2 flex-shrink-0 flex items-center justify-center transition-all ${
-                              selectedItems.has(item.id)
-                                ? "bg-[var(--color-purple)] border-[var(--color-purple)]"
-                                : "border-[var(--border-color)] hover:border-[var(--color-purple-light)]"
-                            }`}
-                          >
-                            {selectedItems.has(item.id) && (
-                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </button>
-                        ) : (
-                          // Normal checkbox
-                          <input
-                            type="checkbox"
-                            checked={item.checked}
-                            onChange={() => toggleItem(item)}
-                            className="checkbox flex-shrink-0"
-                          />
-                        )}
+                        {/* Selection checkbox - always visible on the left edge */}
                         <button
-                          onClick={() => selectionMode ? toggleItemSelection(item.id) : setEditingItem(item)}
+                          onClick={() => toggleItemSelection(item.id)}
+                          className={`w-5 h-5 rounded border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                            selectedItems.has(item.id)
+                              ? "bg-[var(--color-purple)] border-[var(--color-purple)]"
+                              : "border-[var(--color-slate-light)] hover:border-[var(--color-purple)]"
+                          }`}
+                          title="Seleccionar para mover/copiar"
+                        >
+                          {selectedItems.has(item.id) && (
+                            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </button>
+                        
+                        {/* Normal checkbox for marking as bought */}
+                        <input
+                          type="checkbox"
+                          checked={item.checked}
+                          onChange={() => toggleItem(item)}
+                          className="checkbox flex-shrink-0"
+                        />
+                        
+                        <button
+                          onClick={() => setEditingItem(item)}
                           className="flex-1 min-w-0 text-left hover:bg-[var(--color-purple-bg)] rounded-lg px-2 py-1 transition-colors"
                         >
                           <div className="flex items-baseline gap-2 flex-wrap">
@@ -2580,39 +2545,35 @@ export default function ShoppingPage() {
                             </p>
                           )}
                         </button>
-                        {!selectionMode && (
-                          <>
-                            {/* Quantity controls */}
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              <button
-                                onClick={() => adjustQuantity(item, -1)}
-                                className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] active:scale-95"
-                                title="Reducir cantidad"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                                </svg>
-                              </button>
-                              <button
-                                onClick={() => adjustQuantity(item, 1)}
-                                className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] active:scale-95"
-                                title="Aumentar cantidad"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                </svg>
-                              </button>
-                            </div>
-                            <button
-                              onClick={() => deleteItem(item.id)}
-                              className="p-1 text-[var(--color-slate-light)] hover:text-red-600 transition-colors flex-shrink-0"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          </>
-                        )}
+                        {/* Quantity controls */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            onClick={() => adjustQuantity(item, -1)}
+                            className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] active:scale-95"
+                            title="Reducir cantidad"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => adjustQuantity(item, 1)}
+                            className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] active:scale-95"
+                            title="Aumentar cantidad"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => deleteItem(item.id)}
+                          className="p-1 text-[var(--color-slate-light)] hover:text-red-600 transition-colors flex-shrink-0"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -2701,6 +2662,48 @@ export default function ShoppingPage() {
           </div>
         )}
       </main>
+
+      {/* Floating action bar when items are selected */}
+      {selectedItems.size > 0 && (
+        <div className="fixed bottom-20 left-4 right-4 z-40 animate-fade-in">
+          <div className="max-w-7xl mx-auto">
+            <div className="bg-white rounded-2xl shadow-xl border border-[var(--border-color)] p-3 flex items-center gap-3">
+              <div className="flex-1 flex items-center gap-2">
+                <span className="w-8 h-8 rounded-full bg-[var(--color-purple)] text-white flex items-center justify-center text-sm font-bold">
+                  {selectedItems.size}
+                </span>
+                <span className="text-sm text-[var(--color-slate)]">
+                  {selectedItems.size === 1 ? "artículo seleccionado" : "artículos seleccionados"}
+                </span>
+              </div>
+              <button
+                onClick={selectAllItems}
+                className="text-sm px-3 py-1.5 text-[var(--color-purple)] hover:bg-[var(--color-purple-bg)] rounded-lg transition-colors"
+              >
+                Todos
+              </button>
+              <button
+                onClick={cancelSelection}
+                className="p-2 text-[var(--color-slate)] hover:bg-gray-100 rounded-lg transition-colors"
+                title="Cancelar selección"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <button
+                onClick={openMoveModalForSelection}
+                className="btn-primary flex items-center gap-2 px-4 py-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                Mover / Copiar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <BottomNav />
 
