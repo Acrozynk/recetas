@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase, type Recipe, type Ingredient, type MealPlan } from "@/lib/supabase";
 import Header from "@/components/Header";
@@ -125,7 +125,7 @@ const MEAL_LABELS: Record<string, string> = {
   dinner: "Cena",
 };
 
-export default function HomePage() {
+function HomePageContent() {
   const searchParams = useSearchParams();
   
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -1196,5 +1196,36 @@ export default function HomePage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Loading fallback for Suspense
+function HomePageLoading() {
+  return (
+    <div className="min-h-screen pb-20">
+      <Header title="Recetas" showAdd showMascot />
+      <main className="max-w-7xl mx-auto p-4 lg:px-8">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+          {[...Array(8)].map((_, i) => (
+            <div key={i} className="recipe-card animate-pulse">
+              <div className="aspect-[4/3] bg-[var(--color-purple-bg-dark)]" />
+              <div className="p-4">
+                <div className="h-6 bg-[var(--color-purple-bg-dark)] rounded w-3/4 mb-2" />
+                <div className="h-4 bg-[var(--color-purple-bg-dark)] rounded w-1/2" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
+      <BottomNav />
+    </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={<HomePageLoading />}>
+      <HomePageContent />
+    </Suspense>
   );
 }
