@@ -2,10 +2,15 @@
 -- This migration:
 -- 1. Adds deleted_at column for soft delete (trash functionality)
 -- 2. Removes the week-based paradigm - items persist until manually deleted
+-- 3. Makes week_start nullable since we no longer use weekly resets
 
 -- Add deleted_at column for soft delete
 ALTER TABLE shopping_items 
 ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+-- Make week_start nullable - items now persist indefinitely
+ALTER TABLE shopping_items 
+ALTER COLUMN week_start DROP NOT NULL;
 
 -- Create index for efficient trash queries
 CREATE INDEX IF NOT EXISTS idx_shopping_items_deleted_at 
