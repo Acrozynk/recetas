@@ -33,3 +33,4 @@ CREATE TRIGGER learn_from_shopping_items_trigger
 
 
 
+

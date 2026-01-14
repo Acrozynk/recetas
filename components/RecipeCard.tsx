@@ -131,8 +131,8 @@ export default function RecipeCard({
           )}
         </div>
 
-        <div className="p-4 flex flex-col flex-1">
-          <h3 className="font-display text-lg font-semibold text-[var(--foreground)] line-clamp-2 group-hover:text-[var(--color-purple)] transition-colors">
+        <div className="p-3 sm:p-4 flex flex-col flex-1">
+          <h3 className="font-display text-base sm:text-lg font-semibold text-[var(--foreground)] line-clamp-3 sm:line-clamp-2 group-hover:text-[var(--color-purple)] transition-colors leading-snug">
             {recipe.title}
           </h3>
 
