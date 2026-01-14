@@ -161,7 +161,7 @@ export default function AddToPlannerModal({
 
   const servingsIcon = getServingsIcon(servingsUnit);
 
-  const quickMultipliers = [0.5, 1, 1.5, 2, 3];
+  const quickMultipliers = [0.5, 1, 2, 3, 4, 5, 8];
 
   const handleDateMealSelect = (date: string, mealType: MealType) => {
     setSelectedDate(date);
