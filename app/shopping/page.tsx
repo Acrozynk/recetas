@@ -2127,66 +2127,67 @@ export default function ShoppingPage() {
         title="Lista de Compras"
         rightAction={
           items.length > 0 ? (
-            <div className="relative">
-              <button
-                onClick={() => setShowClearMenu(!showClearMenu)}
-                className="p-2 text-[var(--color-slate)] hover:text-red-600 transition-colors"
-                title="Opciones de lista"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-              {showClearMenu && (
-                <>
-                  <div 
-                    className="fixed inset-0 z-40" 
-                    onClick={() => setShowClearMenu(false)}
-                  />
-                  <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-[var(--border-color)] py-1 z-50 min-w-[180px]">
-                    {uncheckedItems.length > 0 && (
+            <div className="flex items-center gap-1">
+              {/* Mark all as complete button */}
+              {uncheckedItems.length > 0 && (
+                <button
+                  onClick={markAllAsChecked}
+                  className="p-2 text-[var(--color-slate)] hover:text-green-600 transition-colors"
+                  title="Marcar todo como completado"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </button>
+              )}
+              {/* Trash menu button */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowClearMenu(!showClearMenu)}
+                  className="p-2 text-[var(--color-slate)] hover:text-red-600 transition-colors"
+                  title="Opciones de lista"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+                {showClearMenu && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setShowClearMenu(false)}
+                    />
+                    <div className="absolute right-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-[var(--border-color)] py-1 z-50 min-w-[180px]">
+                      {checkedCount > 0 && (
+                        <button
+                          onClick={() => {
+                            clearChecked();
+                            setShowClearMenu(false);
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--color-purple-bg)] transition-colors flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Quitar marcados ({checkedCount})
+                        </button>
+                      )}
                       <button
                         onClick={() => {
-                          markAllAsChecked();
+                          clearAll();
                           setShowClearMenu(false);
                         }}
-                        className="w-full px-4 py-2 text-left text-sm hover:bg-green-50 text-green-700 transition-colors flex items-center gap-2"
+                        className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 transition-colors flex items-center gap-2"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                         </svg>
-                        Marcar todo ({uncheckedItems.length})
+                        Vaciar toda la lista
                       </button>
-                    )}
-                    {checkedCount > 0 && (
-                      <button
-                        onClick={() => {
-                          clearChecked();
-                          setShowClearMenu(false);
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm hover:bg-[var(--color-purple-bg)] transition-colors flex items-center gap-2"
-                      >
-                        <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Quitar marcados ({checkedCount})
-                      </button>
-                    )}
-                    <button
-                      onClick={() => {
-                        clearAll();
-                        setShowClearMenu(false);
-                      }}
-                      className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 transition-colors flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      Vaciar toda la lista
-                    </button>
-                  </div>
-                </>
-              )}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           ) : undefined
         }
