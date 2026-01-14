@@ -1323,6 +1323,11 @@ export default function ShoppingPage() {
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [itemsToMove, setItemsToMove] = useState<ShoppingItem[]>([]);
 
+  // Undo state for mark all as checked
+  const [lastMarkedItems, setLastMarkedItems] = useState<string[]>([]);
+  const [showUndoToast, setShowUndoToast] = useState(false);
+  const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Load category order for selected supermarket
   const loadCategoryOrder = useCallback(async () => {
     setLoadingCategoryOrder(true);
@@ -1932,6 +1937,11 @@ export default function ShoppingPage() {
 
   const markAllAsChecked = async () => {
     try {
+      // Save the IDs of unchecked items for undo
+      const uncheckedIds = items.filter(item => !item.checked).map(item => item.id);
+      
+      if (uncheckedIds.length === 0) return;
+
       const { error } = await supabase
         .from("shopping_items")
         .update({ checked: true })
@@ -1943,8 +1953,51 @@ export default function ShoppingPage() {
 
       // Update local state
       setItems(items.map(item => ({ ...item, checked: true })));
+      
+      // Show undo toast
+      setLastMarkedItems(uncheckedIds);
+      setShowUndoToast(true);
+      
+      // Clear any existing timeout
+      if (undoTimeoutRef.current) {
+        clearTimeout(undoTimeoutRef.current);
+      }
+      
+      // Auto-hide toast after 5 seconds
+      undoTimeoutRef.current = setTimeout(() => {
+        setShowUndoToast(false);
+        setLastMarkedItems([]);
+      }, 5000);
     } catch (error) {
       console.error("Error marking all items as checked:", error);
+    }
+  };
+
+  const undoMarkAll = async () => {
+    if (lastMarkedItems.length === 0) return;
+    
+    try {
+      const { error } = await supabase
+        .from("shopping_items")
+        .update({ checked: false })
+        .in("id", lastMarkedItems);
+
+      if (error) throw error;
+
+      // Update local state
+      setItems(items.map(item => 
+        lastMarkedItems.includes(item.id) ? { ...item, checked: false } : item
+      ));
+      
+      // Hide toast and clear state
+      setShowUndoToast(false);
+      setLastMarkedItems([]);
+      
+      if (undoTimeoutRef.current) {
+        clearTimeout(undoTimeoutRef.current);
+      }
+    } catch (error) {
+      console.error("Error undoing mark all:", error);
     }
   };
 
@@ -2736,6 +2789,37 @@ export default function ShoppingPage() {
       )}
 
       <BottomNav />
+
+      {/* Undo Toast */}
+      {showUndoToast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
+          <div className="bg-gray-800 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3">
+            <span className="text-sm">
+              ✓ {lastMarkedItems.length} artículos marcados
+            </span>
+            <button
+              onClick={undoMarkAll}
+              className="text-sm font-semibold text-yellow-400 hover:text-yellow-300 transition-colors"
+            >
+              Deshacer
+            </button>
+            <button
+              onClick={() => {
+                setShowUndoToast(false);
+                setLastMarkedItems([]);
+                if (undoTimeoutRef.current) {
+                  clearTimeout(undoTimeoutRef.current);
+                }
+              }}
+              className="text-gray-400 hover:text-white transition-colors ml-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Grocery Search Modal */}
       <GrocerySearchModal
