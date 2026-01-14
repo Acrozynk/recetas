@@ -717,7 +717,7 @@ export default function PlannerPage() {
                     return (
                       <div
                         key={`${dateKey}-${mealType}`}
-                        className={`min-h-[80px] rounded-lg border-2 border-dashed p-2 transition-colors ${
+                        className={`min-h-[100px] rounded-lg border-2 border-dashed p-2 transition-colors ${
                           plan
                             ? `meal-${mealType} border-solid`
                             : "border-[var(--border-color)] hover:border-[var(--color-purple)]"
