@@ -7,6 +7,7 @@ import Link from "next/link";
 import { supabase, type Recipe, type Ingredient, type Instruction, type Container, normalizeInstructions } from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
+import AddToPlannerModal from "@/components/AddToPlannerModal";
 import { 
   convertIngredient, 
   isVolumeUnit, 
@@ -288,6 +289,7 @@ export default function RecipeDetailPage() {
   const [containerQuantity, setContainerQuantity] = useState(1);
   const [container, setContainer] = useState<Container | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showAddToPlanner, setShowAddToPlanner] = useState(false);
   const [cookingMode, setCookingMode] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
@@ -801,6 +803,20 @@ export default function RecipeDetailPage() {
                   strokeLinejoin="round"
                   strokeWidth={1.5}
                   d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+                />
+              </svg>
+            </button>
+            <button
+              onClick={() => setShowAddToPlanner(true)}
+              className="p-2 text-[var(--color-slate)] hover:text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] rounded-lg transition-colors"
+              title="Añadir al menú"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
                 />
               </svg>
             </button>
@@ -1786,6 +1802,13 @@ export default function RecipeDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Add to Planner Modal */}
+      <AddToPlannerModal
+        isOpen={showAddToPlanner}
+        onClose={() => setShowAddToPlanner(false)}
+        recipe={recipe}
+      />
 
       <BottomNav />
     </div>
