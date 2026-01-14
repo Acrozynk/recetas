@@ -542,17 +542,235 @@ function GrocerySearchModal({
   );
 }
 
+// Move/Copy Items Modal
+function MoveItemsModal({
+  isOpen,
+  onClose,
+  items,
+  currentSupermarket,
+  onMove,
+  onCopy,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  items: ShoppingItem[];
+  currentSupermarket: SupermarketName;
+  onMove: (items: ShoppingItem[], targetSupermarket: SupermarketName) => Promise<void>;
+  onCopy: (items: ShoppingItem[], targetSupermarket: SupermarketName) => Promise<void>;
+}) {
+  const [targetSupermarket, setTargetSupermarket] = useState<SupermarketName | null>(null);
+  const [action, setAction] = useState<"move" | "copy">("move");
+  const [processing, setProcessing] = useState(false);
+
+  // Reset state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setTargetSupermarket(null);
+      setAction("move");
+    }
+  }, [isOpen]);
+
+  const availableSupermarkets = SUPERMARKETS.filter(s => s !== currentSupermarket);
+
+  const handleConfirm = async () => {
+    if (!targetSupermarket) return;
+    setProcessing(true);
+    try {
+      if (action === "move") {
+        await onMove(items, targetSupermarket);
+      } else {
+        await onCopy(items, targetSupermarket);
+      }
+      onClose();
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <div className="relative bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl shadow-2xl animate-fade-in">
+        {/* Header */}
+        <div className="p-4 border-b border-[var(--border-color)]">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="font-display text-xl font-semibold text-[var(--foreground)]">
+                {items.length === 1 ? "Mover o Copiar Artículo" : `Mover o Copiar ${items.length} Artículos`}
+              </h2>
+              <p className="text-sm text-[var(--color-slate)] mt-1">
+                Desde <strong>{currentSupermarket}</strong>
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-[var(--color-purple-bg-dark)] rounded-full transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-4 space-y-4">
+          {/* Items preview */}
+          {items.length > 0 && items.length <= 5 && (
+            <div className="bg-[var(--color-purple-bg)] rounded-xl p-3">
+              <p className="text-xs text-[var(--color-slate)] mb-2">Artículos seleccionados:</p>
+              <div className="flex flex-wrap gap-2">
+                {items.map(item => (
+                  <span 
+                    key={item.id} 
+                    className="inline-flex items-center gap-1 px-2 py-1 bg-white rounded-lg text-sm"
+                  >
+                    {item.name}
+                    {item.quantity && (
+                      <span className="text-[var(--color-purple)] text-xs">({item.quantity})</span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Action selector */}
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-slate)] mb-2">
+              ¿Qué quieres hacer?
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setAction("move")}
+                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                  action === "move"
+                    ? "border-[var(--color-purple)] bg-[var(--color-purple-bg)]"
+                    : "border-[var(--border-color)] hover:border-[var(--color-purple-light)]"
+                }`}
+              >
+                <svg className="w-6 h-6 text-[var(--color-purple)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+                <span className="font-medium text-sm">Mover</span>
+                <span className="text-xs text-[var(--color-slate-light)]">Se quita de {currentSupermarket}</span>
+              </button>
+              <button
+                onClick={() => setAction("copy")}
+                className={`p-3 rounded-xl border-2 transition-all flex flex-col items-center gap-2 ${
+                  action === "copy"
+                    ? "border-[var(--color-purple)] bg-[var(--color-purple-bg)]"
+                    : "border-[var(--border-color)] hover:border-[var(--color-purple-light)]"
+                }`}
+              >
+                <svg className="w-6 h-6 text-[var(--color-purple)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <span className="font-medium text-sm">Copiar</span>
+                <span className="text-xs text-[var(--color-slate-light)]">Se mantiene en {currentSupermarket}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Target supermarket selector */}
+          <div>
+            <label className="block text-sm font-medium text-[var(--color-slate)] mb-2">
+              Supermercado destino
+            </label>
+            <div className="space-y-2">
+              {availableSupermarkets.map(market => {
+                const colors = SUPERMARKET_COLORS[market];
+                const isSelected = targetSupermarket === market;
+                return (
+                  <button
+                    key={market}
+                    onClick={() => setTargetSupermarket(market)}
+                    className={`w-full p-3 rounded-xl border-2 transition-all flex items-center gap-3 ${
+                      isSelected
+                        ? `${colors.bg} ${colors.border}`
+                        : "border-[var(--border-color)] hover:border-[var(--color-purple-light)]"
+                    }`}
+                  >
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${colors.bg}`}>
+                      <span className={`font-bold ${colors.text}`}>{market.charAt(0)}</span>
+                    </div>
+                    <span className={`font-medium ${isSelected ? colors.text : "text-[var(--foreground)]"}`}>
+                      {market}
+                    </span>
+                    {isSelected && (
+                      <svg className={`w-5 h-5 ml-auto ${colors.text}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 border-t border-[var(--border-color)] flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 btn-secondary"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={!targetSupermarket || processing}
+            className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {processing ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                {action === "move" ? "Moviendo..." : "Copiando..."}
+              </>
+            ) : (
+              <>
+                {action === "move" ? (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                )}
+                {action === "move" ? "Mover" : "Copiar"} a {targetSupermarket}
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Edit Item Modal Component
 function EditItemModal({
   item,
   onClose,
   onSave,
+  onMoveOrCopy,
   categoryOrder,
+  currentSupermarket,
 }: {
   item: ShoppingItem;
   onClose: () => void;
   onSave: (item: ShoppingItem, name: string, quantity: string, category?: string) => void;
+  onMoveOrCopy: (item: ShoppingItem) => void;
   categoryOrder: string[];
+  currentSupermarket: SupermarketName;
 }) {
   const [name, setName] = useState(item.name);
   const [quantity, setQuantity] = useState(item.quantity || "");
@@ -658,6 +876,21 @@ function EditItemModal({
             </select>
           </div>
 
+          {/* Move/Copy Button */}
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onMoveOrCopy(item);
+            }}
+            className="w-full p-3 rounded-xl border-2 border-[var(--border-color)] hover:border-[var(--color-purple-light)] hover:bg-[var(--color-purple-bg)] transition-all flex items-center justify-center gap-2 text-[var(--color-slate)]"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+            Mover o copiar a otro supermercado
+          </button>
+
           {/* Actions */}
           <div className="flex gap-3 pt-2">
             <button
@@ -682,7 +915,7 @@ function EditItemModal({
               )}
             </button>
           </div>
-          </form>
+        </form>
       </div>
     </div>
   );
@@ -699,6 +932,8 @@ interface PreviewIngredient {
 }
 
 // Ingredient Preview Modal - shows before adding from planner
+type GroupByMode = "recipe" | "category";
+
 function IngredientPreviewModal({
   isOpen,
   onClose,
@@ -714,6 +949,7 @@ function IngredientPreviewModal({
 }) {
   const [localIngredients, setLocalIngredients] = useState<PreviewIngredient[]>([]);
   const [saving, setSaving] = useState(false);
+  const [groupBy, setGroupBy] = useState<GroupByMode>("recipe");
 
   useEffect(() => {
     setLocalIngredients([...ingredients]);
@@ -741,6 +977,14 @@ function IngredientPreviewModal({
     );
   };
 
+  const toggleRecipe = (recipeName: string, selected: boolean) => {
+    setLocalIngredients(prev =>
+      prev.map(ing =>
+        ing.recipes.includes(recipeName) ? { ...ing, selected } : ing
+      )
+    );
+  };
+
   const handleConfirm = async () => {
     setSaving(true);
     const selected = localIngredients.filter(ing => ing.selected);
@@ -752,7 +996,7 @@ function IngredientPreviewModal({
   if (!isOpen) return null;
 
   // Group ingredients by category
-  const groupedIngredients = localIngredients.reduce(
+  const groupedByCategory = localIngredients.reduce(
     (acc, ing) => {
       const category = ing.category || "Otros";
       if (!acc[category]) acc[category] = [];
@@ -761,6 +1005,22 @@ function IngredientPreviewModal({
     },
     {} as Record<string, PreviewIngredient[]>
   );
+
+  // Group ingredients by recipe
+  const groupedByRecipe = localIngredients.reduce(
+    (acc, ing) => {
+      // An ingredient can belong to multiple recipes
+      for (const recipe of ing.recipes) {
+        if (!acc[recipe]) acc[recipe] = [];
+        acc[recipe].push(ing);
+      }
+      return acc;
+    },
+    {} as Record<string, PreviewIngredient[]>
+  );
+
+  // Get sorted recipe names
+  const recipeNames = Object.keys(groupedByRecipe).sort();
 
   const selectedCount = localIngredients.filter(i => i.selected).length;
   const totalCount = localIngredients.length;
@@ -798,23 +1058,52 @@ function IngredientPreviewModal({
         </div>
 
         {/* Selection Controls */}
-        <div className="px-4 py-3 border-b border-[var(--border-color)] flex items-center justify-between bg-white">
-          <span className="text-sm text-[var(--color-slate)]">
-            {selectedCount} de {totalCount} seleccionados
-          </span>
-          <div className="flex gap-2">
-            <button
-              onClick={() => toggleAll(true)}
-              className="text-sm px-3 py-1.5 rounded-lg bg-[var(--color-purple-bg)] text-[var(--color-purple-dark)] hover:bg-[var(--color-purple-bg-dark)] transition-colors"
-            >
-              Seleccionar todo
-            </button>
-            <button
-              onClick={() => toggleAll(false)}
-              className="text-sm px-3 py-1.5 rounded-lg bg-gray-100 text-[var(--color-slate)] hover:bg-gray-200 transition-colors"
-            >
-              Deseleccionar
-            </button>
+        <div className="px-4 py-3 border-b border-[var(--border-color)] bg-white">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-[var(--color-slate)]">
+              {selectedCount} de {totalCount} seleccionados
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => toggleAll(true)}
+                className="text-sm px-3 py-1.5 rounded-lg bg-[var(--color-purple-bg)] text-[var(--color-purple-dark)] hover:bg-[var(--color-purple-bg-dark)] transition-colors"
+              >
+                Seleccionar todo
+              </button>
+              <button
+                onClick={() => toggleAll(false)}
+                className="text-sm px-3 py-1.5 rounded-lg bg-gray-100 text-[var(--color-slate)] hover:bg-gray-200 transition-colors"
+              >
+                Deseleccionar
+              </button>
+            </div>
+          </div>
+          
+          {/* Group By Toggle */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[var(--color-slate)]">Agrupar por:</span>
+            <div className="flex rounded-lg bg-gray-100 p-0.5">
+              <button
+                onClick={() => setGroupBy("recipe")}
+                className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
+                  groupBy === "recipe"
+                    ? "bg-white text-[var(--color-purple-dark)] shadow-sm font-medium"
+                    : "text-[var(--color-slate)] hover:text-[var(--foreground)]"
+                }`}
+              >
+                📖 Receta
+              </button>
+              <button
+                onClick={() => setGroupBy("category")}
+                className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
+                  groupBy === "category"
+                    ? "bg-white text-[var(--color-purple-dark)] shadow-sm font-medium"
+                    : "text-[var(--color-slate)] hover:text-[var(--foreground)]"
+                }`}
+              >
+                🏷️ Categoría
+              </button>
+            </div>
           </div>
         </div>
 
@@ -829,10 +1118,78 @@ function IngredientPreviewModal({
               </div>
               <p className="text-[var(--color-slate)]">No hay ingredientes en las recetas planificadas</p>
             </div>
-          ) : (
+          ) : groupBy === "recipe" ? (
+            /* Group by Recipe */
             <div className="space-y-6">
-              {categoryOrder.filter(cat => groupedIngredients[cat]?.length > 0).map(category => {
-                const categoryIngredients = groupedIngredients[category];
+              {recipeNames.map(recipeName => {
+                const recipeIngredients = groupedByRecipe[recipeName];
+                const recipeSelectedCount = recipeIngredients.filter(i => i.selected).length;
+                const allSelected = recipeSelectedCount === recipeIngredients.length;
+
+                return (
+                  <div key={recipeName}>
+                    {/* Recipe Header */}
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="font-semibold text-[var(--foreground)] flex items-center gap-2">
+                        <span className="text-lg">📖</span>
+                        <span className="truncate max-w-[200px]" title={recipeName}>{recipeName}</span>
+                        <span className="text-xs font-normal text-[var(--color-slate-light)] flex-shrink-0">
+                          ({recipeSelectedCount}/{recipeIngredients.length})
+                        </span>
+                      </h3>
+                      <button
+                        onClick={() => toggleRecipe(recipeName, !allSelected)}
+                        className="text-xs text-[var(--color-purple)] hover:text-[var(--color-purple-dark)] transition-colors flex-shrink-0"
+                      >
+                        {allSelected ? "Deseleccionar" : "Seleccionar"} receta
+                      </button>
+                    </div>
+                    
+                    {/* Recipe Items */}
+                    <div className="bg-white rounded-xl border border-[var(--border-color)] divide-y divide-[var(--border-color)]">
+                      {recipeIngredients.map(ing => (
+                        <label
+                          key={`${recipeName}-${ing.id}`}
+                          className={`flex items-start gap-3 p-3 cursor-pointer transition-colors hover:bg-[var(--color-purple-bg)] ${
+                            !ing.selected ? "bg-gray-50" : ""
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={ing.selected}
+                            onChange={() => toggleIngredient(ing.id)}
+                            className="checkbox mt-1 flex-shrink-0"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-baseline gap-2">
+                              <span className={`font-medium ${!ing.selected ? "text-[var(--color-slate-light)]" : "text-[var(--foreground)]"}`}>
+                                {ing.name}
+                              </span>
+                              {ing.quantity && (
+                                <span className={`text-sm ${!ing.selected ? "text-[var(--color-slate-light)]" : "text-[var(--color-purple)]"} font-medium`}>
+                                  {ing.quantity}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-[var(--color-slate-light)] mt-0.5">
+                              <span className="inline-flex items-center gap-1">
+                                <span>{CATEGORY_ICONS[ing.category] || "📦"}</span>
+                                {ing.category}
+                              </span>
+                            </p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* Group by Category */
+            <div className="space-y-6">
+              {categoryOrder.filter(cat => groupedByCategory[cat]?.length > 0).map(category => {
+                const categoryIngredients = groupedByCategory[category];
                 const categorySelectedCount = categoryIngredients.filter(i => i.selected).length;
                 const allSelected = categorySelectedCount === categoryIngredients.length;
 
@@ -957,6 +1314,14 @@ export default function ShoppingPage() {
   const [trashItems, setTrashItems] = useState<TrashItem[]>([]);
   const [showTrash, setShowTrash] = useState(false);
   const [loadingTrash, setLoadingTrash] = useState(false);
+
+  // Selection mode state
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  
+  // Move/Copy modal state
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [itemsToMove, setItemsToMove] = useState<ShoppingItem[]>([]);
 
   // Load category order for selected supermarket
   const loadCategoryOrder = useCallback(async () => {
@@ -1584,6 +1949,95 @@ export default function ShoppingPage() {
       }
     } catch (error) {
       console.error("Error clearing all items:", error);
+    }
+  };
+
+  // Selection mode handlers
+  const toggleSelectionMode = () => {
+    setSelectionMode(!selectionMode);
+    setSelectedItems(new Set());
+  };
+
+  const toggleItemSelection = (itemId: string) => {
+    setSelectedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllItems = () => {
+    const allItemIds = uncheckedItems.map(item => item.id);
+    setSelectedItems(new Set(allItemIds));
+  };
+
+  const deselectAllItems = () => {
+    setSelectedItems(new Set());
+  };
+
+  const openMoveModalForSelection = () => {
+    const selectedItemsList = items.filter(item => selectedItems.has(item.id));
+    setItemsToMove(selectedItemsList);
+    setIsMoveModalOpen(true);
+  };
+
+  const openMoveModalForItem = (item: ShoppingItem) => {
+    setItemsToMove([item]);
+    setIsMoveModalOpen(true);
+  };
+
+  // Move items to another supermarket
+  const moveItemsToSupermarket = async (itemsToTransfer: ShoppingItem[], targetSupermarket: SupermarketName) => {
+    try {
+      const itemIds = itemsToTransfer.map(item => item.id);
+      
+      const { error } = await supabase
+        .from("shopping_items")
+        .update({ supermarket: targetSupermarket })
+        .in("id", itemIds);
+
+      if (error) throw error;
+
+      // Exit selection mode and refresh
+      setSelectionMode(false);
+      setSelectedItems(new Set());
+      loadItems();
+    } catch (error) {
+      console.error("Error moving items:", error);
+      alert("Error al mover los artículos. Por favor, inténtalo de nuevo.");
+    }
+  };
+
+  // Copy items to another supermarket
+  const copyItemsToSupermarket = async (itemsToCopy: ShoppingItem[], targetSupermarket: SupermarketName) => {
+    try {
+      // Create new items with the target supermarket
+      const newItems = itemsToCopy.map(item => ({
+        name: item.name,
+        quantity: item.quantity,
+        category: item.category,
+        checked: false,
+        recipe_id: item.recipe_id,
+        recipe_sources: item.recipe_sources || [],
+        supermarket: targetSupermarket,
+      }));
+
+      const { error } = await supabase
+        .from("shopping_items")
+        .insert(newItems);
+
+      if (error) throw error;
+
+      // Exit selection mode (items stay in current list)
+      setSelectionMode(false);
+      setSelectedItems(new Set());
+    } catch (error) {
+      console.error("Error copying items:", error);
+      alert("Error al copiar los artículos. Por favor, inténtalo de nuevo.");
     }
   };
 
