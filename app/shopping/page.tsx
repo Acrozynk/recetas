@@ -1325,8 +1325,6 @@ export default function ShoppingPage() {
 
   // Undo state for mark all as checked
   const [lastMarkedItems, setLastMarkedItems] = useState<string[]>([]);
-  const [showUndoToast, setShowUndoToast] = useState(false);
-  const undoTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Load category order for selected supermarket
   const loadCategoryOrder = useCallback(async () => {
@@ -1954,20 +1952,8 @@ export default function ShoppingPage() {
       // Update local state
       setItems(items.map(item => ({ ...item, checked: true })));
       
-      // Show undo toast
+      // Save for undo
       setLastMarkedItems(uncheckedIds);
-      setShowUndoToast(true);
-      
-      // Clear any existing timeout
-      if (undoTimeoutRef.current) {
-        clearTimeout(undoTimeoutRef.current);
-      }
-      
-      // Auto-hide toast after 5 seconds
-      undoTimeoutRef.current = setTimeout(() => {
-        setShowUndoToast(false);
-        setLastMarkedItems([]);
-      }, 5000);
     } catch (error) {
       console.error("Error marking all items as checked:", error);
     }
@@ -1989,13 +1975,8 @@ export default function ShoppingPage() {
         lastMarkedItems.includes(item.id) ? { ...item, checked: false } : item
       ));
       
-      // Hide toast and clear state
-      setShowUndoToast(false);
+      // Clear undo state
       setLastMarkedItems([]);
-      
-      if (undoTimeoutRef.current) {
-        clearTimeout(undoTimeoutRef.current);
-      }
     } catch (error) {
       console.error("Error undoing mark all:", error);
     }
@@ -2181,6 +2162,18 @@ export default function ShoppingPage() {
         rightAction={
           items.length > 0 ? (
             <div className="flex items-center gap-1">
+              {/* Undo button */}
+              {lastMarkedItems.length > 0 && (
+                <button
+                  onClick={undoMarkAll}
+                  className="p-2 text-yellow-600 hover:text-yellow-700 transition-colors"
+                  title="Deshacer marcar todo"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                  </svg>
+                </button>
+              )}
               {/* Mark all as complete button */}
               {uncheckedItems.length > 0 && (
                 <button
@@ -2789,37 +2782,6 @@ export default function ShoppingPage() {
       )}
 
       <BottomNav />
-
-      {/* Undo Toast */}
-      {showUndoToast && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 animate-fade-in">
-          <div className="bg-gray-800 text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3">
-            <span className="text-sm">
-              ✓ {lastMarkedItems.length} artículos marcados
-            </span>
-            <button
-              onClick={undoMarkAll}
-              className="text-sm font-semibold text-yellow-400 hover:text-yellow-300 transition-colors"
-            >
-              Deshacer
-            </button>
-            <button
-              onClick={() => {
-                setShowUndoToast(false);
-                setLastMarkedItems([]);
-                if (undoTimeoutRef.current) {
-                  clearTimeout(undoTimeoutRef.current);
-                }
-              }}
-              className="text-gray-400 hover:text-white transition-colors ml-1"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Grocery Search Modal */}
       <GrocerySearchModal
