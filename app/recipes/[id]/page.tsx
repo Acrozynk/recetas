@@ -1722,9 +1722,11 @@ export default function RecipeDetailPage() {
                               part.type === 'ingredient' ? (
                                 <span key={partIdx}>
                                   <span>{part.content}</span>
-                                  <span className="text-[var(--color-purple)] font-medium">
-                                    {` (${part.formattedIngredient})`}
-                                  </span>
+                                  {part.formattedIngredient && (
+                                    <span className="text-[var(--color-purple)] font-medium">
+                                      {` (${part.formattedIngredient})`}
+                                    </span>
+                                  )}
                                 </span>
                               ) : (
                                 <span key={partIdx}>{part.content}</span>
