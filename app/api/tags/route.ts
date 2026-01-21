@@ -112,3 +112,59 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+// DELETE - Remove a tag from all recipes
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const tag = searchParams.get("tag");
+
+    if (!tag || !tag.trim()) {
+      return NextResponse.json(
+        { error: "Tag is required" },
+        { status: 400 }
+      );
+    }
+
+    const tagTrimmed = tag.trim();
+
+    // Find all recipes with this tag
+    const { data: recipes, error: fetchError } = await supabase
+      .from("recipes")
+      .select("id, tags")
+      .contains("tags", [tagTrimmed]);
+
+    if (fetchError) throw fetchError;
+
+    if (!recipes || recipes.length === 0) {
+      return NextResponse.json({ success: true, deleted: 0 });
+    }
+
+    // Update each recipe, removing the tag
+    let deletedCount = 0;
+    for (const recipe of recipes) {
+      const newTags = (recipe.tags as string[]).filter(
+        (t: string) => t !== tagTrimmed
+      );
+
+      const { error: updateError } = await supabase
+        .from("recipes")
+        .update({ tags: newTags })
+        .eq("id", recipe.id);
+
+      if (updateError) {
+        console.error(`Error updating recipe ${recipe.id}:`, updateError);
+      } else {
+        deletedCount++;
+      }
+    }
+
+    return NextResponse.json({ success: true, deleted: deletedCount });
+  } catch (error) {
+    console.error("Error deleting tag:", error);
+    return NextResponse.json(
+      { error: "Failed to delete tag" },
+      { status: 500 }
+    );
+  }
+}
+

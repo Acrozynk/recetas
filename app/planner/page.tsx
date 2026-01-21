@@ -725,6 +725,7 @@ export default function PlannerPage() {
                       >
                         {plan && plan.recipe ? (
                           <div className="relative h-full group/plan">
+                            {/* Delete button */}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -734,8 +735,22 @@ export default function PlannerPage() {
                             >
                               ×
                             </button>
+                            {/* Edit servings button */}
                             <button
-                              onClick={() => openEditPlanOptions(plan)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                openEditPlanOptions(plan);
+                              }}
+                              className="absolute -top-1 left-0 w-5 h-5 bg-[var(--color-purple)] text-white rounded-full flex items-center justify-center text-xs opacity-70 sm:opacity-0 sm:group-hover/plan:opacity-100 hover:opacity-100 transition-opacity z-10"
+                              title="Editar porciones"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
+                            </button>
+                            <Link
+                              href={`/recipes/${plan.recipe.id}`}
                               className="w-full h-full text-left flex flex-col"
                             >
                               {/* Recipe image */}
@@ -762,7 +777,7 @@ export default function PlannerPage() {
                                   </span>
                                 </div>
                               )}
-                            </button>
+                            </Link>
                           </div>
                         ) : (
                           <button
