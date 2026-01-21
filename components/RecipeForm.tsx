@@ -816,7 +816,8 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
           .eq("id", recipe.id);
 
         if (updateError) throw updateError;
-        router.push(`/recipes/${recipe.id}`);
+        // Use replace instead of push to avoid creating a loop in browser history
+        router.replace(`/recipes/${recipe.id}`);
       } else {
         const { data, error: insertError } = await supabase
           .from("recipes")
