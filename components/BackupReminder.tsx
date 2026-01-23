@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 
-const BACKUP_STORAGE_KEY = "recetas-last-backup";
 const REMINDER_DISMISSED_KEY = "recetas-reminder-dismissed";
 const DEFAULT_REMINDER_DAYS = 14; // Remind every 2 weeks
 
@@ -11,49 +10,65 @@ interface BackupReminderProps {
   reminderDays?: number;
 }
 
+interface BackupSettings {
+  last_backup_date: string | null;
+  reminder_days: number;
+}
+
 export default function BackupReminder({
   reminderDays = DEFAULT_REMINDER_DAYS,
 }: BackupReminderProps) {
   const [showReminder, setShowReminder] = useState(false);
   const [daysSinceBackup, setDaysSinceBackup] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     checkBackupStatus();
   }, [reminderDays]);
 
-  const checkBackupStatus = () => {
+  const checkBackupStatus = async () => {
     try {
-      const lastBackup = localStorage.getItem(BACKUP_STORAGE_KEY);
+      // Check if dismissed today (local only - dismissal doesn't need to sync)
       const dismissed = localStorage.getItem(REMINDER_DISMISSED_KEY);
-
-      // If dismissed today, don't show
       if (dismissed) {
         const dismissedDate = new Date(dismissed);
         const today = new Date();
         if (dismissedDate.toDateString() === today.toDateString()) {
+          setIsLoading(false);
           return;
         }
       }
 
-      if (!lastBackup) {
+      // Fetch backup settings from Supabase (synced across devices)
+      const response = await fetch("/api/backup-settings");
+      if (!response.ok) throw new Error("Failed to fetch backup settings");
+      
+      const settings: BackupSettings = await response.json();
+      const effectiveReminderDays = settings.reminder_days || reminderDays;
+
+      if (!settings.last_backup_date) {
         // Never backed up
         setDaysSinceBackup(null);
         setShowReminder(true);
+        setIsLoading(false);
         return;
       }
 
-      const lastBackupDate = new Date(lastBackup);
+      const lastBackupDate = new Date(settings.last_backup_date);
       const now = new Date();
       const diffTime = Math.abs(now.getTime() - lastBackupDate.getTime());
       const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
       setDaysSinceBackup(diffDays);
 
-      if (diffDays >= reminderDays) {
+      if (diffDays >= effectiveReminderDays) {
         setShowReminder(true);
       }
-    } catch {
-      // localStorage not available
+    } catch (error) {
+      console.error("Error checking backup status:", error);
+      // On error, don't show reminder to avoid annoying the user
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -66,7 +81,7 @@ export default function BackupReminder({
     setShowReminder(false);
   };
 
-  if (!showReminder) return null;
+  if (isLoading || !showReminder) return null;
 
   return (
     <div className="fixed bottom-20 left-4 right-4 z-50 animate-fade-in sm:left-auto sm:right-4 sm:max-w-sm">
@@ -131,52 +146,64 @@ export default function BackupReminder({
 }
 
 // Utility functions to manage backup state
-export function markBackupCompleted() {
+export async function markBackupCompleted(): Promise<void> {
   try {
-    localStorage.setItem(BACKUP_STORAGE_KEY, new Date().toISOString());
+    // Save to Supabase (synced across devices)
+    const response = await fetch("/api/backup-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ last_backup_date: new Date().toISOString() }),
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to save backup date");
+    }
+    
+    // Also clear local dismissal
     localStorage.removeItem(REMINDER_DISMISSED_KEY);
-  } catch {
-    // localStorage not available
+  } catch (error) {
+    console.error("Error marking backup completed:", error);
+    throw error;
   }
 }
 
-export function getLastBackupDate(): Date | null {
+export async function getLastBackupDate(): Promise<Date | null> {
   try {
-    const lastBackup = localStorage.getItem(BACKUP_STORAGE_KEY);
-    return lastBackup ? new Date(lastBackup) : null;
+    const response = await fetch("/api/backup-settings");
+    if (!response.ok) return null;
+    
+    const settings: BackupSettings = await response.json();
+    return settings.last_backup_date ? new Date(settings.last_backup_date) : null;
   } catch {
     return null;
   }
 }
 
-export function getReminderDays(): number {
+export async function getReminderDays(): Promise<number> {
   try {
-    const days = localStorage.getItem("recetas-reminder-days");
-    return days ? parseInt(days, 10) : DEFAULT_REMINDER_DAYS;
+    const response = await fetch("/api/backup-settings");
+    if (!response.ok) return DEFAULT_REMINDER_DAYS;
+    
+    const settings: BackupSettings = await response.json();
+    return settings.reminder_days || DEFAULT_REMINDER_DAYS;
   } catch {
     return DEFAULT_REMINDER_DAYS;
   }
 }
 
-export function setReminderDays(days: number) {
+export async function setReminderDays(days: number): Promise<void> {
   try {
-    localStorage.setItem("recetas-reminder-days", days.toString());
-  } catch {
-    // ignore
+    const response = await fetch("/api/backup-settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reminder_days: days }),
+    });
+    
+    if (!response.ok) {
+      throw new Error("Failed to save reminder days");
+    }
+  } catch (error) {
+    console.error("Error setting reminder days:", error);
+    throw error;
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

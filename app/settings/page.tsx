@@ -113,9 +113,17 @@ export default function SettingsPage() {
     loadRecipes();
     loadContainers();
     loadTags();
-    setLastBackup(getLastBackupDate());
-    setReminderDaysState(getReminderDays());
+    loadBackupSettings();
   }, []);
+
+  const loadBackupSettings = async () => {
+    const [backupDate, days] = await Promise.all([
+      getLastBackupDate(),
+      getReminderDays(),
+    ]);
+    setLastBackup(backupDate);
+    setReminderDaysState(days);
+  };
 
   const loadRecipes = async () => {
     try {
@@ -353,8 +361,8 @@ export default function SettingsPage() {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(downloadUrl);
 
-      // Mark backup as completed
-      markBackupCompleted();
+      // Mark backup as completed (syncs to Supabase for cross-device sync)
+      await markBackupCompleted();
       setLastBackup(new Date());
     } catch (error) {
       console.error("Export error:", error);
@@ -364,9 +372,9 @@ export default function SettingsPage() {
     }
   };
 
-  const handleReminderChange = (days: number) => {
+  const handleReminderChange = async (days: number) => {
     setReminderDaysState(days);
-    setReminderDays(days);
+    await setReminderDays(days);
   };
 
   const formatDate = (date: Date | null) => {
