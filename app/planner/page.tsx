@@ -78,7 +78,7 @@ function RecipeOptionsModal({
     <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50">
       <div className="bg-white rounded-t-2xl sm:rounded-xl w-full sm:max-w-md max-h-[85vh] flex flex-col animate-fade-in">
         {/* Header */}
-        <div className="p-4 border-b border-[var(--border-color)] bg-[var(--color-purple-bg)]">
+        <div className="flex-shrink-0 p-4 border-b border-[var(--border-color)] bg-[var(--color-purple-bg)]">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-display text-lg font-semibold text-[var(--foreground)]">
@@ -289,7 +289,7 @@ function RecipeOptionsModal({
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-[var(--border-color)] flex gap-3">
+        <div className="flex-shrink-0 p-4 border-t border-[var(--border-color)] flex gap-3 pb-safe">
           <button
             onClick={onClose}
             className="flex-1 btn-secondary"

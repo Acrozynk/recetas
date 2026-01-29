@@ -13,11 +13,12 @@ const EXCLUSIVE_TAGS = [
   "polenta",
 ];
 
-// Map meal types to Spanish tag equivalents
+// Map meal types to Spanish tag equivalents for filtering suggestions
+// breakfast & snack both use "Desayuno" tag
 const MEAL_TYPE_TO_TAG: Record<string, string[]> = {
   breakfast: ["desayuno"],
-  lunch: ["comida", "almuerzo"],
-  snack: ["merienda"],
+  lunch: ["comida"],
+  snack: ["desayuno"],  // Merienda uses Desayuno tag
   dinner: ["cena"],
 };
 
@@ -122,14 +123,11 @@ export async function GET(request: Request) {
         t.toLowerCase().trim()
       );
 
-      // Check if recipe matches the meal type
+      // Check if recipe matches the meal type - ONLY show recipes that have the appropriate tag
       const mealTypeTags = MEAL_TYPE_TO_TAG[mealType] || [];
       const matchesMealType =
-        mealTypeTags.length === 0 ||
-        recipeTags.some((tag: string) => mealTypeTags.includes(tag)) ||
-        !recipeTags.some((tag: string) =>
-          Object.values(MEAL_TYPE_TO_TAG).flat().includes(tag)
-        );
+        mealTypeTags.length > 0 &&
+        recipeTags.some((tag: string) => mealTypeTags.includes(tag));
 
       if (!matchesMealType) continue;
 
@@ -233,6 +231,8 @@ export async function GET(request: Request) {
     );
   }
 }
+
+
 
 
 
