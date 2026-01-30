@@ -292,19 +292,18 @@ function GrocerySearchModal({
   onAddManual: (name: string, quantity: string, category: string) => void;
   categoryOrder: string[];
 }) {
-  const [manualName, setManualName] = useState("");
   const [manualQuantity, setManualQuantity] = useState("");
   const [manualCategory, setManualCategory] = useState("Otros");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const handleAddManual = () => {
-    if (!manualName.trim()) return;
-    onAddManual(manualName.trim(), manualQuantity.trim(), manualCategory);
-    setManualName("");
+    if (!searchQuery.trim()) return;
+    onAddManual(searchQuery.trim(), manualQuantity.trim(), manualCategory);
+    setSearchQuery("");
     setManualQuantity("");
     setManualCategory("Otros");
     onClose();
   };
-  const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<GroceryProduct[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -493,48 +492,32 @@ function GrocerySearchModal({
           <p className="text-xs text-[var(--color-slate)] mb-3">
             ¿No encuentras el producto? Añádelo manualmente:
           </p>
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={manualName}
-                onChange={(e) => setManualName(e.target.value)}
-                placeholder="Nombre del producto"
-                className="input flex-1"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && manualName.trim()) {
-                    handleAddManual();
-                  }
-                }}
-              />
-              <input
-                type="text"
-                value={manualQuantity}
-                onChange={(e) => setManualQuantity(e.target.value)}
-                placeholder="Cantidad"
-                className="input w-24"
-              />
-            </div>
-            <div className="flex gap-2">
-              <select
-                value={manualCategory}
-                onChange={(e) => setManualCategory(e.target.value)}
-                className="input flex-1"
-              >
-                {categoryOrder.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-              <button
-                onClick={handleAddManual}
-                disabled={!manualName.trim()}
-                className="btn-primary px-4 disabled:opacity-50"
-              >
-                Añadir
-              </button>
-            </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={manualQuantity}
+              onChange={(e) => setManualQuantity(e.target.value)}
+              placeholder="Cantidad"
+              className="input w-24"
+            />
+            <select
+              value={manualCategory}
+              onChange={(e) => setManualCategory(e.target.value)}
+              className="input flex-1"
+            >
+              {categoryOrder.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={handleAddManual}
+              disabled={!searchQuery.trim()}
+              className="btn-primary px-4 disabled:opacity-50"
+            >
+              Añadir
+            </button>
           </div>
         </div>
       </div>
