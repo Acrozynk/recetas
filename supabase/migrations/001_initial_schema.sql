@@ -94,3 +94,5 @@ CREATE POLICY "Allow all for shopping_items" ON shopping_items FOR ALL USING (tr
 
 
 
+
+
