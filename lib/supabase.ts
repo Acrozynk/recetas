@@ -182,3 +182,73 @@ export const DEFAULT_CATEGORIES = [
 
 export type CategoryName = typeof DEFAULT_CATEGORIES[number];
 
+// Custom products added by the user
+export interface CustomProduct {
+  id: string;
+  name: string;
+  category: string;
+  subcategory: string | null;
+  created_at: string;
+}
+
+// Fetch all custom products
+export async function getCustomProducts(): Promise<CustomProduct[]> {
+  const { data, error } = await supabase
+    .from('custom_products')
+    .select('*')
+    .order('name');
+  
+  if (error) {
+    console.error('Error fetching custom products:', error);
+    return [];
+  }
+  
+  return data || [];
+}
+
+// Add a new custom product
+export async function addCustomProduct(
+  name: string, 
+  category: string
+): Promise<CustomProduct | null> {
+  const { data, error } = await supabase
+    .from('custom_products')
+    .insert({ 
+      name: name.trim(), 
+      category 
+    })
+    .select()
+    .single();
+  
+  if (error) {
+    // Si el error es de duplicado, no es un error crítico
+    if (error.code === '23505') {
+      console.log('Product already exists:', name);
+      return null;
+    }
+    console.error('Error adding custom product:', error);
+    return null;
+  }
+  
+  return data;
+}
+
+// Search custom products by name
+export async function searchCustomProducts(query: string): Promise<CustomProduct[]> {
+  if (!query.trim()) return [];
+  
+  const { data, error } = await supabase
+    .from('custom_products')
+    .select('*')
+    .ilike('name', `%${query}%`)
+    .order('name')
+    .limit(30);
+  
+  if (error) {
+    console.error('Error searching custom products:', error);
+    return [];
+  }
+  
+  return data || [];
+}
+

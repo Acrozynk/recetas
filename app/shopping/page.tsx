@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase, type ShoppingItem, type MealPlan, type Ingredient, type SupermarketName, type SupermarketCategoryOrder, type ItemSupermarketHistory, SUPERMARKETS, SUPERMARKET_COLORS, DEFAULT_CATEGORIES } from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
-import { searchGroceries, type GroceryProduct, GROCERY_CATEGORIES } from "@/lib/spanish-groceries";
+import { searchGroceries, searchAllProducts, type GroceryProduct, GROCERY_CATEGORIES } from "@/lib/spanish-groceries";
+import { addCustomProduct } from "@/lib/supabase";
 import { combineQuantities, parseQuantity, formatQuantity } from "@/lib/unit-conversion";
 
 // Category icons mapping
@@ -295,10 +296,18 @@ function GrocerySearchModal({
   const [manualQuantity, setManualQuantity] = useState("");
   const [manualCategory, setManualCategory] = useState("Otros");
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
 
-  const handleAddManual = () => {
+  const handleAddManual = async () => {
     if (!searchQuery.trim()) return;
-    onAddManual(searchQuery.trim(), manualQuantity.trim(), manualCategory);
+    const productName = searchQuery.trim();
+    const category = manualCategory;
+    
+    // Guardar el producto en la base de datos para futuras búsquedas
+    await addCustomProduct(productName, category);
+    
+    // Añadir a la lista de compras
+    onAddManual(productName, manualQuantity.trim(), category);
     setSearchQuery("");
     setManualQuantity("");
     setManualCategory("Otros");
@@ -316,11 +325,16 @@ function GrocerySearchModal({
 
   useEffect(() => {
     if (searchQuery.trim().length >= 2) {
-      const results = searchGroceries(searchQuery, 30);
-      setSearchResults(results);
-      setSelectedCategory(null);
+      setIsSearching(true);
+      // Búsqueda asíncrona que incluye productos personalizados del usuario
+      searchAllProducts(searchQuery, 30).then(results => {
+        setSearchResults(results);
+        setSelectedCategory(null);
+        setIsSearching(false);
+      });
     } else if (searchQuery.trim().length === 0) {
       setSearchResults([]);
+      setIsSearching(false);
     }
   }, [searchQuery]);
 

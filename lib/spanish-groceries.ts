@@ -922,7 +922,7 @@ export const spanishGroceries: GroceryProduct[] = [
 ];
 
 // Helper function to normalize text (remove accents and convert to lowercase)
-function normalizeText(text: string): string {
+export function normalizeText(text: string): string {
   return text
     .toLowerCase()
     .normalize("NFD")
@@ -930,7 +930,7 @@ function normalizeText(text: string): string {
     .trim();
 }
 
-// Helper function to search products
+// Helper function to search products (static database only)
 export function searchGroceries(query: string, limit: number = 20): GroceryProduct[] {
   const normalizedQuery = normalizeText(query);
   
@@ -956,6 +956,51 @@ export function searchGroceries(query: string, limit: number = 20): GroceryProdu
       );
     })
     .slice(0, limit);
+}
+
+// Combined search: static products + custom user products
+import { searchCustomProducts, CustomProduct } from './supabase';
+
+export async function searchAllProducts(query: string, limit: number = 30): Promise<GroceryProduct[]> {
+  if (!query.trim()) return [];
+  
+  // Search in static database
+  const staticResults = searchGroceries(query, limit);
+  
+  // Search in custom products (from Supabase)
+  const customResults = await searchCustomProducts(query);
+  
+  // Convert custom products to GroceryProduct format
+  const customAsGrocery: GroceryProduct[] = customResults.map(cp => ({
+    name: cp.name,
+    category: cp.category,
+    subcategory: cp.subcategory || undefined,
+  }));
+  
+  // Combine results, custom products first (they're user-specific)
+  // Remove duplicates based on normalized name
+  const seen = new Set<string>();
+  const combined: GroceryProduct[] = [];
+  
+  // Add custom products first
+  for (const product of customAsGrocery) {
+    const normalizedName = normalizeText(product.name);
+    if (!seen.has(normalizedName)) {
+      seen.add(normalizedName);
+      combined.push(product);
+    }
+  }
+  
+  // Add static products
+  for (const product of staticResults) {
+    const normalizedName = normalizeText(product.name);
+    if (!seen.has(normalizedName)) {
+      seen.add(normalizedName);
+      combined.push(product);
+    }
+  }
+  
+  return combined.slice(0, limit);
 }
 
 // Get products by category
