@@ -1521,33 +1521,37 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                       </svg>
                     </button>
                   </div>
-                  <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: '70px 100px 1fr' }}>
-                    <input
-                      type="text"
-                      value={ingredient.amount}
-                      onChange={(e) => updateIngredient(index, "amount", e.target.value)}
-                      onFocus={handleInputFocus}
-                      onSelect={handleInputSelect}
-                      className="input text-center"
-                      placeholder="1"
-                    />
-                    <input
-                      type="text"
-                      value={ingredient.unit}
-                      onChange={(e) => updateIngredient(index, "unit", e.target.value)}
-                      onFocus={handleInputFocus}
-                      onSelect={handleInputSelect}
-                      className="input"
-                      placeholder="g"
-                      list="unit-suggestions"
-                    />
+                  <div className="flex-1 flex flex-col sm:flex-row gap-2">
+                    {/* Cantidad y unidad */}
+                    <div className="flex gap-2 shrink-0">
+                      <input
+                        type="text"
+                        value={ingredient.amount}
+                        onChange={(e) => updateIngredient(index, "amount", e.target.value)}
+                        onFocus={handleInputFocus}
+                        onSelect={handleInputSelect}
+                        className="input text-center w-[70px]"
+                        placeholder="1"
+                      />
+                      <input
+                        type="text"
+                        value={ingredient.unit}
+                        onChange={(e) => updateIngredient(index, "unit", e.target.value)}
+                        onFocus={handleInputFocus}
+                        onSelect={handleInputSelect}
+                        className="input w-[100px]"
+                        placeholder="g"
+                        list="unit-suggestions"
+                      />
+                    </div>
+                    {/* Nombre del ingrediente - ocupa todo el ancho en móvil */}
                     <input
                       type="text"
                       value={ingredient.name}
                       onChange={(e) => updateIngredient(index, "name", e.target.value)}
                       onFocus={handleInputFocus}
                       onSelect={handleInputSelect}
-                      className="input"
+                      className="input flex-1 min-w-0"
                       placeholder="Nombre del ingrediente"
                     />
                   </div>
@@ -1614,33 +1618,37 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                     <span className="text-xs text-emerald-700 font-medium" style={{ width: '20px' }}>
                       o
                     </span>
-                    <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: '60px 90px 1fr' }}>
-                      <input
-                        type="text"
-                        value={ingredient.alternative?.amount || ""}
-                        onChange={(e) => updateAlternative(index, "amount", e.target.value)}
-                        onFocus={handleInputFocus}
-                        onSelect={handleInputSelect}
-                        className="input text-sm text-center"
-                        placeholder="⅛"
-                      />
-                      <input
-                        type="text"
-                        value={ingredient.alternative?.unit || ""}
-                        onChange={(e) => updateAlternative(index, "unit", e.target.value)}
-                        onFocus={handleInputFocus}
-                        onSelect={handleInputSelect}
-                        className="input text-sm"
-                        placeholder="cdta"
-                        list="unit-suggestions"
-                      />
+                    <div className="flex-1 flex flex-col sm:flex-row gap-2">
+                      {/* Cantidad y unidad alternativa */}
+                      <div className="flex gap-2 shrink-0">
+                        <input
+                          type="text"
+                          value={ingredient.alternative?.amount || ""}
+                          onChange={(e) => updateAlternative(index, "amount", e.target.value)}
+                          onFocus={handleInputFocus}
+                          onSelect={handleInputSelect}
+                          className="input text-sm text-center w-[60px]"
+                          placeholder="⅛"
+                        />
+                        <input
+                          type="text"
+                          value={ingredient.alternative?.unit || ""}
+                          onChange={(e) => updateAlternative(index, "unit", e.target.value)}
+                          onFocus={handleInputFocus}
+                          onSelect={handleInputSelect}
+                          className="input text-sm w-[90px]"
+                          placeholder="cdta"
+                          list="unit-suggestions"
+                        />
+                      </div>
+                      {/* Nombre del ingrediente alternativo */}
                       <input
                         type="text"
                         value={ingredient.alternative?.name || ""}
                         onChange={(e) => updateAlternative(index, "name", e.target.value)}
                         onFocus={handleInputFocus}
                         onSelect={handleInputSelect}
-                        className="input text-sm"
+                        className="input text-sm flex-1 min-w-0"
                         placeholder="Nombre del ingrediente alternativo"
                       />
                     </div>
