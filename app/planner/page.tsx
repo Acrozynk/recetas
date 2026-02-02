@@ -334,7 +334,10 @@ const MEAL_LABELS: Record<MealType, string> = {
 function getWeekDates(offset: number = 0): Date[] {
   const today = new Date();
   const monday = new Date(today);
-  monday.setDate(today.getDate() - today.getDay() + 1 + offset * 7);
+  // getDay() returns 0 for Sunday, but we want Sunday to be day 7
+  // so that the week starts on Monday
+  const dayOfWeek = today.getDay() || 7;
+  monday.setDate(today.getDate() - dayOfWeek + 1 + offset * 7);
 
   return Array.from({ length: 7 }, (_, i) => {
     const date = new Date(monday);
