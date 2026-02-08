@@ -75,8 +75,8 @@ function RecipeOptionsModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50">
-      <div className="bg-white rounded-t-2xl sm:rounded-xl w-full sm:max-w-md max-h-[85vh] flex flex-col animate-fade-in">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0">
+      <div className="bg-white rounded-t-2xl sm:rounded-xl w-full sm:max-w-md max-h-[80vh] sm:max-h-[85vh] flex flex-col animate-fade-in">
         {/* Header */}
         <div className="flex-shrink-0 p-4 border-b border-[var(--border-color)] bg-[var(--color-purple-bg)]">
           <div className="flex items-center justify-between">
@@ -905,8 +905,8 @@ export default function PlannerPage() {
 
       {/* Recipe Selector Modal */}
       {showRecipeSelector && !showRecipeOptions && (
-        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50">
-          <div className="bg-white rounded-t-2xl sm:rounded-xl w-full sm:max-w-md max-h-[80vh] flex flex-col animate-fade-in">
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0">
+          <div className="bg-white rounded-t-2xl sm:rounded-xl w-full sm:max-w-md max-h-[70vh] sm:max-h-[80vh] flex flex-col animate-fade-in">
             <div className="p-4 border-b border-[var(--border-color)]">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-display text-lg font-semibold">
