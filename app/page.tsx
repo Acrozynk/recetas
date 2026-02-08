@@ -199,10 +199,52 @@ function HomePageContent() {
   // Add to planner modal state
   const [plannerModalRecipe, setPlannerModalRecipe] = useState<Recipe | null>(null);
 
+  // Scroll restoration
+  const scrollRestoredRef = useRef(false);
+
   useEffect(() => {
     loadRecipes();
     checkActiveImportSession();
     checkTodayMealPlans();
+  }, []);
+
+  // Restore scroll position after recipes are loaded
+  useEffect(() => {
+    if (!loading && recipes.length > 0 && !scrollRestoredRef.current) {
+      scrollRestoredRef.current = true;
+      const savedPosition = sessionStorage.getItem(SCROLL_POSITION_KEY);
+      if (savedPosition) {
+        // Small delay to ensure DOM is fully rendered
+        requestAnimationFrame(() => {
+          window.scrollTo(0, parseInt(savedPosition, 10));
+        });
+      }
+    }
+  }, [loading, recipes.length]);
+
+  // Save scroll position before navigating away
+  useEffect(() => {
+    const saveScrollPosition = () => {
+      sessionStorage.setItem(SCROLL_POSITION_KEY, String(window.scrollY));
+    };
+
+    // Save on any click that might be a navigation
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const link = target.closest('a');
+      if (link && link.href && !link.href.startsWith('#')) {
+        saveScrollPosition();
+      }
+    };
+
+    // Also save before page unload/navigation
+    window.addEventListener('click', handleClick, true);
+    window.addEventListener('beforeunload', saveScrollPosition);
+
+    return () => {
+      window.removeEventListener('click', handleClick, true);
+      window.removeEventListener('beforeunload', saveScrollPosition);
+    };
   }, []);
 
   // Reset banner dismissal when date changes
