@@ -382,6 +382,9 @@ export default function PlannerPage() {
     existingPlanId?: string;
     initialSelection?: VariantSelection;
   } | null>(null);
+  // Drag and drop state
+  const [draggingPlan, setDraggingPlan] = useState<MealPlan | null>(null);
+  const [dragOverSlot, setDragOverSlot] = useState<{ date: string; mealType: MealType } | null>(null);
 
   const weekDates = getWeekDates(weekOffset);
   const weekStart = formatDateKey(weekDates[0]);
@@ -541,6 +544,78 @@ export default function PlannerPage() {
       loadData();
     } catch (error) {
       console.error("Error removing meal plan:", error);
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (e: React.DragEvent, plan: MealPlan) => {
+    setDraggingPlan(plan);
+    e.dataTransfer.effectAllowed = "move";
+    // Add some transparency to the dragged element
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = "0.5";
+    }
+  };
+
+  const handleDragEnd = (e: React.DragEvent) => {
+    setDraggingPlan(null);
+    setDragOverSlot(null);
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = "1";
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent, date: string, mealType: MealType) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDragOverSlot({ date, mealType });
+  };
+
+  const handleDragLeave = () => {
+    setDragOverSlot(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetDate: string, targetMealType: MealType) => {
+    e.preventDefault();
+    setDragOverSlot(null);
+
+    if (!draggingPlan) return;
+
+    // If dropping on the same slot, do nothing
+    if (draggingPlan.plan_date === targetDate && draggingPlan.meal_type === targetMealType) {
+      setDraggingPlan(null);
+      return;
+    }
+
+    try {
+      // Check if there's already a plan in the target slot
+      const existingPlan = getMealPlan(targetDate, targetMealType);
+
+      if (existingPlan) {
+        // Swap: update existing plan to the dragged plan's original slot
+        await supabase
+          .from("meal_plans")
+          .update({
+            plan_date: draggingPlan.plan_date,
+            meal_type: draggingPlan.meal_type,
+          })
+          .eq("id", existingPlan.id);
+      }
+
+      // Move the dragged plan to the target slot
+      await supabase
+        .from("meal_plans")
+        .update({
+          plan_date: targetDate,
+          meal_type: targetMealType,
+        })
+        .eq("id", draggingPlan.id);
+
+      loadData();
+    } catch (error) {
+      console.error("Error moving meal plan:", error);
+    } finally {
+      setDraggingPlan(null);
     }
   };
 
@@ -717,17 +792,28 @@ export default function PlannerPage() {
                     const dateKey = formatDateKey(date);
                     const plan = getMealPlan(dateKey, mealType);
 
+                    const isDragOver = dragOverSlot?.date === dateKey && dragOverSlot?.mealType === mealType;
+                    const isDragging = draggingPlan?.plan_date === dateKey && draggingPlan?.meal_type === mealType;
+
                     return (
                       <div
                         key={`${dateKey}-${mealType}`}
-                        className={`min-h-[100px] rounded-lg border-2 border-dashed p-2 transition-colors ${
+                        className={`min-h-[100px] rounded-lg border-2 border-dashed p-2 transition-all ${
                           plan
                             ? `meal-${mealType} border-solid`
                             : "border-[var(--border-color)] hover:border-[var(--color-purple)]"
-                        }`}
+                        } ${isDragOver ? "border-[var(--color-purple)] bg-[var(--color-purple-bg)] scale-[1.02]" : ""} ${isDragging ? "opacity-50" : ""}`}
+                        onDragOver={(e) => handleDragOver(e, dateKey, mealType)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleDrop(e, dateKey, mealType)}
                       >
                         {plan && plan.recipe ? (
-                          <div className="relative h-full group/plan">
+                          <div
+                            className="relative h-full group/plan cursor-grab active:cursor-grabbing"
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, plan)}
+                            onDragEnd={handleDragEnd}
+                          >
                             {/* Delete button */}
                             <button
                               onClick={(e) => {

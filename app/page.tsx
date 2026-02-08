@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback, Suspense } from "react";
+import { useEffect, useState, useMemo, useCallback, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase, type Recipe, type Ingredient, type MealPlan } from "@/lib/supabase";
 import Header from "@/components/Header";
@@ -10,6 +10,8 @@ import BackupReminder from "@/components/BackupReminder";
 import TagInput from "@/components/TagInput";
 import AddToPlannerModal from "@/components/AddToPlannerModal";
 import Link from "next/link";
+
+const SCROLL_POSITION_KEY = "recetas_home_scroll";
 
 // Time filter options
 type TimeFilter = "all" | "quick" | "medium" | "long";
