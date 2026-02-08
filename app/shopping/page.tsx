@@ -1437,10 +1437,15 @@ export default function ShoppingPage() {
       const response = await fetch(`/api/shopping-lists/suggestions?supermarket=${selectedSupermarket}&limit=30`);
       if (response.ok) {
         const data: ItemSupermarketHistory[] = await response.json();
-        // Filter out items that are already in the current list
-        const currentItemNames = new Set(items.map(item => item.name.toLowerCase().trim()));
+        // Filter out items that are NOT checked (still pending to buy)
+        // Items that are checked (already bought) can be suggested again for next shopping trip
+        const uncheckedItemNames = new Set(
+          items
+            .filter(item => !item.checked)
+            .map(item => item.name.toLowerCase().trim())
+        );
         const filteredSuggestions = data.filter(
-          suggestion => !currentItemNames.has(suggestion.item_name_normalized)
+          suggestion => !uncheckedItemNames.has(suggestion.item_name_normalized)
         );
         setSuggestions(filteredSuggestions);
       }

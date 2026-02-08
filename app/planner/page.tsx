@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { supabase, type Recipe, type MealPlan, type Ingredient } from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
@@ -385,6 +385,12 @@ export default function PlannerPage() {
   // Drag and drop state
   const [draggingPlan, setDraggingPlan] = useState<MealPlan | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<{ date: string; mealType: MealType } | null>(null);
+  
+  // Touch drag state for mobile
+  const [touchDragging, setTouchDragging] = useState(false);
+  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+  const dragGhostRef = useRef<HTMLDivElement | null>(null);
+  const slotRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const weekDates = getWeekDates(weekOffset);
   const weekStart = formatDateKey(weekDates[0]);
