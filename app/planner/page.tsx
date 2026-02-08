@@ -625,6 +625,140 @@ export default function PlannerPage() {
     }
   };
 
+  // Touch event handlers for mobile drag and drop
+  const getSlotKey = (date: string, mealType: MealType) => `${date}-${mealType}`;
+
+  const findSlotUnderTouch = (x: number, y: number): { date: string; mealType: MealType } | null => {
+    for (const [key, element] of slotRefs.current.entries()) {
+      const rect = element.getBoundingClientRect();
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        const [date, mealType] = key.split(/-(?=[^-]+$)/);
+        return { date, mealType: mealType as MealType };
+      }
+    }
+    return null;
+  };
+
+  const handleTouchStart = (e: React.TouchEvent, plan: MealPlan) => {
+    const touch = e.touches[0];
+    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+    
+    // Create ghost element after a short delay to distinguish from tap
+    const timer = setTimeout(() => {
+      setDraggingPlan(plan);
+      setTouchDragging(true);
+      
+      // Create ghost element
+      const ghost = document.createElement('div');
+      ghost.className = 'fixed pointer-events-none z-[100] bg-white rounded-lg shadow-xl border-2 border-[var(--color-purple)] p-2 opacity-90 transform -translate-x-1/2 -translate-y-1/2';
+      ghost.style.left = `${touch.clientX}px`;
+      ghost.style.top = `${touch.clientY}px`;
+      ghost.style.width = '120px';
+      ghost.innerHTML = `
+        <p class="text-xs font-medium line-clamp-2">${plan.recipe?.title || ''}</p>
+      `;
+      document.body.appendChild(ghost);
+      dragGhostRef.current = ghost;
+      
+      // Vibrate for feedback if available
+      if (navigator.vibrate) {
+        navigator.vibrate(50);
+      }
+    }, 200);
+    
+    // Store timer to cancel if touch ends quickly (it's a tap, not drag)
+    (e.currentTarget as HTMLElement).dataset.touchTimer = String(timer);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchDragging || !draggingPlan) return;
+    
+    e.preventDefault();
+    const touch = e.touches[0];
+    
+    // Move ghost element
+    if (dragGhostRef.current) {
+      dragGhostRef.current.style.left = `${touch.clientX}px`;
+      dragGhostRef.current.style.top = `${touch.clientY}px`;
+    }
+    
+    // Find slot under touch
+    const slot = findSlotUnderTouch(touch.clientX, touch.clientY);
+    setDragOverSlot(slot);
+  };
+
+  const handleTouchEnd = async (e: React.TouchEvent) => {
+    // Clear the timer if touch ended quickly
+    const timer = (e.currentTarget as HTMLElement).dataset.touchTimer;
+    if (timer) {
+      clearTimeout(Number(timer));
+    }
+    
+    // Remove ghost element
+    if (dragGhostRef.current) {
+      dragGhostRef.current.remove();
+      dragGhostRef.current = null;
+    }
+    
+    if (!touchDragging || !draggingPlan) {
+      setTouchDragging(false);
+      touchStartPos.current = null;
+      return;
+    }
+    
+    const targetSlot = dragOverSlot;
+    setTouchDragging(false);
+    setDragOverSlot(null);
+    touchStartPos.current = null;
+    
+    if (!targetSlot) {
+      setDraggingPlan(null);
+      return;
+    }
+    
+    // If dropping on the same slot, do nothing
+    if (draggingPlan.plan_date === targetSlot.date && draggingPlan.meal_type === targetSlot.mealType) {
+      setDraggingPlan(null);
+      return;
+    }
+    
+    try {
+      // Check if there's already a plan in the target slot
+      const existingPlan = getMealPlan(targetSlot.date, targetSlot.mealType);
+
+      if (existingPlan) {
+        // Swap: update existing plan to the dragged plan's original slot
+        await supabase
+          .from("meal_plans")
+          .update({
+            plan_date: draggingPlan.plan_date,
+            meal_type: draggingPlan.meal_type,
+          })
+          .eq("id", existingPlan.id);
+      }
+
+      // Move the dragged plan to the target slot
+      await supabase
+        .from("meal_plans")
+        .update({
+          plan_date: targetSlot.date,
+          meal_type: targetSlot.mealType,
+        })
+        .eq("id", draggingPlan.id);
+
+      // Vibrate for feedback
+      if (navigator.vibrate) {
+        navigator.vibrate(100);
+      }
+      
+      loadData();
+    } catch (error) {
+      console.error("Error moving meal plan:", error);
+    } finally {
+      setDraggingPlan(null);
+    }
+  };
+
   const filteredRecipes = recipes.filter((recipe) => {
     // Filter by search text
     const matchesSearch = recipe.title.toLowerCase().includes(search.toLowerCase());
@@ -800,10 +934,14 @@ export default function PlannerPage() {
 
                     const isDragOver = dragOverSlot?.date === dateKey && dragOverSlot?.mealType === mealType;
                     const isDragging = draggingPlan?.plan_date === dateKey && draggingPlan?.meal_type === mealType;
+                    const slotKey = getSlotKey(dateKey, mealType);
 
                     return (
                       <div
-                        key={`${dateKey}-${mealType}`}
+                        key={slotKey}
+                        ref={(el) => {
+                          if (el) slotRefs.current.set(slotKey, el);
+                        }}
                         className={`min-h-[100px] rounded-lg border-2 border-dashed p-2 transition-all ${
                           plan
                             ? `meal-${mealType} border-solid`
@@ -815,10 +953,13 @@ export default function PlannerPage() {
                       >
                         {plan && plan.recipe ? (
                           <div
-                            className="relative h-full group/plan cursor-grab active:cursor-grabbing"
+                            className="relative h-full group/plan cursor-grab active:cursor-grabbing touch-none"
                             draggable
                             onDragStart={(e) => handleDragStart(e, plan)}
                             onDragEnd={handleDragEnd}
+                            onTouchStart={(e) => handleTouchStart(e, plan)}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={handleTouchEnd}
                           >
                             {/* Delete button */}
                             <button
