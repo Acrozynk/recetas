@@ -975,11 +975,42 @@ function IngredientPreviewModal({
   };
 
   const toggleRecipe = (recipeName: string, selected: boolean) => {
-    setLocalIngredients(prev =>
-      prev.map(ing =>
-        ing.recipes.includes(recipeName) ? { ...ing, selected } : ing
-      )
-    );
+    if (selected) {
+      // Selecting a recipe: select all its ingredients
+      setLocalIngredients(prev =>
+        prev.map(ing =>
+          ing.recipes.includes(recipeName) ? { ...ing, selected: true } : ing
+        )
+      );
+    } else {
+      // Deselecting a recipe: only deselect ingredients that don't belong to other active recipes
+      setLocalIngredients(prev => {
+        // Find other recipes that have selected ingredients NOT belonging to the recipe being deselected
+        const activeOtherRecipes = new Set<string>();
+        
+        prev.forEach(ing => {
+          if (ing.selected && !ing.recipes.includes(recipeName)) {
+            // This selected ingredient doesn't belong to the recipe being deselected
+            ing.recipes.forEach(r => activeOtherRecipes.add(r));
+          }
+        });
+        
+        return prev.map(ing => {
+          if (!ing.recipes.includes(recipeName)) return ing;
+          
+          // Check if this ingredient belongs to any other active recipe
+          const belongsToActiveRecipe = ing.recipes.some(r => 
+            r !== recipeName && activeOtherRecipes.has(r)
+          );
+          
+          if (belongsToActiveRecipe) {
+            return ing; // Keep selected - it belongs to another active recipe
+          }
+          
+          return { ...ing, selected: false };
+        });
+      });
+    }
   };
 
   const handleConfirm = async () => {
