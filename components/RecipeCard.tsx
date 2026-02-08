@@ -73,7 +73,7 @@ export default function RecipeCard({
               e.stopPropagation();
               onAddToPlanner(recipe);
             }}
-            className="absolute bottom-2 right-2 z-10 w-8 h-8 flex items-center justify-center bg-white/90 backdrop-blur-sm text-[var(--color-purple)] rounded-full shadow-md opacity-0 group-hover:opacity-100 hover:bg-[var(--color-purple)] hover:text-white transition-all transform scale-90 group-hover:scale-100"
+            className="absolute bottom-2 right-2 z-10 w-8 h-8 flex items-center justify-center bg-white/90 backdrop-blur-sm text-[var(--color-purple)] rounded-full shadow-md opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-[var(--color-purple)] hover:text-white transition-all transform scale-100 sm:scale-90 sm:group-hover:scale-100"
             title="Añadir al menú"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
