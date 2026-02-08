@@ -41,6 +41,24 @@ function RecipeOptionsModal({
   const [servingsMultiplier, setServingsMultiplier] = useState(initialSelection?.servingsMultiplier ?? 1);
   const [selectedDate, setSelectedDate] = useState<string>(currentDate ?? '');
   const [selectedMealType, setSelectedMealType] = useState<MealType>(currentMealType ?? 'lunch');
+  const [modalWeekOffset, setModalWeekOffset] = useState(0);
+
+  // Calculate week dates for the modal (can navigate to different weeks)
+  const getModalWeekDates = (offset: number): Date[] => {
+    // Start from the current date's week
+    const baseDate = currentDate ? new Date(currentDate) : new Date();
+    const monday = new Date(baseDate);
+    const dayOfWeek = baseDate.getDay() || 7;
+    monday.setDate(baseDate.getDate() - dayOfWeek + 1 + offset * 7);
+    
+    return Array.from({ length: 7 }, (_, i) => {
+      const date = new Date(monday);
+      date.setDate(monday.getDate() + i);
+      return date;
+    });
+  };
+  
+  const modalWeekDates = getModalWeekDates(modalWeekOffset);
 
   // Reset state when modal opens with new recipe/initial values
   useEffect(() => {
@@ -50,6 +68,7 @@ function RecipeOptionsModal({
       setServingsMultiplier(initialSelection?.servingsMultiplier ?? 1);
       setSelectedDate(currentDate ?? '');
       setSelectedMealType(currentMealType ?? 'lunch');
+      setModalWeekOffset(0);
     }
   }, [isOpen, initialSelection, currentDate, currentMealType]);
 
@@ -194,22 +213,45 @@ function RecipeOptionsModal({
           </div>
 
           {/* Date/Meal Type Selector (only when editing) */}
-          {isEditing && weekDates && (
+          {isEditing && (
             <div>
               <h4 className="font-semibold text-[var(--foreground)] mb-3 flex items-center gap-2">
                 <span className="text-lg">📅</span>
                 Cambiar día
               </h4>
               <div className="bg-[var(--color-purple-bg)] rounded-xl p-4 space-y-4">
+                {/* Week navigation */}
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setModalWeekOffset(modalWeekOffset - 1)}
+                    className="p-1.5 text-[var(--color-slate)] hover:text-[var(--color-purple)] hover:bg-white rounded-lg transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </button>
+                  <div className="text-sm font-medium text-[var(--foreground)]">
+                    {modalWeekDates[0].toLocaleDateString("es-ES", { month: "short", day: "numeric" })} - {modalWeekDates[6].toLocaleDateString("es-ES", { month: "short", day: "numeric" })}
+                  </div>
+                  <button
+                    onClick={() => setModalWeekOffset(modalWeekOffset + 1)}
+                    className="p-1.5 text-[var(--color-slate)] hover:text-[var(--color-purple)] hover:bg-white rounded-lg transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+                
                 {/* Day selector */}
                 <div>
-                  <label className="text-sm text-[var(--color-slate)] mb-2 block">Día</label>
                   <div className="grid grid-cols-7 gap-1">
-                    {weekDates.map((date) => {
+                    {modalWeekDates.map((date) => {
                       const dateKey = date.toISOString().split("T")[0];
                       const isSelected = selectedDate === dateKey;
                       const dayName = date.toLocaleDateString("es-ES", { weekday: "short" });
                       const dayNum = date.getDate();
+                      const isToday = new Date().toDateString() === date.toDateString();
                       return (
                         <button
                           key={dateKey}
@@ -217,7 +259,9 @@ function RecipeOptionsModal({
                           className={`p-2 rounded-lg text-center transition-all ${
                             isSelected
                               ? "bg-[var(--color-purple)] text-white"
-                              : "bg-white border border-[var(--border-color)] hover:border-[var(--color-purple)]"
+                              : isToday
+                                ? "bg-white border-2 border-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)]"
+                                : "bg-white border border-[var(--border-color)] hover:border-[var(--color-purple)]"
                           }`}
                         >
                           <div className="text-[10px] uppercase opacity-70">{dayName}</div>
