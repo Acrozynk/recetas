@@ -11,6 +11,8 @@ interface VariantSelection {
   selectedVariant: 1 | 2;
   alternativeSelections: Record<string, boolean>;
   servingsMultiplier: number;
+  newDate?: string;
+  newMealType?: string;
 }
 
 function RecipeOptionsModal({
@@ -19,16 +21,26 @@ function RecipeOptionsModal({
   recipe,
   onConfirm,
   initialSelection,
+  currentDate,
+  currentMealType,
+  weekDates,
+  isEditing,
 }: {
   isOpen: boolean;
   onClose: () => void;
   recipe: Recipe;
   onConfirm: (selection: VariantSelection) => void;
   initialSelection?: VariantSelection;
+  currentDate?: string;
+  currentMealType?: MealType;
+  weekDates?: Date[];
+  isEditing?: boolean;
 }) {
   const [selectedVariant, setSelectedVariant] = useState<1 | 2>(initialSelection?.selectedVariant ?? 1);
   const [alternativeSelections, setAlternativeSelections] = useState<Record<string, boolean>>(initialSelection?.alternativeSelections ?? {});
   const [servingsMultiplier, setServingsMultiplier] = useState(initialSelection?.servingsMultiplier ?? 1);
+  const [selectedDate, setSelectedDate] = useState<string>(currentDate ?? '');
+  const [selectedMealType, setSelectedMealType] = useState<MealType>(currentMealType ?? 'lunch');
 
   // Reset state when modal opens with new recipe/initial values
   useEffect(() => {
@@ -36,8 +48,10 @@ function RecipeOptionsModal({
       setSelectedVariant(initialSelection?.selectedVariant ?? 1);
       setAlternativeSelections(initialSelection?.alternativeSelections ?? {});
       setServingsMultiplier(initialSelection?.servingsMultiplier ?? 1);
+      setSelectedDate(currentDate ?? '');
+      setSelectedMealType(currentMealType ?? 'lunch');
     }
-  }, [isOpen, initialSelection]);
+  }, [isOpen, initialSelection, currentDate, currentMealType]);
 
   // Check what options this recipe has
   const hasVariants = !!(recipe.variant_1_label && recipe.variant_2_label);
@@ -61,10 +75,15 @@ function RecipeOptionsModal({
   };
 
   const handleConfirm = async () => {
+    const dateChanged = isEditing && selectedDate !== currentDate;
+    const mealTypeChanged = isEditing && selectedMealType !== currentMealType;
+    
     await onConfirm({
       selectedVariant,
       alternativeSelections,
-      servingsMultiplier
+      servingsMultiplier,
+      newDate: dateChanged ? selectedDate : undefined,
+      newMealType: (dateChanged || mealTypeChanged) ? selectedMealType : undefined,
     });
     onClose();
   };
@@ -82,7 +101,7 @@ function RecipeOptionsModal({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-display text-lg font-semibold text-[var(--foreground)]">
-                {initialSelection ? "Editar Porciones" : "Ajustar Porciones"}
+                {isEditing ? "Editar Menú" : "Ajustar Porciones"}
               </h3>
               <p className="text-sm text-[var(--color-slate)] mt-1 line-clamp-1">
                 {recipe.title}
@@ -173,6 +192,67 @@ function RecipeOptionsModal({
               </div>
             </div>
           </div>
+
+          {/* Date/Meal Type Selector (only when editing) */}
+          {isEditing && weekDates && (
+            <div>
+              <h4 className="font-semibold text-[var(--foreground)] mb-3 flex items-center gap-2">
+                <span className="text-lg">📅</span>
+                Cambiar día
+              </h4>
+              <div className="bg-[var(--color-purple-bg)] rounded-xl p-4 space-y-4">
+                {/* Day selector */}
+                <div>
+                  <label className="text-sm text-[var(--color-slate)] mb-2 block">Día</label>
+                  <div className="grid grid-cols-7 gap-1">
+                    {weekDates.map((date) => {
+                      const dateKey = date.toISOString().split("T")[0];
+                      const isSelected = selectedDate === dateKey;
+                      const dayName = date.toLocaleDateString("es-ES", { weekday: "short" });
+                      const dayNum = date.getDate();
+                      return (
+                        <button
+                          key={dateKey}
+                          onClick={() => setSelectedDate(dateKey)}
+                          className={`p-2 rounded-lg text-center transition-all ${
+                            isSelected
+                              ? "bg-[var(--color-purple)] text-white"
+                              : "bg-white border border-[var(--border-color)] hover:border-[var(--color-purple)]"
+                          }`}
+                        >
+                          <div className="text-[10px] uppercase opacity-70">{dayName}</div>
+                          <div className="text-sm font-semibold">{dayNum}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                
+                {/* Meal type selector */}
+                <div>
+                  <label className="text-sm text-[var(--color-slate)] mb-2 block">Comida</label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {MEAL_TYPES.map((mealType) => {
+                      const isSelected = selectedMealType === mealType;
+                      return (
+                        <button
+                          key={mealType}
+                          onClick={() => setSelectedMealType(mealType)}
+                          className={`px-2 py-2 rounded-lg text-xs font-medium transition-all ${
+                            isSelected
+                              ? "bg-[var(--color-purple)] text-white"
+                              : "bg-white border border-[var(--border-color)] hover:border-[var(--color-purple)]"
+                          }`}
+                        >
+                          {MEAL_LABELS[mealType]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Variant Selection (size variants like "molde grande" vs "molde pequeño") */}
           {hasVariants && (
@@ -479,16 +559,39 @@ export default function PlannerPage() {
     if (!showRecipeOptions) return;
     
     const { recipe, date, mealType, existingPlanId } = showRecipeOptions;
+    const targetDate = selection.newDate || date;
+    const targetMealType = selection.newMealType || mealType;
     
     try {
       if (existingPlanId) {
-        // Update existing meal plan
+        // Check if we're moving to a different slot
+        const isMoving = targetDate !== date || targetMealType !== mealType;
+        
+        if (isMoving) {
+          // Check if there's already a plan in the target slot
+          const existingTargetPlan = getMealPlan(targetDate, targetMealType as MealType);
+          
+          if (existingTargetPlan) {
+            // Swap: move the existing plan to the original slot
+            await supabase
+              .from("meal_plans")
+              .update({
+                plan_date: date,
+                meal_type: mealType,
+              })
+              .eq("id", existingTargetPlan.id);
+          }
+        }
+        
+        // Update existing meal plan (with potential new date/mealType)
         const { error } = await supabase
           .from("meal_plans")
           .update({
             selected_variant: selection.selectedVariant,
             alternative_selections: selection.alternativeSelections,
             servings_multiplier: selection.servingsMultiplier,
+            plan_date: targetDate,
+            meal_type: targetMealType,
           })
           .eq("id", existingPlanId);
 
@@ -1255,6 +1358,10 @@ export default function PlannerPage() {
           recipe={showRecipeOptions.recipe}
           onConfirm={handleRecipeOptionsConfirm}
           initialSelection={showRecipeOptions.initialSelection}
+          currentDate={showRecipeOptions.date}
+          currentMealType={showRecipeOptions.mealType}
+          weekDates={weekDates}
+          isEditing={!!showRecipeOptions.existingPlanId}
         />
       )}
 
