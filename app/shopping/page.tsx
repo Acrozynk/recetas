@@ -2608,21 +2608,26 @@ export default function ShoppingPage() {
                     {groupedItems[category].map((item) => (
                       <div
                         key={item.id}
-                        className={`flex items-center gap-2 p-3 transition-colors ${
+                        className={`flex items-center gap-1 p-3 transition-colors ${
                           selectedItems.has(item.id) ? "bg-[var(--color-purple-bg)]" : ""
                         }`}
                       >
-                        {/* Normal checkbox for marking as bought */}
-                        <input
-                          type="checkbox"
-                          checked={item.checked}
-                          onChange={() => toggleItem(item)}
-                          className="checkbox flex-shrink-0"
-                        />
+                        {/* Normal checkbox for marking as bought - wrapped in label for larger touch target */}
+                        <label 
+                          className="flex items-center justify-center w-10 h-10 cursor-pointer flex-shrink-0 -m-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={item.checked}
+                            onChange={() => toggleItem(item)}
+                            className="checkbox"
+                          />
+                        </label>
                         
                         <button
                           onClick={() => setEditingItem(item)}
-                          className="flex-1 min-w-0 text-left hover:bg-[var(--color-purple-bg)] rounded-lg px-2 py-1 transition-colors"
+                          className="flex-1 min-w-0 text-left hover:bg-[var(--color-purple-bg)] rounded-lg px-2 py-1 ml-1 transition-colors"
                         >
                           <div className="flex items-baseline gap-2 flex-wrap">
                             <span className="text-[var(--foreground)]">
@@ -2702,15 +2707,20 @@ export default function ShoppingPage() {
                   {checkedItems.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center gap-2 p-3 transition-colors"
+                      className="flex items-center gap-1 p-3 transition-colors"
                     >
-                      <input
-                        type="checkbox"
-                        checked={item.checked}
-                        onChange={() => toggleItem(item)}
-                        className="checkbox flex-shrink-0"
-                      />
-                      <div className="flex-1 min-w-0">
+                      {/* Checkbox with larger touch target */}
+                      <label 
+                        className="flex items-center justify-center w-10 h-10 cursor-pointer flex-shrink-0 -m-1"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={item.checked}
+                          onChange={() => toggleItem(item)}
+                          className="checkbox"
+                        />
+                      </label>
+                      <div className="flex-1 min-w-0 ml-1">
                         <div className="flex items-baseline gap-2 flex-wrap">
                           <span className="line-through text-[var(--color-slate-light)]">
                             {item.name}
