@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { supabase, type Recipe, type Ingredient, type Instruction, type Container, normalizeInstructions } from "@/lib/supabase";
+import { supabase, type Recipe, type Ingredient, type Instruction, type Container, normalizeInstructions, type SupermarketName, SUPERMARKETS, SUPERMARKET_COLORS } from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import AddToPlannerModal from "@/components/AddToPlannerModal";
@@ -162,6 +162,389 @@ interface EnrichedStepPart {
   formattedIngredient?: string;
 }
 
+// Categorize ingredient for shopping list (matching shopping page logic)
+function categorizeIngredient(name: string): string {
+  const lowerName = name.toLowerCase();
+
+  // Carnes y Mariscos
+  if (
+    /\b(chicken|beef|pork|lamb|turkey|fish|salmon|shrimp|bacon|sausage|meat|steak|ground|pollo|res|cerdo|cordero|pavo|pescado|salmón|camarón|tocino|salchicha|carne|bistec|molida|panceta|jamón|chorizo|lomo|solomillo|chuleta|costilla|ternera|gambas?|langostinos?|mejillones?|almejas?|calamares?|pulpo|sepia|lonchas?|morcillas?|butifarras?|sobrasada|fuet|salchichón)\b/.test(
+      lowerName
+    )
+  ) {
+    return "Carnes y Mariscos";
+  }
+
+  // Frutas y Verduras
+  if (
+    /\b(lettuce|tomato|onion|garlic|pepper|carrot|celery|potato|broccoli|spinach|kale|cucumber|zucchini|squash|mushroom|avocado|lemon|lime|orange|apple|banana|berry|fruit|vegetable|herb|cilantro|parsley|basil|mint|thyme|rosemary|lechuga|tomate|cebolla|ajos?|pimiento|zanahoria|apio|patatas?|papa|brócoli|espinaca|pepino|calabacín|champiñón|aguacate|limón|naranja|manzana|plátanos?|fruta|verdura|hierba|perejil|albahaca|menta|romero|puerro|berenjena|calabaza|judías verdes|guisantes|habas|remolacha|rábano|nabo|jengibre|dátiles?)\b/.test(
+      lowerName
+    )
+  ) {
+    return "Frutas y Verduras";
+  }
+
+  // Lácteos
+  if (
+    /\b(milk|cheese|butter|cream|yogurt|sour cream|egg|eggs|leche|queso|mantequilla|nata|crema|yogur|huevo|huevos)\b/.test(lowerName)
+  ) {
+    return "Lácteos";
+  }
+
+  // Panadería
+  if (/\b(bread|roll|bun|bagel|tortilla|pita|croissant|pan|bollo|bolillo)\b/.test(lowerName)) {
+    return "Panadería";
+  }
+
+  // Congelados
+  if (/\b(frozen|ice cream|congelado|helado)\b/.test(lowerName)) {
+    return "Congelados";
+  }
+
+  // Bebidas
+  if (/\b(juice|soda|water|wine|beer|coffee|tea|jugo|refresco|agua|vino|cerveza|café|té)\b/.test(lowerName)) {
+    return "Bebidas";
+  }
+
+  // Despensa
+  if (
+    /\b(flour|sugar|salt|oil|vinegar|sauce|pasta|rice|bean|can|stock|broth|spice|seasoning|harina|azúcar|sal|aceite|vinagre|salsa|arroz|frijol|lata|caldo|especia|condimento|azafrán|canela|pimentón|orégano|tomillo|laurel|comino|cúrcuma|curry|nuez moscada|clavo|pimienta|garbanzos?|lentejas?|alubias?|conserva|cocidos?|bicarbonato|vainilla)\b/.test(
+      lowerName
+    )
+  ) {
+    return "Despensa";
+  }
+
+  return "Otros";
+}
+
+// Shopping List Modal Component
+interface ShoppingIngredient {
+  id: string;
+  name: string;
+  quantity: string;
+  category: string;
+  selected: boolean;
+}
+
+function AddToShoppingListModal({
+  isOpen,
+  onClose,
+  ingredients,
+  recipeName,
+  scaleAmount,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  ingredients: Ingredient[];
+  recipeName: string;
+  scaleAmount: (amount: string) => string;
+}) {
+  const [localIngredients, setLocalIngredients] = useState<ShoppingIngredient[]>([]);
+  const [selectedSupermarket, setSelectedSupermarket] = useState<SupermarketName>("Mercadona");
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  // Initialize ingredients when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      const validIngredients = ingredients
+        .filter(ing => !ing.isHeader && !ing.name.startsWith('**') && ing.name.trim())
+        .map((ing, idx) => {
+          const scaledAmount = scaleAmount(ing.amount || '');
+          const quantity = scaledAmount 
+            ? `${scaledAmount}${ing.unit ? ' ' + ing.unit : ''}`
+            : (ing.unit || '');
+          return {
+            id: `ing-${idx}-${ing.name}`,
+            name: ing.name,
+            quantity: quantity.trim(),
+            category: categorizeIngredient(ing.name),
+            selected: true,
+          };
+        });
+      setLocalIngredients(validIngredients);
+      setSuccess(false);
+    }
+  }, [isOpen, ingredients, scaleAmount]);
+
+  const toggleIngredient = (id: string) => {
+    setLocalIngredients(prev =>
+      prev.map(ing =>
+        ing.id === id ? { ...ing, selected: !ing.selected } : ing
+      )
+    );
+  };
+
+  const toggleAll = (selected: boolean) => {
+    setLocalIngredients(prev =>
+      prev.map(ing => ({ ...ing, selected }))
+    );
+  };
+
+  const handleConfirm = async () => {
+    const selected = localIngredients.filter(ing => ing.selected);
+    if (selected.length === 0) return;
+
+    setSaving(true);
+    try {
+      const itemsToInsert = selected.map(ing => ({
+        name: ing.name,
+        quantity: ing.quantity || null,
+        category: ing.category,
+        checked: false,
+        recipe_id: null,
+        recipe_sources: [recipeName],
+        supermarket: selectedSupermarket,
+      }));
+
+      const { error } = await supabase
+        .from("shopping_items")
+        .insert(itemsToInsert);
+
+      if (error) throw error;
+
+      setSuccess(true);
+      setTimeout(() => {
+        onClose();
+      }, 1500);
+    } catch (error) {
+      console.error("Error adding to shopping list:", error);
+      alert("Error al añadir a la lista de compras");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const selectedCount = localIngredients.filter(i => i.selected).length;
+  const totalCount = localIngredients.length;
+
+  // Group by category
+  const groupedByCategory = localIngredients.reduce(
+    (acc, ing) => {
+      const category = ing.category || "Otros";
+      if (!acc[category]) acc[category] = [];
+      acc[category].push(ing);
+      return acc;
+    },
+    {} as Record<string, ShoppingIngredient[]>
+  );
+
+  const categoryOrder = [
+    "Frutas y Verduras",
+    "Lácteos",
+    "Carnes y Mariscos",
+    "Panadería",
+    "Despensa",
+    "Congelados",
+    "Bebidas",
+    "Otros",
+  ];
+
+  const sortedCategories = categoryOrder.filter(cat => groupedByCategory[cat]?.length > 0);
+
+  const categoryIcons: Record<string, string> = {
+    "Frutas y Verduras": "🥬",
+    "Lácteos": "🥛",
+    "Carnes y Mariscos": "🥩",
+    "Panadería": "🥖",
+    "Despensa": "🫙",
+    "Congelados": "🧊",
+    "Bebidas": "🥤",
+    "Otros": "🛒",
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <div className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl max-h-[85vh] flex flex-col shadow-2xl animate-fade-in">
+        {/* Header */}
+        <div className="p-4 border-b border-[var(--border-color)] bg-gradient-to-r from-emerald-50 to-teal-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🛒</span>
+              <div>
+                <h2 className="font-display text-xl font-semibold text-[var(--foreground)]">
+                  Añadir a Lista de Compras
+                </h2>
+                <p className="text-sm text-[var(--color-slate)] mt-0.5">
+                  Selecciona ingredientes y supermercado
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/50 rounded-full transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {success ? (
+          /* Success State */
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+            <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mb-4 animate-bounce">
+              <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-[var(--foreground)] mb-2">
+              ¡Añadido!
+            </h3>
+            <p className="text-[var(--color-slate)]">
+              {selectedCount} ingrediente{selectedCount !== 1 ? 's' : ''} añadido{selectedCount !== 1 ? 's' : ''} a <strong>{selectedSupermarket}</strong>
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Supermarket Selector */}
+            <div className="px-4 py-3 border-b border-[var(--border-color)] bg-[var(--color-purple-bg)]">
+              <label className="block text-sm font-medium text-[var(--color-slate)] mb-2">
+                Supermercado
+              </label>
+              <div className="flex gap-2">
+                {SUPERMARKETS.map(market => {
+                  const colors = SUPERMARKET_COLORS[market];
+                  const isSelected = selectedSupermarket === market;
+                  return (
+                    <button
+                      key={market}
+                      onClick={() => setSelectedSupermarket(market)}
+                      className={`flex-1 py-2.5 px-3 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2 ${
+                        isSelected
+                          ? `${colors.bg} ${colors.text} border-2 ${colors.border} shadow-sm`
+                          : "bg-white border-2 border-[var(--border-color)] text-[var(--color-slate)] hover:border-[var(--color-purple-light)]"
+                      }`}
+                    >
+                      {isSelected && (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                      {market}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Selection Controls */}
+            <div className="px-4 py-3 border-b border-[var(--border-color)] bg-white">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-[var(--color-slate)]">
+                  {selectedCount} de {totalCount} seleccionados
+                </span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => toggleAll(true)}
+                    className="text-sm px-3 py-1.5 rounded-lg bg-[var(--color-purple-bg)] text-[var(--color-purple-dark)] hover:bg-[var(--color-purple-bg-dark)] transition-colors"
+                  >
+                    Todos
+                  </button>
+                  <button
+                    onClick={() => toggleAll(false)}
+                    className="text-sm px-3 py-1.5 rounded-lg bg-gray-100 text-[var(--color-slate)] hover:bg-gray-200 transition-colors"
+                  >
+                    Ninguno
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Ingredients List */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="space-y-4">
+                {sortedCategories.map(category => (
+                  <div key={category}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">{categoryIcons[category] || "📦"}</span>
+                      <h3 className="font-semibold text-sm text-[var(--color-slate)]">
+                        {category}
+                      </h3>
+                      <span className="text-xs text-[var(--color-slate-light)]">
+                        ({groupedByCategory[category].filter(i => i.selected).length}/{groupedByCategory[category].length})
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {groupedByCategory[category].map(ing => (
+                        <label
+                          key={ing.id}
+                          className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${
+                            ing.selected
+                              ? "bg-emerald-50 border-2 border-emerald-200"
+                              : "bg-gray-50 border-2 border-transparent hover:bg-gray-100"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={ing.selected}
+                            onChange={() => toggleIngredient(ing.id)}
+                            className="checkbox"
+                          />
+                          <div className="flex-1 min-w-0">
+                            <span className={`font-medium ${ing.selected ? "text-[var(--foreground)]" : "text-[var(--color-slate)]"}`}>
+                              {ing.name}
+                            </span>
+                            {ing.quantity && (
+                              <span className={`ml-2 text-sm ${ing.selected ? "text-emerald-700" : "text-[var(--color-slate-light)]"}`}>
+                                ({ing.quantity})
+                              </span>
+                            )}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-[var(--border-color)] flex gap-3 pb-safe">
+              <button
+                onClick={onClose}
+                className="flex-1 btn-secondary"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirm}
+                disabled={selectedCount === 0 || saving}
+                className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {saving ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Añadiendo...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    Añadir {selectedCount} a {selectedSupermarket}
+                  </>
+                )}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Enrich step text with ingredient quantities
 function enrichStepWithIngredients(
   stepText: string,
@@ -290,6 +673,7 @@ export default function RecipeDetailPage() {
   const [container, setContainer] = useState<Container | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAddToPlanner, setShowAddToPlanner] = useState(false);
+  const [showAddToShoppingList, setShowAddToShoppingList] = useState(false);
   const [cookingMode, setCookingMode] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
@@ -817,6 +1201,20 @@ export default function RecipeDetailPage() {
                   strokeLinejoin="round"
                   strokeWidth={1.5}
                   d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+            </button>
+            <button
+              onClick={() => setShowAddToShoppingList(true)}
+              className="p-2 text-[var(--color-slate)] hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+              title="Añadir a lista de compras"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"
                 />
               </svg>
             </button>
@@ -1810,6 +2208,15 @@ export default function RecipeDetailPage() {
         isOpen={showAddToPlanner}
         onClose={() => setShowAddToPlanner(false)}
         recipe={recipe}
+      />
+
+      {/* Add to Shopping List Modal */}
+      <AddToShoppingListModal
+        isOpen={showAddToShoppingList}
+        onClose={() => setShowAddToShoppingList(false)}
+        ingredients={recipe.ingredients as Ingredient[]}
+        recipeName={recipe.title}
+        scaleAmount={scaleAmount}
       />
 
       <BottomNav />
