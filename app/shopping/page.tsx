@@ -316,35 +316,6 @@ function GrocerySearchModal({
   const [searchResults, setSearchResults] = useState<GroceryProduct[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const modalRef = useRef<HTMLDivElement>(null);
-
-  // Handle visual viewport changes (for mobile keyboard)
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const updateModalHeight = () => {
-      if (modalRef.current && window.visualViewport) {
-        const vh = window.visualViewport.height;
-        modalRef.current.style.maxHeight = `${vh * 0.9}px`;
-      }
-    };
-
-    // Initial update
-    updateModalHeight();
-
-    // Listen for viewport changes (keyboard open/close)
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', updateModalHeight);
-      window.visualViewport.addEventListener('scroll', updateModalHeight);
-    }
-
-    return () => {
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', updateModalHeight);
-        window.visualViewport.removeEventListener('scroll', updateModalHeight);
-      }
-    };
-  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -383,18 +354,15 @@ function GrocerySearchModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center overflow-y-auto">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
       
-      {/* Modal */}
-      <div 
-        ref={modalRef}
-        className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl max-h-[85vh] flex flex-col shadow-2xl animate-fade-in"
-      >
+      {/* Modal - positioned at top on mobile for keyboard visibility */}
+      <div className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl sm:rounded-2xl max-h-[85vh] flex flex-col shadow-2xl animate-fade-in my-4 sm:my-0 mx-2 sm:mx-0">
         {/* Header */}
         <div className="p-4 border-b border-[var(--border-color)]">
           <div className="flex items-center justify-between mb-3">
