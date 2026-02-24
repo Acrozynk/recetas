@@ -544,13 +544,13 @@ function GrocerySearchModal({
                 type="text"
                 value={manualQuantity}
                 onChange={(e) => setManualQuantity(e.target.value)}
-                placeholder="Cantidad"
-                className="input w-28"
+                placeholder="Cant."
+                className="input w-16 flex-shrink-0 text-center"
               />
               <select
                 value={manualCategory}
                 onChange={(e) => setManualCategory(e.target.value)}
-                className="input flex-1 text-base"
+                className="input flex-1 min-w-0 text-base"
               >
                 {categoryOrder.map((cat) => (
                   <option key={cat} value={cat}>
