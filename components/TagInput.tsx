@@ -35,7 +35,7 @@ export default function TagInput({
   const displaySuggestions =
     inputValue.trim() === "" ? unusedSuggestions : filteredSuggestions;
 
-  const addTag = (tag: string) => {
+  const addTag = (tag: string, focusInput: boolean = false) => {
     const trimmedTag = tag.trim();
     if (trimmedTag && !tags.includes(trimmedTag)) {
       onChange([...tags, trimmedTag]);
@@ -43,7 +43,9 @@ export default function TagInput({
     setInputValue("");
     setShowSuggestions(false);
     setHighlightedIndex(-1);
-    inputRef.current?.focus();
+    if (focusInput) {
+      inputRef.current?.focus();
+    }
   };
 
   const removeTag = (tagToRemove: string) => {
@@ -54,9 +56,9 @@ export default function TagInput({
     if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
       if (highlightedIndex >= 0 && displaySuggestions[highlightedIndex]) {
-        addTag(displaySuggestions[highlightedIndex]);
+        addTag(displaySuggestions[highlightedIndex], true);
       } else if (inputValue.trim()) {
-        addTag(inputValue);
+        addTag(inputValue, true);
       }
     } else if (e.key === "Backspace" && inputValue === "" && tags.length > 0) {
       removeTag(tags[tags.length - 1]);

@@ -95,3 +95,5 @@ ON CONFLICT (supermarket, category) DO NOTHING;
 
 
 
+
+
