@@ -538,29 +538,31 @@ function GrocerySearchModal({
           <p className="text-xs text-[var(--color-slate)] mb-3">
             ¿No encuentras el producto? Añádelo manualmente:
           </p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={manualQuantity}
-              onChange={(e) => setManualQuantity(e.target.value)}
-              placeholder="Cantidad"
-              className="input w-24"
-            />
-            <select
-              value={manualCategory}
-              onChange={(e) => setManualCategory(e.target.value)}
-              className="input flex-1"
-            >
-              {categoryOrder.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
+          <div className="flex flex-col gap-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={manualQuantity}
+                onChange={(e) => setManualQuantity(e.target.value)}
+                placeholder="Cantidad"
+                className="input w-28"
+              />
+              <select
+                value={manualCategory}
+                onChange={(e) => setManualCategory(e.target.value)}
+                className="input flex-1 text-base"
+              >
+                {categoryOrder.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+            </div>
             <button
               onClick={handleAddManual}
               disabled={!searchQuery.trim()}
-              className="btn-primary px-4 disabled:opacity-50"
+              className="btn-primary w-full py-3 disabled:opacity-50"
             >
               Añadir
             </button>
