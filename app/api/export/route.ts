@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import { supabase, type Recipe, normalizeInstructions } from "@/lib/supabase";
+import JSZip from "jszip";
 
 export type ExportFormat = "json" | "csv" | "markdown" | "html";
+
+interface ImageMapping {
+  recipeId: string;
+  originalUrl: string;
+  localPath: string;
+}
 
 // GET export recipes in different formats
 export async function GET(request: Request) {
@@ -9,6 +16,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const format = (searchParams.get("format") || "json") as ExportFormat;
     const recipeIds = searchParams.get("ids")?.split(",").filter(Boolean);
+    const includeImages = searchParams.get("include_images") === "true";
 
     // Fetch recipes
     let query = supabase
@@ -33,6 +41,10 @@ export async function GET(request: Request) {
 
     const timestamp = new Date().toISOString().split("T")[0];
     const filename = `recetas-backup-${timestamp}`;
+
+    if (includeImages) {
+      return await exportWithImages(recipes, format, filename);
+    }
 
     switch (format) {
       case "json":
@@ -85,7 +97,104 @@ export async function GET(request: Request) {
   }
 }
 
-function recipesToCSV(recipes: Recipe[]): string {
+async function exportWithImages(
+  recipes: Recipe[],
+  format: ExportFormat,
+  filename: string
+): Promise<NextResponse> {
+  const zip = new JSZip();
+  const imagesFolder = zip.folder("images");
+  const imageMappings: ImageMapping[] = [];
+
+  // Download and add images to ZIP
+  for (const recipe of recipes) {
+    if (recipe.image_url) {
+      try {
+        const response = await fetch(recipe.image_url);
+        if (response.ok) {
+          const imageBuffer = await response.arrayBuffer();
+          const extension = getImageExtension(recipe.image_url, response.headers.get("content-type"));
+          const imageFilename = `${slugify(recipe.title)}-${recipe.id.slice(0, 8)}${extension}`;
+          
+          imagesFolder?.file(imageFilename, imageBuffer);
+          imageMappings.push({
+            recipeId: recipe.id,
+            originalUrl: recipe.image_url,
+            localPath: `images/${imageFilename}`,
+          });
+        }
+      } catch (err) {
+        console.warn(`Failed to download image for recipe ${recipe.title}:`, err);
+      }
+    }
+  }
+
+  // Create recipes with local image paths for the export
+  const recipesWithLocalImages = recipes.map((recipe) => {
+    const mapping = imageMappings.find((m) => m.recipeId === recipe.id);
+    return {
+      ...recipe,
+      image_url: mapping?.localPath || recipe.image_url,
+      original_image_url: recipe.image_url,
+    };
+  });
+
+  // Generate export content based on format
+  let exportContent: string;
+  let exportFilename: string;
+
+  switch (format) {
+    case "json":
+      exportContent = JSON.stringify(recipesWithLocalImages, null, 2);
+      exportFilename = `${filename}.json`;
+      break;
+    case "csv":
+      exportContent = recipesToCSV(recipes, imageMappings);
+      exportFilename = `${filename}.csv`;
+      break;
+    case "markdown":
+      exportContent = recipesToMarkdown(recipes, imageMappings);
+      exportFilename = `${filename}.md`;
+      break;
+    case "html":
+      exportContent = recipesToPrintableHTML(recipes, imageMappings);
+      exportFilename = `${filename}.html`;
+      break;
+    default:
+      throw new Error("Invalid format");
+  }
+
+  zip.file(exportFilename, exportContent);
+
+  // Generate ZIP
+  const zipBuffer = await zip.generateAsync({ type: "arraybuffer" });
+
+  return new NextResponse(zipBuffer, {
+    headers: {
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${filename}.zip"`,
+    },
+  });
+}
+
+function getImageExtension(url: string, contentType: string | null): string {
+  if (contentType) {
+    if (contentType.includes("jpeg") || contentType.includes("jpg")) return ".jpg";
+    if (contentType.includes("png")) return ".png";
+    if (contentType.includes("gif")) return ".gif";
+    if (contentType.includes("webp")) return ".webp";
+  }
+  
+  const urlLower = url.toLowerCase();
+  if (urlLower.includes(".jpg") || urlLower.includes(".jpeg")) return ".jpg";
+  if (urlLower.includes(".png")) return ".png";
+  if (urlLower.includes(".gif")) return ".gif";
+  if (urlLower.includes(".webp")) return ".webp";
+  
+  return ".jpg";
+}
+
+function recipesToCSV(recipes: Recipe[], imageMappings?: ImageMapping[]): string {
   const headers = [
     "Título",
     "Descripción",
@@ -99,6 +208,7 @@ function recipesToCSV(recipes: Recipe[]): string {
     "Valoración",
     "Lo he hecho",
     "URL Fuente",
+    "Imagen",
     "Fecha Creación",
   ];
 
@@ -120,6 +230,9 @@ function recipesToCSV(recipes: Recipe[]): string {
       .map((inst, i) => `${i + 1}. ${inst.text}`)
       .join("; ");
 
+    const imageMapping = imageMappings?.find((m) => m.recipeId === recipe.id);
+    const imagePath = imageMapping?.localPath || recipe.image_url || "";
+
     return [
       escapeCSV(recipe.title),
       escapeCSV(recipe.description),
@@ -133,6 +246,7 @@ function recipesToCSV(recipes: Recipe[]): string {
       recipe.rating || "",
       recipe.made_it ? "Sí" : "No",
       escapeCSV(recipe.source_url),
+      escapeCSV(imagePath),
       recipe.created_at?.split("T")[0] || "",
     ].join(",");
   });
@@ -140,7 +254,7 @@ function recipesToCSV(recipes: Recipe[]): string {
   return [headers.join(","), ...rows].join("\n");
 }
 
-function recipesToMarkdown(recipes: Recipe[]): string {
+function recipesToMarkdown(recipes: Recipe[], imageMappings?: ImageMapping[]): string {
   const timestamp = new Date().toLocaleDateString("es-ES", {
     year: "numeric",
     month: "long",
@@ -160,6 +274,13 @@ function recipesToMarkdown(recipes: Recipe[]): string {
 
   recipes.forEach((recipe) => {
     md += `## ${recipe.title} {#${slugify(recipe.title)}}\n\n`;
+
+    // Image
+    const imageMapping = imageMappings?.find((m) => m.recipeId === recipe.id);
+    const imagePath = imageMapping?.localPath || recipe.image_url;
+    if (imagePath) {
+      md += `![${recipe.title}](${imagePath})\n\n`;
+    }
 
     if (recipe.description) {
       md += `*${recipe.description}*\n\n`;
@@ -216,7 +337,7 @@ function recipesToMarkdown(recipes: Recipe[]): string {
   return md;
 }
 
-function recipesToPrintableHTML(recipes: Recipe[]): string {
+function recipesToPrintableHTML(recipes: Recipe[], imageMappings?: ImageMapping[]): string {
   const timestamp = new Date().toLocaleDateString("es-ES", {
     year: "numeric",
     month: "long",
@@ -316,6 +437,14 @@ function recipesToPrintableHTML(recipes: Recipe[]): string {
       font-size: 1.75rem;
       color: var(--orange-dark);
       margin-bottom: 0.5rem;
+    }
+    
+    .recipe-image {
+      width: 100%;
+      max-height: 300px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-bottom: 1rem;
     }
     
     .recipe-description {
@@ -442,7 +571,7 @@ function recipesToPrintableHTML(recipes: Recipe[]): string {
     </ol>
   </nav>
 
-  ${recipes.map((recipe) => recipeToHTML(recipe)).join("\n\n")}
+  ${recipes.map((recipe) => recipeToHTML(recipe, imageMappings)).join("\n\n")}
 
 </body>
 </html>`;
@@ -450,9 +579,16 @@ function recipesToPrintableHTML(recipes: Recipe[]): string {
   return html;
 }
 
-function recipeToHTML(recipe: Recipe): string {
+function recipeToHTML(recipe: Recipe, imageMappings?: ImageMapping[]): string {
   let html = `<article class="recipe" id="${slugify(recipe.title)}">
     <h2>${escapeHTML(recipe.title)}</h2>`;
+
+  // Image
+  const imageMapping = imageMappings?.find((m) => m.recipeId === recipe.id);
+  const imagePath = imageMapping?.localPath || recipe.image_url;
+  if (imagePath) {
+    html += `\n    <img class="recipe-image" src="${escapeHTML(imagePath)}" alt="${escapeHTML(recipe.title)}">`;
+  }
 
   if (recipe.description) {
     html += `\n    <p class="recipe-description">${escapeHTML(recipe.description)}</p>`;
@@ -521,6 +657,7 @@ function escapeHTML(text: string | null | undefined): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
+
 
 
 
