@@ -12,7 +12,7 @@ import {
 } from "@/components/BackupReminder";
 import { supabase, type Container } from "@/lib/supabase";
 
-type ExportFormat = "json" | "csv" | "markdown" | "html";
+type ExportFormat = "json" | "csv" | "markdown" | "html" | "all";
 
 interface RecipeListItem {
   id: string;
@@ -30,9 +30,20 @@ interface FormatOption {
 
 const FORMAT_OPTIONS: FormatOption[] = [
   {
+    id: "all",
+    name: "Backup Completo",
+    description: "Todos los formatos + imágenes en un ZIP",
+    extension: ".zip",
+    icon: (
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+      </svg>
+    ),
+  },
+  {
     id: "json",
     name: "JSON",
-    description: "Formato completo, ideal para reimportar o programadores",
+    description: "Formato completo, ideal para reimportar",
     extension: ".json",
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -88,7 +99,7 @@ export default function SettingsPage() {
   const [selectedRecipes, setSelectedRecipes] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>("json");
+  const [selectedFormat, setSelectedFormat] = useState<ExportFormat>("all");
   const [includeImages, setIncludeImages] = useState(false);
   const [lastBackup, setLastBackup] = useState<Date | null>(null);
   const [reminderDays, setReminderDaysState] = useState(14);
@@ -344,14 +355,16 @@ export default function SettingsPage() {
       const ids = selectAll ? "" : Array.from(selectedRecipes).join(",");
       const params = new URLSearchParams({ format: selectedFormat });
       if (ids) params.set("ids", ids);
-      if (includeImages) params.set("include_images", "true");
+      // "all" format already includes images, no need to pass the flag
+      if (includeImages && selectedFormat !== "all") params.set("include_images", "true");
       const url = `/api/export?${params.toString()}`;
 
       const response = await fetch(url);
       if (!response.ok) throw new Error("Export failed");
 
       const blob = await response.blob();
-      const defaultExt = includeImages ? ".zip" : FORMAT_OPTIONS.find(f => f.id === selectedFormat)?.extension;
+      const isZip = selectedFormat === "all" || includeImages;
+      const defaultExt = isZip ? ".zip" : FORMAT_OPTIONS.find(f => f.id === selectedFormat)?.extension;
       const filename = response.headers
         .get("Content-Disposition")
         ?.match(/filename="(.+)"/)?.[1] || `recetas-backup${defaultExt}`;
@@ -447,26 +460,28 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            {/* Include Images Option */}
-            <label className="flex items-center gap-3 p-3 rounded-lg border border-[var(--border-color)] hover:bg-[var(--color-purple-bg)] transition-colors cursor-pointer">
-              <input
-                type="checkbox"
-                checked={includeImages}
-                onChange={(e) => setIncludeImages(e.target.checked)}
-                className="checkbox"
-              />
-              <div className="flex items-center gap-2 flex-1">
-                <svg className="w-5 h-5 text-[var(--color-slate)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <div>
-                  <span className="text-sm text-[var(--foreground)]">Incluir imágenes</span>
-                  <p className="text-xs text-[var(--color-slate)]">
-                    {includeImages ? "Se descargará un archivo ZIP" : "Solo datos de recetas"}
-                  </p>
+            {/* Include Images Option - hidden when "all" is selected since it already includes images */}
+            {selectedFormat !== "all" && (
+              <label className="flex items-center gap-3 p-3 rounded-lg border border-[var(--border-color)] hover:bg-[var(--color-purple-bg)] transition-colors cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeImages}
+                  onChange={(e) => setIncludeImages(e.target.checked)}
+                  className="checkbox"
+                />
+                <div className="flex items-center gap-2 flex-1">
+                  <svg className="w-5 h-5 text-[var(--color-slate)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <div>
+                    <span className="text-sm text-[var(--foreground)]">Incluir imágenes</span>
+                    <p className="text-xs text-[var(--color-slate)]">
+                      {includeImages ? "Se descargará un archivo ZIP" : "Solo datos de recetas"}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </label>
+              </label>
+            )}
 
             {/* Recipe Selection Toggle */}
             <div>

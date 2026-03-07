@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { supabase, type Recipe, normalizeInstructions } from "@/lib/supabase";
 import JSZip from "jszip";
 
-export type ExportFormat = "json" | "csv" | "markdown" | "html";
+export type ExportFormat = "json" | "csv" | "markdown" | "html" | "all";
 
 interface ImageMapping {
   recipeId: string;
@@ -41,6 +41,11 @@ export async function GET(request: Request) {
 
     const timestamp = new Date().toISOString().split("T")[0];
     const filename = `recetas-backup-${timestamp}`;
+
+    // "all" format always includes images and all formats
+    if (format === "all") {
+      return await exportAllFormats(recipes, filename);
+    }
 
     if (includeImages) {
       return await exportWithImages(recipes, format, filename);
@@ -84,7 +89,7 @@ export async function GET(request: Request) {
 
       default:
         return NextResponse.json(
-          { error: "Invalid format. Use: json, csv, markdown, or html" },
+          { error: "Invalid format. Use: json, csv, markdown, html, or all" },
           { status: 400 }
         );
     }
@@ -173,6 +178,64 @@ async function exportWithImages(
     headers: {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="${filename}.zip"`,
+    },
+  });
+}
+
+async function exportAllFormats(
+  recipes: Recipe[],
+  filename: string
+): Promise<NextResponse> {
+  const zip = new JSZip();
+  const imagesFolder = zip.folder("images");
+  const imageMappings: ImageMapping[] = [];
+
+  // Download and add images to ZIP
+  for (const recipe of recipes) {
+    if (recipe.image_url) {
+      try {
+        const response = await fetch(recipe.image_url);
+        if (response.ok) {
+          const imageBuffer = await response.arrayBuffer();
+          const extension = getImageExtension(recipe.image_url, response.headers.get("content-type"));
+          const imageFilename = `${slugify(recipe.title)}-${recipe.id.slice(0, 8)}${extension}`;
+          
+          imagesFolder?.file(imageFilename, imageBuffer);
+          imageMappings.push({
+            recipeId: recipe.id,
+            originalUrl: recipe.image_url,
+            localPath: `images/${imageFilename}`,
+          });
+        }
+      } catch (err) {
+        console.warn(`Failed to download image for recipe ${recipe.title}:`, err);
+      }
+    }
+  }
+
+  // Create recipes with local image paths for JSON export
+  const recipesWithLocalImages = recipes.map((recipe) => {
+    const mapping = imageMappings.find((m) => m.recipeId === recipe.id);
+    return {
+      ...recipe,
+      image_url: mapping?.localPath || recipe.image_url,
+      original_image_url: recipe.image_url,
+    };
+  });
+
+  // Add all 4 formats to the ZIP
+  zip.file(`${filename}.json`, JSON.stringify(recipesWithLocalImages, null, 2));
+  zip.file(`${filename}.csv`, recipesToCSV(recipes, imageMappings));
+  zip.file(`${filename}.md`, recipesToMarkdown(recipes, imageMappings));
+  zip.file(`${filename}.html`, recipesToPrintableHTML(recipes, imageMappings));
+
+  // Generate ZIP
+  const zipBuffer = await zip.generateAsync({ type: "arraybuffer" });
+
+  return new NextResponse(zipBuffer, {
+    headers: {
+      "Content-Type": "application/zip",
+      "Content-Disposition": `attachment; filename="${filename}-completo.zip"`,
     },
   });
 }
