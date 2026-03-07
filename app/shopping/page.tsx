@@ -937,12 +937,14 @@ function IngredientPreviewModal({
   ingredients,
   onConfirm,
   categoryOrder,
+  dateRangeInfo,
 }: {
   isOpen: boolean;
   onClose: () => void;
   ingredients: PreviewIngredient[];
   onConfirm: (selectedIngredients: PreviewIngredient[]) => void;
   categoryOrder: string[];
+  dateRangeInfo?: string;
 }) {
   const [localIngredients, setLocalIngredients] = useState<PreviewIngredient[]>([]);
   const [saving, setSaving] = useState(false);
@@ -1071,7 +1073,7 @@ function IngredientPreviewModal({
                 Confirmar Ingredientes
               </h2>
               <p className="text-sm text-[var(--color-slate)] mt-1">
-                Selecciona los ingredientes que necesitas comprar
+                {dateRangeInfo || "Selecciona los ingredientes que necesitas comprar"}
               </p>
             </div>
             <button
@@ -1327,6 +1329,7 @@ export default function ShoppingPage() {
   // Preview modal state
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewIngredients, setPreviewIngredients] = useState<PreviewIngredient[]>([]);
+  const [previewDateRange, setPreviewDateRange] = useState<string>("");
   
   // Supermarket state
   const [selectedSupermarket, setSelectedSupermarket] = useState<SupermarketName>("Mercadona");
@@ -1522,28 +1525,31 @@ export default function ShoppingPage() {
     setGenerating(true);
 
     try {
-      // Calculate current week's start (Monday)
+      // Get all future meal plans from today onwards
       const today = new Date();
-      const weekStartDate = new Date(today);
-      weekStartDate.setDate(today.getDate() - today.getDay() + 1);
-      const weekStart = weekStartDate.toISOString().split("T")[0];
-      
-      // Get this week's meal plans with recipe details
-      const weekEnd = new Date(weekStartDate);
-      weekEnd.setDate(weekStartDate.getDate() + 6);
+      const todayStr = today.toISOString().split("T")[0];
 
       const { data: mealPlans, error: plansError } = await supabase
         .from("meal_plans")
         .select("*, recipe:recipes(*)")
-        .gte("plan_date", weekStart)
-        .lte("plan_date", weekEnd.toISOString().split("T")[0]);
+        .gte("plan_date", todayStr)
+        .order("plan_date", { ascending: true });
 
       if (plansError) throw plansError;
 
       if (!mealPlans || mealPlans.length === 0) {
-        alert("No hay comidas planificadas para esta semana. ¡Añade algunas comidas al planificador primero!");
+        alert("No hay comidas planificadas. ¡Añade algunas comidas al planificador primero!");
         return;
       }
+
+      // Calculate date range for display
+      const dates = mealPlans.map(p => p.plan_date).sort();
+      const firstDate = new Date(dates[0]);
+      const lastDate = new Date(dates[dates.length - 1]);
+      const formatDate = (d: Date) => d.toLocaleDateString("es-ES", { day: "numeric", month: "short" });
+      const dateRangeText = firstDate.toDateString() === lastDate.toDateString()
+        ? `${mealPlans.length} comidas para el ${formatDate(firstDate)}`
+        : `${mealPlans.length} comidas del ${formatDate(firstDate)} al ${formatDate(lastDate)}`;
 
       // Collect and combine ingredients intelligently
       const ingredientMap = new Map<
@@ -1668,6 +1674,7 @@ export default function ShoppingPage() {
 
       // Show preview modal
       setPreviewIngredients(preview);
+      setPreviewDateRange(dateRangeText);
       setIsPreviewModalOpen(true);
     } catch (error) {
       console.error("Error generating shopping list:", error);
@@ -2876,6 +2883,7 @@ export default function ShoppingPage() {
         ingredients={previewIngredients}
         onConfirm={confirmAddIngredients}
         categoryOrder={categoryOrder}
+        dateRangeInfo={previewDateRange}
       />
     </div>
   );
