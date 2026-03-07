@@ -31,7 +31,7 @@ interface FormatOption {
 const FORMAT_OPTIONS: FormatOption[] = [
   {
     id: "all",
-    name: "Backup Completo",
+    name: "Copia de Seguridad Completa",
     description: "Todos los formatos + imágenes en un ZIP",
     extension: ".zip",
     icon: (
