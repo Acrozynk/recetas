@@ -664,10 +664,13 @@ export default function RecipeDetailPage() {
   const router = useRouter();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
-  const [adults, setAdults] = useState(0); // Will be initialized from recipe.servings
-  const [children, setChildren] = useState(0);
+  /** Number of batches (e.g. cook 3× the same family meal) */
+  const [batchCount, setBatchCount] = useState(1);
+  /** Adults fed per batch */
+  const [adultsPerBatch, setAdultsPerBatch] = useState(0);
+  /** Children per batch (each counts as ½ adult portion) */
+  const [childrenPerBatch, setChildrenPerBatch] = useState(0);
   const [unitsQuantity, setUnitsQuantity] = useState(0); // For units-based recipes
-  const [portionsInitialized, setPortionsInitialized] = useState(false);
   // Container-based scaling
   const [containerQuantity, setContainerQuantity] = useState(1);
   const [container, setContainer] = useState<Container | null>(null);
@@ -754,19 +757,18 @@ export default function RecipeDetailPage() {
     }
   }, [params.id]);
 
-  // Initialize portions when recipe loads
+  // Initialize portions when navigating to a recipe (by id)
   useEffect(() => {
-    if (recipe?.servings && !portionsInitialized) {
-      if (recipe.servings_unit) {
-        // Units-based recipe: initialize unitsQuantity
-        setUnitsQuantity(recipe.servings);
-      } else {
-        // Person-based recipe: initialize adults
-        setAdults(recipe.servings);
-      }
-      setPortionsInitialized(true);
+    if (!recipe?.id || !recipe.servings) return;
+    if (recipe.servings_unit) {
+      setUnitsQuantity(recipe.servings);
+    } else if (!recipe.container_id && !recipe.variant_1_label) {
+      // Person-based: 1 lote, adultos por lote = porciones de la receta
+      setBatchCount(1);
+      setAdultsPerBatch(recipe.servings);
+      setChildrenPerBatch(0);
     }
-  }, [recipe, portionsInitialized]);
+  }, [recipe?.id]);
 
   // Initialize rating and madeIt from recipe
   useEffect(() => {
@@ -799,16 +801,18 @@ export default function RecipeDetailPage() {
     }
   };
 
-  // Calculate total portions (children = 0.5 portions each)
+  // Person-based: each batch feeds (adults + 0.5×children); total = batches × that
   // For container-based recipes, use containerQuantity instead
   // For units-based recipes, use unitsQuantity
   const usesContainer = !!recipe?.container_id;
   const usesUnits = !!recipe?.servings_unit;
-  const totalPortions = usesContainer 
-    ? containerQuantity 
+  const equivalentPerBatch =
+    adultsPerBatch + childrenPerBatch * 0.5;
+  const totalPortions = usesContainer
+    ? containerQuantity
     : usesUnits
       ? unitsQuantity
-      : adults + (children * 0.5);
+      : batchCount * equivalentPerBatch;
   const originalServings = usesContainer 
     ? (recipe?.container_quantity || 1) 
     : (recipe?.servings || 1);
@@ -1428,13 +1432,16 @@ export default function RecipeDetailPage() {
             <div className="p-4 bg-white rounded-xl border border-[var(--border-color)] mb-6">
               <div className="flex items-center justify-between mb-4">
                 <span className="font-medium text-[var(--color-slate)]">
-                  Ajustar porciones
+                  Ajustar porciones (lotes y familia)
                 </span>
-                {(adults !== recipe.servings || children !== 0) && (
+                {(batchCount !== 1 ||
+                  adultsPerBatch !== recipe.servings ||
+                  childrenPerBatch !== 0) && (
                   <button
                     onClick={() => {
-                      setAdults(recipe.servings || 1);
-                      setChildren(0);
+                      setBatchCount(1);
+                      setAdultsPerBatch(recipe.servings || 1);
+                      setChildrenPerBatch(0);
                     }}
                     className="text-sm text-[var(--color-purple)] hover:underline"
                   >
@@ -1442,38 +1449,83 @@ export default function RecipeDetailPage() {
                   </button>
                 )}
               </div>
-              
+
+              <p className="text-xs text-[var(--color-slate)] mb-3">
+                Indica cuántas veces cocinas el mismo menú y cuántas personas come en cada lote.
+                Los ingredientes se escalan con <strong>lotes × (adultos + ½ niños por lote)</strong>.
+              </p>
+
+              {/* Batches */}
+              <div className="flex flex-col items-center p-3 bg-slate-50 rounded-xl mb-4">
+                <div className="flex items-center gap-1 mb-2">
+                  <span className="text-sm font-medium text-[var(--color-slate)]">
+                    Lotes (veces que cocinas)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBatchCount(Math.max(1, batchCount - 1))}
+                    disabled={batchCount <= 1}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-[var(--border-color)] hover:bg-[var(--color-purple-bg-dark)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-lg font-medium"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    value={batchCount}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      if (!isNaN(val) && val >= 1) setBatchCount(val);
+                    }}
+                    min={1}
+                    className="w-14 text-center text-xl font-bold text-[var(--foreground)] bg-white border border-[var(--border-color)] rounded-lg py-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--color-purple)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setBatchCount(batchCount + 1)}
+                    className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-[var(--border-color)] hover:bg-[var(--color-purple-bg-dark)] transition-colors text-lg font-medium"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
-                {/* Adults */}
+                {/* Adults per batch */}
                 <div className="flex flex-col items-center p-3 bg-[var(--color-purple-bg)] rounded-xl">
-                  <div className="flex items-center gap-1 mb-2">
-                    <svg className="w-5 h-5 text-[var(--color-purple)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex items-center gap-1 mb-2 text-center px-1">
+                    <svg className="w-5 h-5 text-[var(--color-purple)] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
-                    <span className="text-sm font-medium text-[var(--color-slate)]">Adultos</span>
+                    <span className="text-sm font-medium text-[var(--color-slate)] leading-tight">
+                      Adultos por lote
+                    </span>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setAdults(Math.max(0, adults - 1))}
-                      disabled={adults === 0 && children === 0}
+                      type="button"
+                      onClick={() => setAdultsPerBatch(Math.max(0, adultsPerBatch - 1))}
+                      disabled={adultsPerBatch === 0 && childrenPerBatch === 0}
                       className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-[var(--border-color)] hover:bg-[var(--color-purple-bg-dark)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-lg font-medium"
                     >
                       −
                     </button>
                     <input
                       type="number"
-                      value={adults}
+                      value={adultsPerBatch}
                       onChange={(e) => {
-                        const val = parseInt(e.target.value);
+                        const val = parseInt(e.target.value, 10);
                         if (!isNaN(val) && val >= 0) {
-                          setAdults(val);
+                          setAdultsPerBatch(val);
                         }
                       }}
                       min="0"
                       className="w-12 text-center text-xl font-bold text-[var(--color-purple)] bg-white border border-[var(--border-color)] rounded-lg py-0.5 focus:outline-none focus:ring-2 focus:ring-[var(--color-purple)] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                     <button
-                      onClick={() => setAdults(adults + 1)}
+                      type="button"
+                      onClick={() => setAdultsPerBatch(adultsPerBatch + 1)}
                       className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-[var(--border-color)] hover:bg-[var(--color-purple-bg-dark)] transition-colors text-lg font-medium"
                     >
                       +
@@ -1481,37 +1533,41 @@ export default function RecipeDetailPage() {
                   </div>
                 </div>
 
-                {/* Children (half portions) */}
+                {/* Children per batch (half portions) */}
                 <div className="flex flex-col items-center p-3 bg-amber-50 rounded-xl">
-                  <div className="flex items-center gap-1 mb-2">
-                    <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="flex items-center gap-1 mb-2 text-center px-1">
+                    <svg className="w-5 h-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>
-                    <span className="text-sm font-medium text-[var(--color-slate)]">Niños</span>
+                    <span className="text-sm font-medium text-[var(--color-slate)] leading-tight">
+                      Niños por lote
+                    </span>
                     <span className="text-xs text-amber-600">(½)</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setChildren(Math.max(0, children - 1))}
-                      disabled={children === 0}
+                      type="button"
+                      onClick={() => setChildrenPerBatch(Math.max(0, childrenPerBatch - 1))}
+                      disabled={childrenPerBatch === 0}
                       className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-amber-200 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors text-lg font-medium"
                     >
                       −
                     </button>
                     <input
                       type="number"
-                      value={children}
+                      value={childrenPerBatch}
                       onChange={(e) => {
-                        const val = parseInt(e.target.value);
+                        const val = parseInt(e.target.value, 10);
                         if (!isNaN(val) && val >= 0) {
-                          setChildren(val);
+                          setChildrenPerBatch(val);
                         }
                       }}
                       min="0"
                       className="w-12 text-center text-xl font-bold text-amber-600 bg-white border border-amber-200 rounded-lg py-0.5 focus:outline-none focus:ring-2 focus:ring-amber-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                     <button
-                      onClick={() => setChildren(children + 1)}
+                      type="button"
+                      onClick={() => setChildrenPerBatch(childrenPerBatch + 1)}
                       className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-amber-200 hover:bg-amber-100 transition-colors text-lg font-medium"
                     >
                       +
@@ -1521,18 +1577,63 @@ export default function RecipeDetailPage() {
               </div>
 
               {/* Total portions summary */}
-              <div className="mt-4 pt-3 border-t border-[var(--border-color)] flex items-center justify-between">
-                <span className="text-sm text-[var(--color-slate-light)]">
-                  Total: <strong className="text-[var(--foreground)]">{totalPortions}</strong> porciones
-                  {servingMultiplier !== 1 && (
-                    <span className="text-[var(--color-purple)] ml-1">
-                      ({servingMultiplier > 1 ? '×' : '×'}{servingMultiplier.toFixed(servingMultiplier % 1 === 0 ? 0 : 1)})
+              <div className="mt-4 pt-3 border-t border-[var(--border-color)] space-y-1">
+                <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm text-[var(--color-slate-light)]">
+                  <span>
+                    Por lote:{" "}
+                    <strong className="text-[var(--foreground)]">
+                      {equivalentPerBatch % 1 === 0
+                        ? equivalentPerBatch
+                        : equivalentPerBatch.toLocaleString("es-ES", {
+                            maximumFractionDigits: 1,
+                          })}
+                    </strong>{" "}
+                    porciones
+                    <span className="text-[var(--color-slate)]">
+                      {" "}
+                      ({adultsPerBatch} adultos
+                      {childrenPerBatch > 0
+                        ? ` + ${childrenPerBatch} niño${childrenPerBatch !== 1 ? "s" : ""}`
+                        : ""}
+                      )
                     </span>
-                  )}
-                </span>
-                <span className="text-xs text-[var(--color-slate-light)]">
-                  Receta original: {recipe.servings} porciones
-                </span>
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="text-sm text-[var(--color-slate-light)]">
+                    Total:{" "}
+                    <strong className="text-[var(--foreground)]">
+                      {totalPortions % 1 === 0
+                        ? totalPortions
+                        : totalPortions.toLocaleString("es-ES", {
+                            maximumFractionDigits: 2,
+                          })}
+                    </strong>{" "}
+                    porciones
+                    <span className="text-[var(--color-slate)]">
+                      {" "}
+                      ({batchCount} ×{" "}
+                      {equivalentPerBatch % 1 === 0
+                        ? equivalentPerBatch
+                        : equivalentPerBatch.toLocaleString("es-ES", {
+                            maximumFractionDigits: 1,
+                          })}
+                      )
+                    </span>
+                    {servingMultiplier !== 1 && (
+                      <span className="text-[var(--color-purple)] ml-1">
+                        (×
+                        {servingMultiplier.toFixed(
+                          servingMultiplier % 1 === 0 ? 0 : 2
+                        )}
+                        )
+                      </span>
+                    )}
+                  </span>
+                  <span className="text-xs text-[var(--color-slate-light)]">
+                    Receta original: {recipe.servings} porciones
+                  </span>
+                </div>
               </div>
             </div>
           )}
