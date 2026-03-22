@@ -763,10 +763,19 @@ export default function RecipeDetailPage() {
     if (recipe.servings_unit) {
       setUnitsQuantity(recipe.servings);
     } else if (!recipe.container_id && !recipe.variant_1_label) {
-      // Person-based: 1 lote, adultos por lote = porciones de la receta
-      setBatchCount(1);
-      setAdultsPerBatch(recipe.servings);
-      setChildrenPerBatch(0);
+      const hasPersonasMeta =
+        recipe.personas_batch_count != null &&
+        recipe.personas_adults_per_batch != null &&
+        recipe.personas_children_per_batch != null;
+      if (hasPersonasMeta) {
+        setBatchCount(Math.max(1, recipe.personas_batch_count));
+        setAdultsPerBatch(Math.max(0, recipe.personas_adults_per_batch));
+        setChildrenPerBatch(Math.max(0, recipe.personas_children_per_batch));
+      } else {
+        setBatchCount(1);
+        setAdultsPerBatch(recipe.servings);
+        setChildrenPerBatch(0);
+      }
     }
   }, [recipe?.id]);
 

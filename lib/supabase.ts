@@ -22,6 +22,10 @@ export interface Recipe {
   prep_time_minutes: number | null;
   cook_time_minutes: number | null;
   servings: number | null;
+  /** Personas mode: optional batch breakdown (null = legacy: 1 × servings adult-equivalent) */
+  personas_batch_count: number | null;
+  personas_adults_per_batch: number | null;
+  personas_children_per_batch: number | null;
   servings_unit: string | null; // Custom unit for servings (e.g., "tortitas", "galletas"). Null = personas
   tags: string[];
   ingredients: Ingredient[];
