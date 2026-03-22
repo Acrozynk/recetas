@@ -825,9 +825,27 @@ export default function RecipeDetailPage() {
     : usesUnits
       ? unitsQuantity
       : batchCount * equivalentPerBatch;
-  const originalServings = usesContainer 
-    ? (recipe?.container_quantity || 1) 
-    : (recipe?.servings || 1);
+
+  // Baseline for scaling: ingredient amounts in DB are written for this many adult-equivalent portions.
+  // If we saved personas_* (lotes + familia), use that exact total — not recipe.servings, which is
+  // rounded to an integer and breaks scaling (e.g. 10.5 saved as 11 → wrong ×0.95 multiplier).
+  const hasStoredPersonasBaseline =
+    !usesContainer &&
+    !usesUnits &&
+    recipe?.personas_batch_count != null &&
+    recipe?.personas_adults_per_batch != null &&
+    recipe?.personas_children_per_batch != null;
+
+  const originalServings = usesContainer
+    ? recipe?.container_quantity || 1
+    : usesUnits
+      ? recipe?.servings || 1
+      : hasStoredPersonasBaseline
+        ? recipe.personas_batch_count! *
+          (recipe.personas_adults_per_batch! +
+            0.5 * recipe.personas_children_per_batch!)
+        : recipe?.servings || 1;
+
   const servingMultiplier = totalPortions / originalServings;
 
   const handleDelete = async () => {
@@ -1643,7 +1661,13 @@ export default function RecipeDetailPage() {
                     )}
                   </span>
                   <span className="text-xs text-[var(--color-slate-light)]">
-                    Receta original: {recipe.servings} porciones
+                    Receta original:{" "}
+                    {originalServings % 1 === 0
+                      ? originalServings
+                      : originalServings.toLocaleString("es-ES", {
+                          maximumFractionDigits: 2,
+                        })}{" "}
+                    porciones
                   </span>
                 </div>
               </div>
