@@ -15,6 +15,10 @@ import {
   normalizeUnit,
   parseAmount
 } from "@/lib/unit-conversion";
+import {
+  splitInstructionWithRecipeLinks,
+  extractLinkedRecipeIdsFromInstructions,
+} from "@/lib/recipe-links";
 
 // Helper function to normalize text for matching (remove accents, lowercase)
 function normalizeText(text: string): string {
@@ -156,10 +160,12 @@ function formatIngredientForStep(
 }
 
 interface EnrichedStepPart {
-  type: 'text' | 'ingredient';
+  type: "text" | "ingredient" | "recipeLink";
   content: string;
   ingredient?: Ingredient;
   formattedIngredient?: string;
+  recipeId?: string;
+  linkLabel?: string;
 }
 
 // Categorize ingredient for shopping list (matching shopping page logic)
@@ -659,6 +665,45 @@ function enrichStepWithIngredients(
   return parts;
 }
 
+/** Enriquece texto del paso con cantidades de ingredientes y enlaces [[receta:…]] */
+function enrichInstructionText(
+  stepText: string,
+  ingredients: Ingredient[],
+  scaleAmount: (amount: string) => string,
+  useVariant2: boolean,
+  convertUnit?: (
+    amount: string | undefined,
+    unit: string | undefined,
+    name: string
+  ) => { amount: string; unit: string }
+): EnrichedStepPart[] {
+  const segments = splitInstructionWithRecipeLinks(stepText);
+  const out: EnrichedStepPart[] = [];
+  for (const seg of segments) {
+    if (seg.type === "link") {
+      out.push({
+        type: "recipeLink",
+        content: seg.label,
+        linkLabel: seg.label,
+        recipeId: seg.recipeId,
+      });
+      continue;
+    }
+    if (seg.text.length > 0 || segments.length === 1) {
+      out.push(
+        ...enrichStepWithIngredients(
+          seg.text,
+          ingredients,
+          scaleAmount,
+          useVariant2,
+          convertUnit
+        )
+      );
+    }
+  }
+  return out;
+}
+
 export default function RecipeDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -692,6 +737,9 @@ export default function RecipeDetailPage() {
   // Unit conversion mode: 'metric' (g, ml) or 'american' (cups, tbsp)
   const [unitMode, setUnitMode] = useState<'metric' | 'american'>('metric');
   const [duplicating, setDuplicating] = useState(false);
+  const [linkedRecipes, setLinkedRecipes] = useState<Recipe[]>([]);
+  const [fromParentId, setFromParentId] = useState<string | null>(null);
+  const [fromParentTitle, setFromParentTitle] = useState<string | null>(null);
 
   // Check if Wake Lock API is supported
   useEffect(() => {
@@ -756,6 +804,62 @@ export default function RecipeDetailPage() {
       loadRecipe(params.id as string);
     }
   }, [params.id]);
+
+  useEffect(() => {
+    setFromParentId(
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("from")
+        : null
+    );
+  }, [params.id]);
+
+  useEffect(() => {
+    if (!fromParentId) {
+      setFromParentTitle(null);
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from("recipes")
+        .select("title")
+        .eq("id", fromParentId)
+        .single();
+      setFromParentTitle(data?.title ?? null);
+    })();
+  }, [fromParentId]);
+
+  useEffect(() => {
+    if (!recipe?.id) {
+      setLinkedRecipes([]);
+      return;
+    }
+    const ids = extractLinkedRecipeIdsFromInstructions(
+      normalizeInstructions(recipe.instructions),
+      recipe.id
+    );
+    if (ids.length === 0) {
+      setLinkedRecipes([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("recipes")
+        .select("*")
+        .in("id", ids);
+      if (cancelled || error) {
+        if (!cancelled) setLinkedRecipes([]);
+        return;
+      }
+      const map = new Map((data || []).map((r) => [r.id, r as Recipe]));
+      setLinkedRecipes(
+        ids.map((id) => map.get(id)).filter(Boolean) as Recipe[]
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [recipe?.id, recipe?.instructions]);
 
   // Initialize portions when navigating to a recipe (by id)
   useEffect(() => {
@@ -1305,6 +1409,30 @@ export default function RecipeDetailPage() {
           </div>
         }
       />
+
+      {fromParentId && fromParentTitle && (
+        <div className="sticky top-14 z-30 bg-[var(--color-purple-bg)] border-b border-[var(--border-color)] px-4 py-2 text-center print:hidden">
+          <Link
+            href={`/recipes/${fromParentId}`}
+            className="text-sm font-medium text-[var(--color-purple)] hover:underline inline-flex items-center gap-1.5"
+          >
+            <svg
+              className="w-4 h-4 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+            Volver a «{fromParentTitle}»
+          </Link>
+        </div>
+      )}
 
       <main>
         <div className="max-w-7xl mx-auto p-4 lg:px-8">
@@ -2089,6 +2217,68 @@ export default function RecipeDetailPage() {
                   );
                 })}
               </ul>
+
+              {linkedRecipes.length > 0 && (
+                <div className="mt-6 pt-4 border-t-2 border-dashed border-[var(--color-purple-bg-dark)] space-y-5">
+                  <p className="text-xs font-semibold text-[var(--color-slate)] uppercase tracking-wide">
+                    Ingredientes de recetas enlazadas
+                  </p>
+                  {linkedRecipes.map((lr) => (
+                    <div key={lr.id}>
+                      <h3 className="text-sm font-semibold text-[var(--foreground)] mb-2 flex flex-wrap items-center gap-2">
+                        <span className="text-base" aria-hidden>
+                          📎
+                        </span>
+                        <Link
+                          href={`/recipes/${lr.id}?from=${recipe.id}`}
+                          className="text-[var(--color-purple)] hover:underline"
+                        >
+                          {lr.title}
+                        </Link>
+                        <span className="text-xs font-normal text-[var(--color-slate-light)]">
+                          (cantidades como en esa receta)
+                        </span>
+                      </h3>
+                      <ul className="space-y-1.5 pl-2 border-l-2 border-[var(--color-purple-bg-dark)]">
+                        {(lr.ingredients as Ingredient[]).map((ing, j) => {
+                          const isHdr =
+                            ing.isHeader || ing.name.startsWith("**");
+                          if (isHdr) {
+                            const hn = ing.name.replace(/^\*\*|\*\*$/g, "");
+                            return (
+                              <li
+                                key={j}
+                                className="pt-2 text-xs font-semibold text-amber-800"
+                              >
+                                {hn}
+                              </li>
+                            );
+                          }
+                          if (!ing.name?.trim()) return null;
+                          const idScale = (a: string) => a;
+                          const converted = convertIngredientUnit(
+                            idScale(ing.amount || ""),
+                            ing.unit,
+                            ing.name
+                          );
+                          return (
+                            <li
+                              key={j}
+                              className="text-sm text-[var(--color-slate)] pl-1"
+                            >
+                              <strong className="text-[var(--foreground)]">
+                                {converted.amount}
+                                {converted.unit && ` ${converted.unit}`}
+                              </strong>{" "}
+                              {ing.name}
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Instructions */}
@@ -2209,7 +2399,7 @@ export default function RecipeDetailPage() {
                   const ingredientsToMatch = stepIngredients.length > 0 
                     ? stepIngredients 
                     : (recipe.ingredients as Ingredient[]);
-                  const enrichedParts = enrichStepWithIngredients(
+                  const enrichedParts = enrichInstructionText(
                     step.text,
                     ingredientsToMatch,
                     scaleAmount,
@@ -2253,8 +2443,8 @@ export default function RecipeDetailPage() {
                         </button>
                         <div className="flex-1 pt-1">
                           <p className={`${isCompletedStep ? "line-through text-[var(--color-slate-light)]" : "text-[var(--color-slate)]"} ${isCurrentStep ? "text-[var(--foreground)] font-medium" : ""}`}>
-                            {enrichedParts.map((part, partIdx) => (
-                              part.type === 'ingredient' ? (
+                            {enrichedParts.map((part, partIdx) =>
+                              part.type === "ingredient" ? (
                                 <span key={partIdx}>
                                   <span>{part.content}</span>
                                   {part.formattedIngredient && (
@@ -2263,10 +2453,18 @@ export default function RecipeDetailPage() {
                                     </span>
                                   )}
                                 </span>
+                              ) : part.type === "recipeLink" && part.recipeId ? (
+                                <Link
+                                  key={partIdx}
+                                  href={`/recipes/${part.recipeId}?from=${recipe.id}`}
+                                  className="text-[var(--color-purple)] font-semibold underline decoration-2 underline-offset-2 hover:text-[var(--color-purple-dark)]"
+                                >
+                                  {part.linkLabel || part.content}
+                                </Link>
                               ) : (
                                 <span key={partIdx}>{part.content}</span>
                               )
-                            ))}
+                            )}
                           </p>
                           
                         </div>

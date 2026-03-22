@@ -3,6 +3,12 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { supabase, type Recipe, type Ingredient, type Instruction, type Container, normalizeInstructions } from "@/lib/supabase";
+import {
+  extractLinkedRecipeIdsFromInstructions,
+  buildRecipeLinkToken,
+} from "@/lib/recipe-links";
+import InsertRecipeLinkModal from "@/components/InsertRecipeLinkModal";
+import Link from "next/link";
 import { 
   convertIngredient, 
   getSuggestedConversionUnit, 
@@ -300,6 +306,13 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
       ? normalizeInstructions(recipe.instructions)
       : Array.from({ length: 5 }, () => ({ text: "", ingredientIndices: [] }))
   );
+  const instructionTextareaRefs = useRef<Record<number, HTMLTextAreaElement | null>>({});
+  const [linkModalStepIndex, setLinkModalStepIndex] = useState<number | null>(
+    null
+  );
+  const [linkedPreviewRecipes, setLinkedPreviewRecipes] = useState<
+    Pick<Recipe, "id" | "title" | "ingredients">[]
+  >([]);
   const [notes, setNotes] = useState(recipe?.notes || "");
 
   // Fetch tag suggestions and containers on mount
@@ -331,6 +344,39 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
     fetchTags();
     fetchContainers();
   }, []);
+
+  useEffect(() => {
+    const ids = extractLinkedRecipeIdsFromInstructions(
+      instructions,
+      recipe?.id
+    );
+    if (ids.length === 0) {
+      setLinkedPreviewRecipes([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("recipes")
+        .select("id, title, ingredients")
+        .in("id", ids);
+      if (cancelled || error) return;
+      const map = new Map(
+        (data || []).map((r) => [
+          r.id,
+          r as Pick<Recipe, "id" | "title" | "ingredients">,
+        ])
+      );
+      setLinkedPreviewRecipes(
+        ids
+          .map((id) => map.get(id))
+          .filter(Boolean) as Pick<Recipe, "id" | "title" | "ingredients">[]
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [instructions, recipe?.id]);
 
   // Initialize selectedContainers after containers list is loaded
   useEffect(() => {
@@ -716,6 +762,24 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
     const updated = [...instructions];
     updated[index] = { ...updated[index], text: value };
     setInstructions(updated);
+  };
+
+  const handleInsertRecipeLink = (linkedId: string, linkedTitle: string) => {
+    if (linkModalStepIndex === null) return;
+    const token = buildRecipeLinkToken(linkedId, linkedTitle);
+    const idx = linkModalStepIndex;
+    const text = instructions[idx].text;
+    const ta = instructionTextareaRefs.current[idx];
+    const start = ta?.selectionStart ?? text.length;
+    const end = ta?.selectionEnd ?? start;
+    const before = text.slice(0, start);
+    const after = text.slice(end);
+    const needSpace = before.length > 0 && !/\s$/.test(before);
+    const padAfter = after.length > 0 && !/^\s/.test(after) ? " " : "";
+    const newText =
+      before + (needSpace ? " " : "") + token + padAfter + after;
+    updateInstructionText(idx, newText);
+    setLinkModalStepIndex(null);
   };
 
   const toggleIngredientInStep = (stepIndex: number, ingredientIndex: number) => {
@@ -2056,13 +2120,58 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
             Añadir sección
           </button>
         </div>
+
+        {linkedPreviewRecipes.length > 0 && (
+          <div className="mt-6 pt-4 border-t border-dashed border-[var(--border-color)]">
+            <p className="text-xs font-semibold text-[var(--color-slate)] mb-2">
+              📎 Vista previa: ingredientes de recetas enlazadas en los pasos
+            </p>
+            <div className="space-y-4">
+              {linkedPreviewRecipes.map((lr) => (
+                <div key={lr.id}>
+                  <p className="text-sm font-medium text-[var(--foreground)] mb-1">
+                    <Link
+                      href={`/recipes/${lr.id}${recipe?.id ? `?from=${recipe.id}` : ""}`}
+                      className="text-[var(--color-purple)] hover:underline"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {lr.title}
+                    </Link>
+                  </p>
+                  <ul className="text-xs text-[var(--color-slate)] space-y-0.5 pl-2 border-l-2 border-[var(--color-purple-bg-dark)]">
+                    {(lr.ingredients as Ingredient[])
+                      .filter((ing) => ing.name?.trim())
+                      .map((ing, j) => {
+                        if (ing.isHeader || ing.name.startsWith("**")) {
+                          return (
+                            <li key={j} className="font-semibold text-amber-800 pt-1">
+                              {ing.name.replace(/^\*\*|\*\*$/g, "")}
+                            </li>
+                          );
+                        }
+                        return (
+                          <li key={j}>
+                            {ing.amount} {ing.unit} {ing.name}
+                          </li>
+                        );
+                      })}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Instructions */}
       <div className="bg-white rounded-xl p-4 border border-[var(--border-color)]">
         <h2 className="font-display text-lg font-semibold mb-2">Instrucciones</h2>
         <p className="text-sm text-[var(--color-slate-light)] mb-4">
-          Selecciona los ingredientes que intervienen en cada paso
+          Selecciona los ingredientes que intervienen en cada paso. Usa{" "}
+          <strong>🔗 Enlazar receta</strong> para insertar un paso que apunta a
+          otra receta; sus ingredientes se mostrarán en la lista principal al
+          ver la receta.
         </p>
 
         <div className="space-y-4">
@@ -2202,6 +2311,9 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                     {stepNumber}
                   </span>
                   <textarea
+                    ref={(el) => {
+                      instructionTextareaRefs.current[stepIndex] = el;
+                    }}
                     value={instruction.text}
                     onChange={(e) => updateInstructionText(stepIndex, e.target.value)}
                     onFocus={handleInputFocus}
@@ -2210,16 +2322,28 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                     placeholder="Describe este paso..."
                     rows={2}
                   />
-                  <button
-                    type="button"
-                    onClick={() => removeInstruction(stepIndex)}
-                    className="p-2 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
-                    disabled={instructions.filter(i => !i.isHeader).length === 1}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+                  <div className="flex flex-col gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setLinkModalStepIndex(stepIndex)}
+                      className="p-2 text-[var(--color-purple)] hover:bg-[var(--color-purple-bg)] rounded-lg transition-colors"
+                      title="Enlazar otra receta en este paso"
+                    >
+                      <span className="text-lg leading-none" aria-hidden>
+                        🔗
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeInstruction(stepIndex)}
+                      className="p-2 text-[var(--color-slate-light)] hover:text-red-600 transition-colors"
+                      disabled={instructions.filter(i => !i.isHeader).length === 1}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
                 
                 {/* Section chips for this step */}
@@ -2357,6 +2481,13 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
           <option key={u.value} value={u.value} />
         ))}
       </datalist>
+
+      <InsertRecipeLinkModal
+        isOpen={linkModalStepIndex !== null}
+        onClose={() => setLinkModalStepIndex(null)}
+        onInsert={handleInsertRecipeLink}
+        excludeRecipeId={recipe?.id}
+      />
     </form>
   );
 }
