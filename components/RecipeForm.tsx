@@ -21,6 +21,32 @@ interface RecipeFormProps {
   hideNavButtons?: boolean;
 }
 
+function getInitialPersonasFromRecipe(r: Recipe | undefined): {
+  batchCount: number;
+  adultsPerBatch: number;
+  childrenPerBatch: number;
+} {
+  if (!r?.servings) {
+    return { batchCount: 1, adultsPerBatch: 4, childrenPerBatch: 0 };
+  }
+  if (
+    r.personas_batch_count != null &&
+    r.personas_adults_per_batch != null &&
+    r.personas_children_per_batch != null
+  ) {
+    return {
+      batchCount: Math.max(1, r.personas_batch_count),
+      adultsPerBatch: Math.max(0, r.personas_adults_per_batch),
+      childrenPerBatch: Math.max(0, r.personas_children_per_batch),
+    };
+  }
+  return {
+    batchCount: 1,
+    adultsPerBatch: r.servings,
+    childrenPerBatch: 0,
+  };
+}
+
 export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButtons }: RecipeFormProps) {
   const router = useRouter();
   const [saving, setSaving] = useState(false);
@@ -218,6 +244,10 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
   const [prepTime, setPrepTime] = useState(recipe?.prep_time_minutes?.toString() || "");
   const [cookTime, setCookTime] = useState(recipe?.cook_time_minutes?.toString() || "");
   const [servings, setServings] = useState(recipe?.servings?.toString() || "4");
+  const personasInit = getInitialPersonasFromRecipe(recipe);
+  const [personasBatchCount, setPersonasBatchCount] = useState(personasInit.batchCount);
+  const [personasAdultsPerBatch, setPersonasAdultsPerBatch] = useState(personasInit.adultsPerBatch);
+  const [personasChildrenPerBatch, setPersonasChildrenPerBatch] = useState(personasInit.childrenPerBatch);
   const [tags, setTags] = useState<string[]>(recipe?.tags || []);
   const [tagSuggestions, setTagSuggestions] = useState<string[]>([]);
   const [rating, setRating] = useState<number | null>(recipe?.rating ?? null);
@@ -778,6 +808,14 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
     setSaving(true);
 
     try {
+      const personasEquivalent =
+        personasBatchCount *
+        (personasAdultsPerBatch + 0.5 * personasChildrenPerBatch);
+      const personasServingsRounded = Math.max(
+        1,
+        Math.round(personasEquivalent)
+      );
+
       const recipeData = {
         title: title.trim(),
         description: description.trim() || null,
@@ -785,10 +823,23 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
         source_url: sourceUrl.trim() || null,
         prep_time_minutes: prepTime ? parseInt(prepTime) : null,
         cook_time_minutes: cookTime ? parseInt(cookTime) : null,
-        // If using container, servings is null; otherwise use servings value
-        servings: portionType === 'recipiente' ? null : (servings ? parseInt(servings) : null),
+        // If using container, servings is null; personas = rounded equivalent portions
+        servings:
+          portionType === "recipiente"
+            ? null
+            : portionType === "personas"
+              ? personasServingsRounded
+              : servings
+                ? parseInt(servings, 10)
+                : null,
         // "unidades" marker when using unit-based portions, null = personas
         servings_unit: portionType === 'unidades' ? "unidades" : null,
+        personas_batch_count:
+          portionType === "personas" ? personasBatchCount : null,
+        personas_adults_per_batch:
+          portionType === "personas" ? personasAdultsPerBatch : null,
+        personas_children_per_batch:
+          portionType === "personas" ? personasChildrenPerBatch : null,
         // Container fields - use first selected container as primary
         container_id: portionType === 'recipiente' && selectedContainers[0] ? selectedContainers[0].id : null,
         container_quantity: portionType === 'recipiente' && selectedContainers[0] ? parseFloat(selectedContainers[0].quantity) : null,
@@ -1072,7 +1123,15 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
             <div className="flex gap-2 mb-3">
               <button
                 type="button"
-                onClick={() => setPortionType('personas')}
+                onClick={() => {
+                  if (portionType !== "personas") {
+                    const n = Math.max(1, parseInt(servings, 10) || 4);
+                    setPersonasBatchCount(1);
+                    setPersonasAdultsPerBatch(n);
+                    setPersonasChildrenPerBatch(0);
+                  }
+                  setPortionType("personas");
+                }}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                   portionType === 'personas'
                     ? "bg-[var(--color-purple)] text-white"
@@ -1083,7 +1142,16 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
               </button>
               <button
                 type="button"
-                onClick={() => setPortionType('unidades')}
+                onClick={() => {
+                  if (portionType === "personas") {
+                    const eq =
+                      personasBatchCount *
+                      (personasAdultsPerBatch +
+                        0.5 * personasChildrenPerBatch);
+                    setServings(String(Math.max(1, Math.round(eq))));
+                  }
+                  setPortionType("unidades");
+                }}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                   portionType === 'unidades'
                     ? "bg-[var(--color-purple)] text-white"
@@ -1094,7 +1162,16 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
               </button>
               <button
                 type="button"
-                onClick={() => setPortionType('recipiente')}
+                onClick={() => {
+                  if (portionType === "personas") {
+                    const eq =
+                      personasBatchCount *
+                      (personasAdultsPerBatch +
+                        0.5 * personasChildrenPerBatch);
+                    setServings(String(Math.max(1, Math.round(eq))));
+                  }
+                  setPortionType("recipiente");
+                }}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                   portionType === 'recipiente'
                     ? "bg-[var(--color-purple)] text-white"
@@ -1106,16 +1183,188 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
             </div>
             
             {portionType === 'personas' ? (
-              /* Servings input - just number of people */
-              <div className="space-y-2">
-                <input
-                  type="number"
-                  value={servings}
-                  onChange={(e) => setServings(e.target.value)}
-                  className="input w-full"
-                  placeholder="4"
-                  min="1"
-                />
+              <div className="space-y-3">
+                <p className="text-xs text-[var(--color-slate)]">
+                  Los ingredientes se escalan respecto al total:{" "}
+                  <strong>
+                    lotes × (adultos + ½ niños por lote)
+                  </strong>
+                  . Se guarda el equivalente en porciones (redondeado).
+                </p>
+                <div className="flex flex-col items-center p-3 bg-slate-50 rounded-xl border border-[var(--border-color)]">
+                  <span className="text-xs font-medium text-[var(--color-slate)] mb-2">
+                    Lotes (veces que cocinas)
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPersonasBatchCount(Math.max(1, personasBatchCount - 1))
+                      }
+                      disabled={personasBatchCount <= 1}
+                      className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-[var(--border-color)] hover:bg-[var(--color-purple-bg)] disabled:opacity-40 text-lg font-medium"
+                    >
+                      −
+                    </button>
+                    <input
+                      type="number"
+                      min={1}
+                      value={personasBatchCount}
+                      onChange={(e) => {
+                        const v = parseInt(e.target.value, 10);
+                        if (!isNaN(v) && v >= 1) setPersonasBatchCount(v);
+                      }}
+                      className="w-14 text-center text-lg font-bold bg-white border border-[var(--border-color)] rounded-lg py-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setPersonasBatchCount(personasBatchCount + 1)}
+                      className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-[var(--border-color)] hover:bg-[var(--color-purple-bg)] text-lg font-medium"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col items-center p-3 bg-[var(--color-purple-bg)] rounded-xl border border-[var(--border-color)]">
+                    <span className="text-xs font-medium text-[var(--color-slate)] mb-2 text-center">
+                      Adultos por lote
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPersonasAdultsPerBatch(
+                            Math.max(0, personasAdultsPerBatch - 1)
+                          )
+                        }
+                        disabled={
+                          personasAdultsPerBatch === 0 &&
+                          personasChildrenPerBatch === 0
+                        }
+                        className="w-8 h-8 rounded-full bg-white border border-[var(--border-color)] disabled:opacity-40 text-lg"
+                      >
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        min={0}
+                        value={personasAdultsPerBatch}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value, 10);
+                          if (!isNaN(v) && v >= 0)
+                            setPersonasAdultsPerBatch(v);
+                        }}
+                        className="w-12 text-center text-lg font-bold text-[var(--color-purple)] bg-white border border-[var(--border-color)] rounded-lg py-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPersonasAdultsPerBatch(personasAdultsPerBatch + 1)
+                        }
+                        className="w-8 h-8 rounded-full bg-white border border-[var(--border-color)] text-lg"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center p-3 bg-amber-50 rounded-xl border border-amber-200">
+                    <span className="text-xs font-medium text-[var(--color-slate)] mb-2 text-center">
+                      Niños por lote <span className="text-amber-700">(½)</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPersonasChildrenPerBatch(
+                            Math.max(0, personasChildrenPerBatch - 1)
+                          )
+                        }
+                        disabled={personasChildrenPerBatch === 0}
+                        className="w-8 h-8 rounded-full bg-white border border-amber-200 disabled:opacity-40 text-lg"
+                      >
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        min={0}
+                        value={personasChildrenPerBatch}
+                        onChange={(e) => {
+                          const v = parseInt(e.target.value, 10);
+                          if (!isNaN(v) && v >= 0)
+                            setPersonasChildrenPerBatch(v);
+                        }}
+                        className="w-12 text-center text-lg font-bold text-amber-700 bg-white border border-amber-200 rounded-lg py-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPersonasChildrenPerBatch(
+                            personasChildrenPerBatch + 1
+                          )
+                        }
+                        className="w-8 h-8 rounded-full bg-white border border-amber-200 text-lg"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-xs text-[var(--color-slate)] space-y-1 pt-1 border-t border-[var(--border-color)]">
+                  <p>
+                    Por lote:{" "}
+                    <strong>
+                      {(() => {
+                        const per =
+                          personasAdultsPerBatch +
+                          0.5 * personasChildrenPerBatch;
+                        return per % 1 === 0
+                          ? per
+                          : per.toLocaleString("es-ES", {
+                              maximumFractionDigits: 1,
+                            });
+                      })()}
+                    </strong>{" "}
+                    porciones
+                    <span className="text-[var(--color-slate-light)]">
+                      {" "}
+                      ({personasAdultsPerBatch} adultos
+                      {personasChildrenPerBatch > 0
+                        ? ` + ${personasChildrenPerBatch} niño${personasChildrenPerBatch !== 1 ? "s" : ""}`
+                        : ""}
+                      )
+                    </span>
+                  </p>
+                  <p>
+                    Total guardado:{" "}
+                    <strong className="text-[var(--color-purple)]">
+                      {Math.max(
+                        1,
+                        Math.round(
+                          personasBatchCount *
+                            (personasAdultsPerBatch +
+                              0.5 * personasChildrenPerBatch)
+                        )
+                      )}
+                    </strong>{" "}
+                    porciones (equiv.)
+                    <span className="text-[var(--color-slate-light)]">
+                      {" "}
+                      ({personasBatchCount} ×{" "}
+                      {(() => {
+                        const per =
+                          personasAdultsPerBatch +
+                          0.5 * personasChildrenPerBatch;
+                        return per % 1 === 0
+                          ? per
+                          : per.toLocaleString("es-ES", {
+                              maximumFractionDigits: 1,
+                            });
+                      })()}
+                      )
+                    </span>
+                  </p>
+                </div>
               </div>
             ) : portionType === 'unidades' ? (
               /* Servings input - just number of units */

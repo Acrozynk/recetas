@@ -379,6 +379,9 @@ export default function ImportReviewPage() {
       prep_time_minutes: parsed.prep_time_minutes || null,
       cook_time_minutes: parsed.cook_time_minutes || null,
       servings: parsed.servings || null,
+      personas_batch_count: null,
+      personas_adults_per_batch: null,
+      personas_children_per_batch: null,
       servings_unit: null,
       tags: parsed.tags || [],
       ingredients: (parsed.ingredients || []).map(ing => ({

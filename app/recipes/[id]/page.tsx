@@ -768,9 +768,12 @@ export default function RecipeDetailPage() {
         recipe.personas_adults_per_batch != null &&
         recipe.personas_children_per_batch != null;
       if (hasPersonasMeta) {
-        setBatchCount(Math.max(1, recipe.personas_batch_count));
-        setAdultsPerBatch(Math.max(0, recipe.personas_adults_per_batch));
-        setChildrenPerBatch(Math.max(0, recipe.personas_children_per_batch));
+        const b = recipe.personas_batch_count!;
+        const a = recipe.personas_adults_per_batch!;
+        const c = recipe.personas_children_per_batch!;
+        setBatchCount(Math.max(1, b));
+        setAdultsPerBatch(Math.max(0, a));
+        setChildrenPerBatch(Math.max(0, c));
       } else {
         setBatchCount(1);
         setAdultsPerBatch(recipe.servings);
