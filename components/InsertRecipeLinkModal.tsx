@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
+import { isSearchQueryEmpty, recipeTextMatchesQuery } from "@/lib/recipe-search";
 
 interface InsertRecipeLinkModalProps {
   isOpen: boolean;
@@ -48,10 +49,9 @@ export default function InsertRecipeLinkModal({
   }, [isOpen, excludeRecipeId]);
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return recipes.slice(0, 80);
+    if (isSearchQueryEmpty(search)) return recipes.slice(0, 80);
     return recipes
-      .filter((r) => r.title.toLowerCase().includes(q))
+      .filter((r) => recipeTextMatchesQuery({ title: r.title }, search))
       .slice(0, 80);
   }, [recipes, search]);
 

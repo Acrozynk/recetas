@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { supabase, type Recipe, type MealPlan, type Ingredient } from "@/lib/supabase";
+import { recipeTextMatchesQuery } from "@/lib/recipe-search";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import Link from "next/link";
@@ -907,13 +908,19 @@ export default function PlannerPage() {
   };
 
   const filteredRecipes = recipes.filter((recipe) => {
-    // Filter by search text
-    const matchesSearch = recipe.title.toLowerCase().includes(search.toLowerCase());
-    
-    // Filter by selected tags (recipe must have ALL selected tags)
-    const matchesTags = selectedFilterTags.length === 0 || 
-      selectedFilterTags.every(tag => recipe.tags?.includes(tag));
-    
+    const matchesSearch = recipeTextMatchesQuery(
+      {
+        title: recipe.title,
+        description: recipe.description,
+        tags: recipe.tags,
+      },
+      search
+    );
+
+    const matchesTags =
+      selectedFilterTags.length === 0 ||
+      selectedFilterTags.every((tag) => recipe.tags?.includes(tag));
+
     return matchesSearch && matchesTags;
   });
 

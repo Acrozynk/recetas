@@ -3,6 +3,12 @@
 import { useEffect, useState, useMemo, useCallback, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase, type Recipe, type Ingredient, type MealPlan } from "@/lib/supabase";
+import {
+  haystackMatchesSearchTokens,
+  isSearchQueryEmpty,
+  normalizeSearchText,
+  recipeTextMatchesQuery,
+} from "@/lib/recipe-search";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import RecipeCard from "@/components/RecipeCard";
@@ -174,10 +180,11 @@ function HomePageContent() {
   useEffect(() => {
     const params = new URLSearchParams();
     
-    if (search) params.set("q", search);
+    if (!isSearchQueryEmpty(search)) params.set("q", normalizeSearchText(search));
     if (selectedTags.length > 0) params.set("tags", selectedTags.join(","));
     if (tagFilterMode !== "or") params.set("tagMode", tagFilterMode);
-    if (ingredientSearch) params.set("ing", ingredientSearch);
+    if (!isSearchQueryEmpty(ingredientSearch))
+      params.set("ing", normalizeSearchText(ingredientSearch));
     if (timeFilter !== "all") params.set("time", timeFilter);
     if (madeItFilter !== "all") params.set("made", madeItFilter);
     if (ratingFilter !== null) params.set("rating", String(ratingFilter));
@@ -322,19 +329,14 @@ function HomePageContent() {
     new Set(recipes.flatMap((r) => r.tags || []))
   ).sort();
 
-  // Normalize text for search (case insensitive + accent insensitive)
-  const normalizeText = (text: string) =>
-    text
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
-
   // Check if any advanced filter is active
   const hasActiveFilters = useMemo(() => {
-    return ingredientSearch !== "" || 
-           timeFilter !== "all" || 
-           madeItFilter !== "all" || 
-           ratingFilter !== null;
+    return (
+      !isSearchQueryEmpty(ingredientSearch) ||
+      timeFilter !== "all" ||
+      madeItFilter !== "all" ||
+      ratingFilter !== null
+    );
   }, [ingredientSearch, timeFilter, madeItFilter, ratingFilter]);
 
   // Clear all advanced filters
@@ -347,13 +349,14 @@ function HomePageContent() {
 
   // Filter recipes by search, tags, and advanced filters
   const filteredRecipes = recipes.filter((recipe) => {
-    const normalizedSearch = normalizeText(search);
-    
-    // Text search in title and description
-    const matchesSearch =
-      !search ||
-      normalizeText(recipe.title).includes(normalizedSearch) ||
-      normalizeText(recipe.description || "").includes(normalizedSearch);
+    const matchesSearch = recipeTextMatchesQuery(
+      {
+        title: recipe.title,
+        description: recipe.description,
+        tags: recipe.tags,
+      },
+      search
+    );
 
     // Tag filter (OR = any tag matches, AND = all tags must match)
     const matchesTags =
@@ -362,10 +365,11 @@ function HomePageContent() {
         ? selectedTags.some((tag) => recipe.tags && recipe.tags.includes(tag))
         : selectedTags.every((tag) => recipe.tags && recipe.tags.includes(tag)));
 
-    // Ingredient search
-    const matchesIngredient = !ingredientSearch || 
-      (recipe.ingredients || []).some((ing: Ingredient) => 
-        normalizeText(ing.name).includes(normalizeText(ingredientSearch))
+    // Ingredient search (tokens must all appear in an ingredient line)
+    const matchesIngredient =
+      isSearchQueryEmpty(ingredientSearch) ||
+      (recipe.ingredients || []).some((ing: Ingredient) =>
+        haystackMatchesSearchTokens(ing.name, ingredientSearch)
       );
 
     // Time filter
@@ -1005,10 +1009,12 @@ function HomePageContent() {
               </svg>
             </div>
             <h2 className="font-display text-xl font-semibold text-[var(--foreground)] mb-2">
-              {search || selectedTags.length > 0 || hasActiveFilters ? "No se encontraron recetas" : "Aún no hay recetas"}
+              {!isSearchQueryEmpty(search) || selectedTags.length > 0 || hasActiveFilters
+                ? "No se encontraron recetas"
+                : "Aún no hay recetas"}
             </h2>
             <p className="text-[var(--color-slate-light)] mb-6">
-              {search || selectedTags.length > 0 || hasActiveFilters
+              {!isSearchQueryEmpty(search) || selectedTags.length > 0 || hasActiveFilters
                 ? "Prueba con otra búsqueda o filtro"
                 : "Añade tu primera receta para empezar"}
             </p>
