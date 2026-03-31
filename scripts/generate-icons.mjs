@@ -35,6 +35,16 @@ async function generateIcons() {
     .toFile(appleTouchIcon);
   
   console.log(`✓ Generated ${appleTouchIcon}`);
+
+  // Vercel project dashboard avatar: keep in sync with app/icon.svg (Next.js app icon)
+  const appIconSvgPath = path.join(__dirname, '../app/icon.svg');
+  const vercelLogoPng = path.join(__dirname, '../public/logo.png');
+  const appIconSvg = fs.readFileSync(appIconSvgPath, 'utf8');
+  await sharp(Buffer.from(appIconSvg))
+    .resize(512, 512)
+    .png()
+    .toFile(vercelLogoPng);
+  console.log(`✓ Generated ${vercelLogoPng} (from app/icon.svg)`);
 }
 
 generateIcons().catch(console.error);

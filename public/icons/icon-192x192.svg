@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" fill="none">
-  <rect width="192" height="192" rx="40" fill="#D97706"/>
+  <rect width="192" height="192" rx="40" fill="#DC2626"/>
   <g transform="translate(96, 96)">
     <!-- Chef hat (toque) -->
     <!-- Hat puffs (top cloud shape) -->
@@ -12,10 +12,10 @@
     <path d="M-36 4 L-36 40 L36 40 L36 4" fill="#FBF7F4"/>
     <!-- Hat band -->
     <rect x="-36" y="34" width="72" height="12" rx="2" fill="#FBF7F4"/>
-    <rect x="-36" y="38" width="72" height="4" fill="#D97706" opacity="0.2"/>
+    <rect x="-36" y="38" width="72" height="4" fill="#DC2626" opacity="0.2"/>
     <!-- Pleats on hat body -->
-    <line x1="-18" y1="6" x2="-18" y2="34" stroke="#D97706" stroke-width="1.5" opacity="0.15"/>
-    <line x1="0" y1="6" x2="0" y2="34" stroke="#D97706" stroke-width="1.5" opacity="0.15"/>
-    <line x1="18" y1="6" x2="18" y2="34" stroke="#D97706" stroke-width="1.5" opacity="0.15"/>
+    <line x1="-18" y1="6" x2="-18" y2="34" stroke="#DC2626" stroke-width="1.5" opacity="0.15"/>
+    <line x1="0" y1="6" x2="0" y2="34" stroke="#DC2626" stroke-width="1.5" opacity="0.15"/>
+    <line x1="18" y1="6" x2="18" y2="34" stroke="#DC2626" stroke-width="1.5" opacity="0.15"/>
   </g>
 </svg>
