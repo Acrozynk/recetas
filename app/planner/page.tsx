@@ -1562,13 +1562,13 @@ export default function PlannerPage() {
                           </div>
                         );
                       })}
-                      <div className="mt-auto self-center flex items-center gap-1">
+                      <div className="mt-auto self-stretch flex flex-col sm:flex-row sm:justify-center sm:flex-wrap gap-1">
                         <button
                           onClick={() => openRecipeSelector(dateKey, mealType)}
-                          className="text-[10px] flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/60 text-[var(--color-slate)] hover:bg-white hover:text-[var(--color-purple)] transition-colors"
+                          className="text-[10px] flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-full bg-white/60 text-[var(--color-slate)] hover:bg-white hover:text-[var(--color-purple)] transition-colors min-w-0"
                           title="Añadir otra receta"
                         >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path
                               strokeLinecap="round"
                               strokeLinejoin="round"
@@ -1576,17 +1576,17 @@ export default function PlannerPage() {
                               d="M12 4v16m8-8H4"
                             />
                           </svg>
-                          Receta
+                          <span className="truncate">Receta</span>
                         </button>
                         <button
                           onClick={() => openNoteEditor(dateKey, mealType)}
-                          className="text-[10px] flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/60 text-[var(--color-slate)] hover:bg-white hover:text-amber-700 transition-colors"
+                          className="text-[10px] flex items-center justify-center gap-1 px-1.5 py-0.5 rounded-full bg-white/60 text-[var(--color-slate)] hover:bg-white hover:text-amber-700 transition-colors min-w-0"
                           title="Añadir una nota"
                         >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3 h-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
-                          Nota
+                          <span className="truncate">Nota</span>
                         </button>
                       </div>
                     </>
