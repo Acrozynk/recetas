@@ -113,8 +113,8 @@ export default function AddToPlannerModal({
     };
   }, [isOpen, step, weekStart, weekEnd]);
 
-  const getPlanFor = (dateKey: string, mealType: MealType): MealPlan | undefined =>
-    weekPlans.find((p) => p.plan_date === dateKey && p.meal_type === mealType);
+  const getPlansFor = (dateKey: string, mealType: MealType): MealPlan[] =>
+    weekPlans.filter((p) => p.plan_date === dateKey && p.meal_type === mealType);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -242,31 +242,16 @@ export default function AddToPlannerModal({
     setSaving(true);
     try {
       const days = Math.min(14, Math.max(1, Math.floor(consecutiveDayCount)));
-      const row = {
+      const rows = Array.from({ length: days }, (_, i) => ({
+        plan_date: addCalendarDays(selectedDate, i),
         meal_type: selectedMealType,
         recipe_id: recipe.id,
         selected_variant: selectedVariant,
         alternative_selections: alternativeSelections,
         servings_multiplier: servingsMultiplier,
-      };
-
-      for (let i = 0; i < days; i++) {
-        const { error: deleteError } = await supabase
-          .from("meal_plans")
-          .delete()
-          .eq("plan_date", addCalendarDays(selectedDate, i))
-          .eq("meal_type", selectedMealType);
-        if (deleteError) {
-          console.error("Error deleting existing meal plan:", deleteError);
-          throw deleteError;
-        }
-      }
-
-      const rows = Array.from({ length: days }, (_, i) => ({
-        ...row,
-        plan_date: addCalendarDays(selectedDate, i),
       }));
 
+      // Insert without deleting: multiple recipes per (day, meal_type) are allowed.
       const { error: insertError } = await supabase.from("meal_plans").insert(rows);
       if (insertError) {
         console.error("Error inserting meal plan:", insertError);
@@ -367,8 +352,8 @@ export default function AddToPlannerModal({
 
               {/* Mini calendar (horizontal, mirrors planner view) */}
               <p className="text-xs text-[var(--color-slate)] mb-3">
-                Toca un hueco para añadir <strong>{recipe.title}</strong>. Las casillas con receta ya
-                planificada se reemplazarán al confirmar.
+                Toca un hueco para añadir <strong>{recipe.title}</strong>. Lo que ya esté
+                planificado se conserva: la receta se añade al hueco junto con las demás.
               </p>
               <div className="overflow-x-auto -mx-4 px-4 pb-2">
                 <div className="grid grid-cols-7 gap-2 min-w-[640px]">
@@ -395,20 +380,25 @@ export default function AddToPlannerModal({
                     <React.Fragment key={mealType}>
                       {weekDates.map((date) => {
                         const dateKey = formatDateKey(date);
-                        const plan = getPlanFor(dateKey, mealType);
+                        const plansHere = getPlansFor(dateKey, mealType).filter(
+                          (p) => p.recipe
+                        );
                         const isSelected =
                           selectedDate === dateKey && selectedMealType === mealType;
-                        const isSameRecipe = plan?.recipe?.id === recipe.id;
+                        const hasSameRecipe = plansHere.some(
+                          (p) => p.recipe?.id === recipe.id
+                        );
+                        const compact = plansHere.length > 1;
 
                         return (
                           <button
                             key={`${dateKey}-${mealType}`}
                             type="button"
                             onClick={() => handleDateMealSelect(dateKey, mealType)}
-                            className={`relative min-h-[88px] rounded-lg border-2 p-1.5 text-left transition-all flex flex-col ${
+                            className={`relative min-h-[88px] rounded-lg border-2 p-1.5 text-left transition-all flex flex-col gap-1 ${
                               isSelected
                                 ? "border-[var(--color-purple)] bg-[var(--color-purple-bg)] ring-2 ring-[var(--color-purple)]/30"
-                                : plan
+                                : plansHere.length > 0
                                   ? `meal-${mealType} border-solid hover:opacity-90`
                                   : "border-dashed border-[var(--border-color)] hover:border-[var(--color-purple)] hover:bg-[var(--color-purple-bg)]"
                             }`}
@@ -417,33 +407,55 @@ export default function AddToPlannerModal({
                               <span>{MEAL_ICONS[mealType]}</span>
                               {MEAL_LABELS[mealType]}
                             </span>
-                            {plan && plan.recipe ? (
+                            {plansHere.length === 0 ? (
+                              <div className="flex-1 flex items-center justify-center text-[var(--color-slate-light)]">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
+                                </svg>
+                              </div>
+                            ) : compact ? (
+                              <div className="flex flex-col gap-1">
+                                {plansHere.map((p) => (
+                                  <div key={p.id} className="flex items-center gap-1.5">
+                                    {p.recipe!.image_url ? (
+                                      <div className="w-7 h-7 rounded overflow-hidden flex-shrink-0 bg-white/40">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                          src={p.recipe!.image_url}
+                                          alt=""
+                                          className="w-full h-full object-cover"
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div className="w-7 h-7 rounded bg-white/40 flex-shrink-0" />
+                                    )}
+                                    <p className="text-[10px] font-medium leading-tight line-clamp-2">
+                                      {p.recipe!.title}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
                               <>
-                                {plan.recipe.image_url && (
+                                {plansHere[0].recipe!.image_url && (
                                   <div className="w-full aspect-[4/3] rounded-md overflow-hidden mt-1 flex-shrink-0 bg-white/40">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
-                                      src={plan.recipe.image_url}
+                                      src={plansHere[0].recipe!.image_url}
                                       alt=""
                                       className="w-full h-full object-cover"
                                     />
                                   </div>
                                 )}
                                 <p className="text-[11px] font-medium line-clamp-2 mt-1 leading-tight">
-                                  {plan.recipe.title}
+                                  {plansHere[0].recipe!.title}
                                 </p>
-                                {isSameRecipe && (
-                                  <span className="absolute top-1 right-1 text-[9px] bg-[var(--color-purple)] text-white px-1.5 py-0.5 rounded-full">
-                                    ya planificada
-                                  </span>
-                                )}
                               </>
-                            ) : (
-                              <div className="flex-1 flex items-center justify-center text-[var(--color-slate-light)]">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
-                                </svg>
-                              </div>
+                            )}
+                            {hasSameRecipe && (
+                              <span className="absolute top-1 right-1 text-[9px] bg-[var(--color-purple)] text-white px-1.5 py-0.5 rounded-full">
+                                ya planificada
+                              </span>
                             )}
                           </button>
                         );

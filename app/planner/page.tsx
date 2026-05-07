@@ -435,8 +435,8 @@ function RecipeOptionsModal({
             <div className="bg-[var(--color-purple-bg)] rounded-xl p-4 space-y-3">
               <p className="text-xs text-[var(--color-slate)]">
                 {isEditing
-                  ? "Si eliges más de 1 día, la receta también ocupará los días siguientes (en el mismo tipo de comida), reemplazando lo que hubiera."
-                  : "Si eliges más de 1 día, se añade la misma receta en el mismo tipo de comida los días siguientes (p. ej. 3 días → lunes, martes y miércoles)."}
+                  ? "Si eliges más de 1 día, la receta también se añade los días siguientes (en el mismo tipo de comida), conservando lo que ya hubiera planificado."
+                  : "Si eliges más de 1 día, se añade la misma receta en el mismo tipo de comida los días siguientes (p. ej. 3 días → lunes, martes y miércoles), conservando lo que ya hubiera."}
               </p>
               <div className="flex gap-2 justify-center flex-wrap">
                 {quickDayCounts.map((d) => (
@@ -825,8 +825,8 @@ export default function PlannerPage() {
     loadData();
   }, [loadData]);
 
-  const getMealPlan = (date: string, mealType: MealType): MealPlan | undefined => {
-    return mealPlans.find(
+  const getMealPlans = (date: string, mealType: MealType): MealPlan[] => {
+    return mealPlans.filter(
       (mp) => mp.plan_date === date && mp.meal_type === mealType
     );
   };
@@ -846,14 +846,7 @@ export default function PlannerPage() {
     }
 
     try {
-      // Delete existing plan for this slot if any
-      await supabase
-        .from("meal_plans")
-        .delete()
-        .eq("plan_date", date)
-        .eq("meal_type", mealType);
-
-      // Insert new plan with all options
+      // Add a new plan to the slot. Multiple plans per (date, meal_type) are allowed.
       const { error } = await supabase.from("meal_plans").insert([
         {
           plan_date: date,
@@ -890,26 +883,8 @@ export default function PlannerPage() {
       );
 
       if (existingPlanId) {
-        // Check if we're moving to a different slot
-        const isMoving = targetDate !== date || targetMealType !== mealType;
-
-        if (isMoving) {
-          // Check if there's already a plan in the target slot
-          const existingTargetPlan = getMealPlan(targetDate, targetMealType as MealType);
-
-          if (existingTargetPlan) {
-            // Swap: move the existing plan to the original slot
-            await supabase
-              .from("meal_plans")
-              .update({
-                plan_date: date,
-                meal_type: mealType,
-              })
-              .eq("id", existingTargetPlan.id);
-          }
-        }
-
-        // Update existing meal plan (with potential new date/mealType)
+        // Update the edited plan in place. If we're moving to a different slot,
+        // any existing plans there are kept — multiple recipes can coexist now.
         const { error } = await supabase
           .from("meal_plans")
           .update({
@@ -924,22 +899,8 @@ export default function PlannerPage() {
         if (error) throw error;
 
         if (days > 1) {
-          const extraDates = Array.from({ length: days - 1 }, (_, i) =>
-            addCalendarDays(targetDate, i + 1)
-          );
-
-          // Clear any existing plans on the extra slots (avoid touching the just-updated row)
-          for (const d of extraDates) {
-            await supabase
-              .from("meal_plans")
-              .delete()
-              .eq("plan_date", d)
-              .eq("meal_type", targetMealType)
-              .neq("id", existingPlanId);
-          }
-
-          const extraRows = extraDates.map((d) => ({
-            plan_date: d,
+          const extraRows = Array.from({ length: days - 1 }, (_, i) => ({
+            plan_date: addCalendarDays(targetDate, i + 1),
             meal_type: targetMealType,
             recipe_id: recipe.id,
             selected_variant: selection.selectedVariant,
@@ -955,26 +916,13 @@ export default function PlannerPage() {
           }
         }
       } else {
-        const row = {
+        const rows = Array.from({ length: days }, (_, i) => ({
+          plan_date: addCalendarDays(date, i),
           meal_type: mealType,
           recipe_id: recipe.id,
           selected_variant: selection.selectedVariant,
           alternative_selections: selection.alternativeSelections,
           servings_multiplier: selection.servingsMultiplier,
-        };
-
-        for (let i = 0; i < days; i++) {
-          const d = addCalendarDays(date, i);
-          await supabase
-            .from("meal_plans")
-            .delete()
-            .eq("plan_date", d)
-            .eq("meal_type", mealType);
-        }
-
-        const rows = Array.from({ length: days }, (_, i) => ({
-          ...row,
-          plan_date: addCalendarDays(date, i),
         }));
 
         const { error } = await supabase.from("meal_plans").insert(rows);
@@ -1057,21 +1005,8 @@ export default function PlannerPage() {
     }
 
     try {
-      // Check if there's already a plan in the target slot
-      const existingPlan = getMealPlan(targetDate, targetMealType);
-
-      if (existingPlan) {
-        // Swap: update existing plan to the dragged plan's original slot
-        await supabase
-          .from("meal_plans")
-          .update({
-            plan_date: draggingPlan.plan_date,
-            meal_type: draggingPlan.meal_type,
-          })
-          .eq("id", existingPlan.id);
-      }
-
-      // Move the dragged plan to the target slot
+      // Move the dragged plan to the target slot. Any existing plans there
+      // are kept — multiple recipes can coexist in the same meal slot.
       await supabase
         .from("meal_plans")
         .update({
@@ -1186,21 +1121,8 @@ export default function PlannerPage() {
     }
     
     try {
-      // Check if there's already a plan in the target slot
-      const existingPlan = getMealPlan(targetSlot.date, targetSlot.mealType);
-
-      if (existingPlan) {
-        // Swap: update existing plan to the dragged plan's original slot
-        await supabase
-          .from("meal_plans")
-          .update({
-            plan_date: draggingPlan.plan_date,
-            meal_type: draggingPlan.meal_type,
-          })
-          .eq("id", existingPlan.id);
-      }
-
-      // Move the dragged plan to the target slot
+      // Move the dragged plan to the target slot. Any existing plans there
+      // are kept — multiple recipes can coexist in the same meal slot.
       await supabase
         .from("meal_plans")
         .update({
@@ -1328,13 +1250,14 @@ export default function PlannerPage() {
           <React.Fragment key={mealType}>
             {dates.map((date) => {
               const dateKey = formatDateKey(date);
-              const plan = getMealPlan(dateKey, mealType);
+              const plansHere = getMealPlans(dateKey, mealType).filter((p) => p.recipe);
 
               const isDragOver =
                 dragOverSlot?.date === dateKey && dragOverSlot?.mealType === mealType;
-              const isDragging =
+              const isDraggingThis =
                 draggingPlan?.plan_date === dateKey && draggingPlan?.meal_type === mealType;
               const slotKey = getSlotKey(dateKey, mealType);
+              const compact = plansHere.length > 1;
 
               return (
                 <div
@@ -1342,84 +1265,20 @@ export default function PlannerPage() {
                   ref={(el) => {
                     if (el) slotRefs.current.set(slotKey, el);
                   }}
-                  className={`min-h-[100px] rounded-lg border-2 border-dashed p-2 transition-all ${
-                    plan
+                  className={`min-h-[100px] rounded-lg border-2 p-2 transition-all flex flex-col gap-1.5 ${
+                    plansHere.length > 0
                       ? `meal-${mealType} border-solid`
-                      : "border-[var(--border-color)] hover:border-[var(--color-purple)]"
+                      : "border-dashed border-[var(--border-color)] hover:border-[var(--color-purple)]"
                   } ${
                     isDragOver
                       ? "border-[var(--color-purple)] bg-[var(--color-purple-bg)] scale-[1.02]"
                       : ""
-                  } ${isDragging ? "opacity-50" : ""}`}
+                  } ${isDraggingThis ? "opacity-90" : ""}`}
                   onDragOver={(e) => handleDragOver(e, dateKey, mealType)}
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, dateKey, mealType)}
                 >
-                  {plan && plan.recipe ? (
-                    <div
-                      className="relative h-full group/plan cursor-grab active:cursor-grabbing touch-none"
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, plan)}
-                      onDragEnd={handleDragEnd}
-                      onTouchStart={(e) => handleTouchStart(e, plan)}
-                      onTouchMove={handleTouchMove}
-                      onTouchEnd={handleTouchEnd}
-                    >
-                      {/* Delete button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeMealPlan(plan.id);
-                        }}
-                        className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-70 sm:opacity-0 sm:group-hover/plan:opacity-100 hover:opacity-100 transition-opacity z-10"
-                      >
-                        ×
-                      </button>
-                      {/* Edit servings button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          openEditPlanOptions(plan);
-                        }}
-                        className="absolute -top-1 left-0 w-5 h-5 bg-[var(--color-purple)] text-white rounded-full flex items-center justify-center text-xs opacity-70 sm:opacity-0 sm:group-hover/plan:opacity-100 hover:opacity-100 transition-opacity z-10"
-                        title="Editar porciones"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                        </svg>
-                      </button>
-                      <Link
-                        href={`/recipes/${plan.recipe.id}`}
-                        className="w-full h-full text-left flex flex-col"
-                      >
-                        {/* Recipe image */}
-                        {plan.recipe.image_url && (
-                          <div className="w-full aspect-[4/3] rounded-md overflow-hidden mb-1.5 flex-shrink-0">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={plan.recipe.image_url}
-                              alt=""
-                              className="w-full h-full object-cover"
-                            />
-                          </div>
-                        )}
-                        <span className="text-[10px] font-medium uppercase tracking-wide opacity-60">
-                          {MEAL_LABELS[mealType]}
-                        </span>
-                        <p className="text-xs font-medium line-clamp-2 mt-0.5">
-                          {plan.recipe.title}
-                        </p>
-                        {plan.servings_multiplier && plan.servings_multiplier !== 1 && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <span className="text-[10px] bg-[var(--color-purple)] text-white px-1.5 py-0.5 rounded-full">
-                              ×{plan.servings_multiplier}
-                            </span>
-                          </div>
-                        )}
-                      </Link>
-                    </div>
-                  ) : (
+                  {plansHere.length === 0 ? (
                     <button
                       onClick={() => openRecipeSelector(dateKey, mealType)}
                       className="w-full h-full flex flex-col items-center justify-center text-[var(--color-slate-light)] hover:text-[var(--color-purple)]"
@@ -1439,6 +1298,123 @@ export default function PlannerPage() {
                       </svg>
                       <span className="text-[10px] mt-1">{MEAL_LABELS[mealType]}</span>
                     </button>
+                  ) : (
+                    <>
+                      {plansHere.map((plan) => {
+                        const isThisDragging = draggingPlan?.id === plan.id;
+                        return (
+                          <div
+                            key={plan.id}
+                            className={`relative group/plan cursor-grab active:cursor-grabbing touch-none rounded-md ${
+                              compact ? "bg-white/40" : ""
+                            } ${isThisDragging ? "opacity-50" : ""}`}
+                            draggable
+                            onDragStart={(e) => handleDragStart(e, plan)}
+                            onDragEnd={handleDragEnd}
+                            onTouchStart={(e) => handleTouchStart(e, plan)}
+                            onTouchMove={handleTouchMove}
+                            onTouchEnd={handleTouchEnd}
+                          >
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeMealPlan(plan.id);
+                              }}
+                              className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-70 sm:opacity-0 sm:group-hover/plan:opacity-100 hover:opacity-100 transition-opacity z-10"
+                            >
+                              ×
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                openEditPlanOptions(plan);
+                              }}
+                              className="absolute -top-1 left-0 w-5 h-5 bg-[var(--color-purple)] text-white rounded-full flex items-center justify-center text-xs opacity-70 sm:opacity-0 sm:group-hover/plan:opacity-100 hover:opacity-100 transition-opacity z-10"
+                              title="Editar porciones"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
+                            </button>
+                            {compact ? (
+                              <Link
+                                href={`/recipes/${plan.recipe!.id}`}
+                                className="flex items-center gap-2 p-1"
+                              >
+                                {plan.recipe!.image_url ? (
+                                  <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0 bg-white/40">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={plan.recipe!.image_url}
+                                      alt=""
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="w-10 h-10 rounded bg-white/40 flex-shrink-0" />
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[11px] font-medium leading-tight line-clamp-2">
+                                    {plan.recipe!.title}
+                                  </p>
+                                  {plan.servings_multiplier &&
+                                    plan.servings_multiplier !== 1 && (
+                                      <span className="inline-block text-[9px] bg-[var(--color-purple)] text-white px-1 py-0.5 rounded-full mt-0.5">
+                                        ×{plan.servings_multiplier}
+                                      </span>
+                                    )}
+                                </div>
+                              </Link>
+                            ) : (
+                              <Link
+                                href={`/recipes/${plan.recipe!.id}`}
+                                className="w-full h-full text-left flex flex-col"
+                              >
+                                {plan.recipe!.image_url && (
+                                  <div className="w-full aspect-[4/3] rounded-md overflow-hidden mb-1.5 flex-shrink-0">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={plan.recipe!.image_url}
+                                      alt=""
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                )}
+                                <span className="text-[10px] font-medium uppercase tracking-wide opacity-60">
+                                  {MEAL_LABELS[mealType]}
+                                </span>
+                                <p className="text-xs font-medium line-clamp-2 mt-0.5">
+                                  {plan.recipe!.title}
+                                </p>
+                                {plan.servings_multiplier && plan.servings_multiplier !== 1 && (
+                                  <div className="flex items-center gap-1 mt-1">
+                                    <span className="text-[10px] bg-[var(--color-purple)] text-white px-1.5 py-0.5 rounded-full">
+                                      ×{plan.servings_multiplier}
+                                    </span>
+                                  </div>
+                                )}
+                              </Link>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <button
+                        onClick={() => openRecipeSelector(dateKey, mealType)}
+                        className="mt-auto self-center text-[10px] flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/60 text-[var(--color-slate)] hover:bg-white hover:text-[var(--color-purple)] transition-colors"
+                        title="Añadir otra receta"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 4v16m8-8H4"
+                          />
+                        </svg>
+                        Añadir
+                      </button>
+                    </>
                   )}
                 </div>
               );
