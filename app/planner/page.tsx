@@ -791,8 +791,11 @@ export default function PlannerPage() {
   const slotRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   const weekDates = getWeekDates(weekOffset);
+  const weekDatesNext = getWeekDates(weekOffset + 1);
   const weekStart = formatDateKey(weekDates[0]);
   const weekEnd = formatDateKey(weekDates[6]);
+  // Wider screens render the next week too; load enough data to cover both.
+  const loadEnd = formatDateKey(weekDatesNext[6]);
 
   const loadData = useCallback(async () => {
     try {
@@ -802,12 +805,12 @@ export default function PlannerPage() {
         .select("*")
         .order("title");
 
-      // Load meal plans for this week
+      // Load meal plans for the visible window (current week + next week)
       const { data: plansData } = await supabase
         .from("meal_plans")
         .select("*, recipe:recipes(*)")
         .gte("plan_date", weekStart)
-        .lte("plan_date", weekEnd);
+        .lte("plan_date", loadEnd);
 
       setRecipes(recipesData || []);
       setMealPlans(plansData || []);
@@ -816,7 +819,7 @@ export default function PlannerPage() {
     } finally {
       setLoading(false);
     }
-  }, [weekStart, weekEnd]);
+  }, [weekStart, loadEnd]);
 
   useEffect(() => {
     loadData();
@@ -1300,6 +1303,152 @@ export default function PlannerPage() {
     );
   };
 
+  const renderWeekGrid = (dates: Date[]) => (
+    <div className="overflow-x-auto -mx-4 px-4">
+      <div className="grid grid-cols-7 gap-2 min-w-[640px]">
+        {/* Day Headers */}
+        {dates.map((date) => (
+          <div
+            key={date.toISOString()}
+            className={`text-center p-2 rounded-lg ${
+              isToday(date)
+                ? "bg-[var(--color-purple)] text-white"
+                : "bg-[var(--color-purple-bg-dark)]"
+            }`}
+          >
+            <div className="text-xs font-medium opacity-80">
+              {formatDayName(date)}
+            </div>
+            <div className="text-lg font-semibold">{formatDayNumber(date)}</div>
+          </div>
+        ))}
+
+        {/* Meal Slots */}
+        {MEAL_TYPES.map((mealType) => (
+          <React.Fragment key={mealType}>
+            {dates.map((date) => {
+              const dateKey = formatDateKey(date);
+              const plan = getMealPlan(dateKey, mealType);
+
+              const isDragOver =
+                dragOverSlot?.date === dateKey && dragOverSlot?.mealType === mealType;
+              const isDragging =
+                draggingPlan?.plan_date === dateKey && draggingPlan?.meal_type === mealType;
+              const slotKey = getSlotKey(dateKey, mealType);
+
+              return (
+                <div
+                  key={slotKey}
+                  ref={(el) => {
+                    if (el) slotRefs.current.set(slotKey, el);
+                  }}
+                  className={`min-h-[100px] rounded-lg border-2 border-dashed p-2 transition-all ${
+                    plan
+                      ? `meal-${mealType} border-solid`
+                      : "border-[var(--border-color)] hover:border-[var(--color-purple)]"
+                  } ${
+                    isDragOver
+                      ? "border-[var(--color-purple)] bg-[var(--color-purple-bg)] scale-[1.02]"
+                      : ""
+                  } ${isDragging ? "opacity-50" : ""}`}
+                  onDragOver={(e) => handleDragOver(e, dateKey, mealType)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, dateKey, mealType)}
+                >
+                  {plan && plan.recipe ? (
+                    <div
+                      className="relative h-full group/plan cursor-grab active:cursor-grabbing touch-none"
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, plan)}
+                      onDragEnd={handleDragEnd}
+                      onTouchStart={(e) => handleTouchStart(e, plan)}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
+                    >
+                      {/* Delete button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeMealPlan(plan.id);
+                        }}
+                        className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-70 sm:opacity-0 sm:group-hover/plan:opacity-100 hover:opacity-100 transition-opacity z-10"
+                      >
+                        ×
+                      </button>
+                      {/* Edit servings button */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          openEditPlanOptions(plan);
+                        }}
+                        className="absolute -top-1 left-0 w-5 h-5 bg-[var(--color-purple)] text-white rounded-full flex items-center justify-center text-xs opacity-70 sm:opacity-0 sm:group-hover/plan:opacity-100 hover:opacity-100 transition-opacity z-10"
+                        title="Editar porciones"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      </button>
+                      <Link
+                        href={`/recipes/${plan.recipe.id}`}
+                        className="w-full h-full text-left flex flex-col"
+                      >
+                        {/* Recipe image */}
+                        {plan.recipe.image_url && (
+                          <div className="w-full aspect-[4/3] rounded-md overflow-hidden mb-1.5 flex-shrink-0">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={plan.recipe.image_url}
+                              alt=""
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        )}
+                        <span className="text-[10px] font-medium uppercase tracking-wide opacity-60">
+                          {MEAL_LABELS[mealType]}
+                        </span>
+                        <p className="text-xs font-medium line-clamp-2 mt-0.5">
+                          {plan.recipe.title}
+                        </p>
+                        {plan.servings_multiplier && plan.servings_multiplier !== 1 && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-[10px] bg-[var(--color-purple)] text-white px-1.5 py-0.5 rounded-full">
+                              ×{plan.servings_multiplier}
+                            </span>
+                          </div>
+                        )}
+                      </Link>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => openRecipeSelector(dateKey, mealType)}
+                      className="w-full h-full flex flex-col items-center justify-center text-[var(--color-slate-light)] hover:text-[var(--color-purple)]"
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M12 4v16m8-8H4"
+                        />
+                      </svg>
+                      <span className="text-[10px] mt-1">{MEAL_LABELS[mealType]}</span>
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen pb-20">
       <Header
@@ -1372,148 +1521,26 @@ export default function PlannerPage() {
             ))}
           </div>
         ) : (
-          <div className="overflow-x-auto -mx-4 px-4">
-            <div className="grid grid-cols-7 gap-2 min-w-[640px]">
-              {/* Day Headers */}
-              {weekDates.map((date) => (
-                <div
-                  key={date.toISOString()}
-                  className={`text-center p-2 rounded-lg ${
-                    isToday(date)
-                      ? "bg-[var(--color-purple)] text-white"
-                      : "bg-[var(--color-purple-bg-dark)]"
-                  }`}
-                >
-                  <div className="text-xs font-medium opacity-80">
-                    {formatDayName(date)}
-                  </div>
-                  <div className="text-lg font-semibold">{formatDayNumber(date)}</div>
-                </div>
-              ))}
+          <>
+            {renderWeekGrid(weekDates)}
 
-              {/* Meal Slots */}
-              {MEAL_TYPES.map((mealType) => (
-                <React.Fragment key={mealType}>
-                  {weekDates.map((date) => {
-                    const dateKey = formatDateKey(date);
-                    const plan = getMealPlan(dateKey, mealType);
-
-                    const isDragOver = dragOverSlot?.date === dateKey && dragOverSlot?.mealType === mealType;
-                    const isDragging = draggingPlan?.plan_date === dateKey && draggingPlan?.meal_type === mealType;
-                    const slotKey = getSlotKey(dateKey, mealType);
-
-                    return (
-                      <div
-                        key={slotKey}
-                        ref={(el) => {
-                          if (el) slotRefs.current.set(slotKey, el);
-                        }}
-                        className={`min-h-[100px] rounded-lg border-2 border-dashed p-2 transition-all ${
-                          plan
-                            ? `meal-${mealType} border-solid`
-                            : "border-[var(--border-color)] hover:border-[var(--color-purple)]"
-                        } ${isDragOver ? "border-[var(--color-purple)] bg-[var(--color-purple-bg)] scale-[1.02]" : ""} ${isDragging ? "opacity-50" : ""}`}
-                        onDragOver={(e) => handleDragOver(e, dateKey, mealType)}
-                        onDragLeave={handleDragLeave}
-                        onDrop={(e) => handleDrop(e, dateKey, mealType)}
-                      >
-                        {plan && plan.recipe ? (
-                          <div
-                            className="relative h-full group/plan cursor-grab active:cursor-grabbing touch-none"
-                            draggable
-                            onDragStart={(e) => handleDragStart(e, plan)}
-                            onDragEnd={handleDragEnd}
-                            onTouchStart={(e) => handleTouchStart(e, plan)}
-                            onTouchMove={handleTouchMove}
-                            onTouchEnd={handleTouchEnd}
-                          >
-                            {/* Delete button */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeMealPlan(plan.id);
-                              }}
-                              className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-70 sm:opacity-0 sm:group-hover/plan:opacity-100 hover:opacity-100 transition-opacity z-10"
-                            >
-                              ×
-                            </button>
-                            {/* Edit servings button */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                openEditPlanOptions(plan);
-                              }}
-                              className="absolute -top-1 left-0 w-5 h-5 bg-[var(--color-purple)] text-white rounded-full flex items-center justify-center text-xs opacity-70 sm:opacity-0 sm:group-hover/plan:opacity-100 hover:opacity-100 transition-opacity z-10"
-                              title="Editar porciones"
-                            >
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                              </svg>
-                            </button>
-                            <Link
-                              href={`/recipes/${plan.recipe.id}`}
-                              className="w-full h-full text-left flex flex-col"
-                            >
-                              {/* Recipe image */}
-                              {plan.recipe.image_url && (
-                                <div className="w-full aspect-[4/3] rounded-md overflow-hidden mb-1.5 flex-shrink-0">
-                                  <img
-                                    src={plan.recipe.image_url}
-                                    alt=""
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
-                              )}
-                              <span className="text-[10px] font-medium uppercase tracking-wide opacity-60">
-                                {MEAL_LABELS[mealType]}
-                              </span>
-                              <p className="text-xs font-medium line-clamp-2 mt-0.5">
-                                {plan.recipe.title}
-                              </p>
-                              {/* Show servings info if different from default */}
-                              {plan.servings_multiplier && plan.servings_multiplier !== 1 && (
-                                <div className="flex items-center gap-1 mt-1">
-                                  <span className="text-[10px] bg-[var(--color-purple)] text-white px-1.5 py-0.5 rounded-full">
-                                    ×{plan.servings_multiplier}
-                                  </span>
-                                </div>
-                              )}
-                            </Link>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() =>
-                              openRecipeSelector(dateKey, mealType)
-                            }
-                            className="w-full h-full flex flex-col items-center justify-center text-[var(--color-slate-light)] hover:text-[var(--color-purple)]"
-                          >
-                            <svg
-                              className="w-5 h-5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={1.5}
-                                d="M12 4v16m8-8H4"
-                              />
-                            </svg>
-                            <span className="text-[10px] mt-1">
-                              {MEAL_LABELS[mealType]}
-                            </span>
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </React.Fragment>
-              ))}
+            {/* Next week below on wider screens */}
+            <div className="hidden lg:block mt-8">
+              <div className="flex items-baseline justify-between mb-3">
+                <h3 className="font-display text-base font-semibold text-[var(--foreground)]">
+                  Próxima semana
+                </h3>
+                <span className="text-sm text-[var(--color-slate)]">
+                  {weekDatesNext[0].toLocaleDateString("es-ES", { month: "long", day: "numeric" })}
+                  {" – "}
+                  {weekDatesNext[6].toLocaleDateString("es-ES", { month: "long", day: "numeric", year: "numeric" })}
+                </span>
+              </div>
+              {renderWeekGrid(weekDatesNext)}
             </div>
-          </div>
+          </>
         )}
+
       </main>
 
       {/* Recipe Selector Modal */}
