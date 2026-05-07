@@ -111,7 +111,7 @@ export default function ImportCompletePage() {
         {/* Actions */}
         <div className="space-y-3">
           <button
-            onClick={() => router.push("/")}
+            onClick={() => router.push("/recipes")}
             className="btn-primary w-full"
           >
             Ver Mis Recetas

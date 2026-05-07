@@ -251,7 +251,7 @@ export default function ImportPage() {
       
       if (insertError) throw insertError;
 
-      router.push("/");
+      router.push("/recipes");
       router.refresh();
     } catch (err) {
       console.error("Error importing from URL:", err);

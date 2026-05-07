@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 const navItems = [
   {
-    href: "/",
+    href: "/recipes",
     label: "Recetas",
     icon: (
       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -76,9 +76,13 @@ export default function BottomNav() {
       <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
         {navItems.map((item) => {
           const isActive =
-            item.href === "/"
-              ? pathname === "/" || pathname.startsWith("/recipes")
-              : pathname === item.href || pathname.startsWith(item.href + "/");
+            item.href === "/recipes"
+              ? pathname === "/recipes" || pathname.startsWith("/recipes/")
+              : item.href === "/planner"
+                ? pathname === "/" ||
+                  pathname === "/planner" ||
+                  pathname.startsWith("/planner/")
+                : pathname === item.href || pathname.startsWith(item.href + "/");
 
           return (
             <Link

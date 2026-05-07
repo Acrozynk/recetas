@@ -962,7 +962,7 @@ export default function RecipeDetailPage() {
         .eq("id", recipe.id);
 
       if (error) throw error;
-      router.push("/");
+      router.push("/recipes");
     } catch (error) {
       console.error("Error deleting recipe:", error);
     }
@@ -1295,7 +1295,7 @@ export default function RecipeDetailPage() {
           <p className="text-[var(--color-slate-light)]">
             Esta receta no existe o fue eliminada.
           </p>
-          <Link href="/" className="btn-primary inline-block mt-4">
+          <Link href="/recipes" className="btn-primary inline-block mt-4">
             Volver a Recetas
           </Link>
         </div>
