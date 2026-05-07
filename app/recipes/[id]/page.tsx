@@ -4,10 +4,16 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { supabase, type Recipe, type Ingredient, type Instruction, type Container, normalizeInstructions, type SupermarketName, SUPERMARKETS, SUPERMARKET_COLORS } from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
-import AddToPlannerModal from "@/components/AddToPlannerModal";
+
+// Heavy modal: code-split so it doesn't ship until the user opens it.
+const AddToPlannerModal = dynamic(
+  () => import("@/components/AddToPlannerModal"),
+  { ssr: false, loading: () => null }
+);
 import { 
   convertIngredient, 
   isVolumeUnit, 

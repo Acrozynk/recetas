@@ -1,10 +1,23 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { supabase, type ShoppingItem, type MealPlan, type Ingredient, type SupermarketName, type SupermarketCategoryOrder, type ItemSupermarketHistory, SUPERMARKETS, SUPERMARKET_COLORS, DEFAULT_CATEGORIES } from "@/lib/supabase";
+import {
+  supabase,
+  type ShoppingItem,
+  type MealPlan,
+  type Ingredient,
+  type SupermarketName,
+  type SupermarketCategoryOrder,
+  type ItemSupermarketHistory,
+  SUPERMARKETS,
+  SUPERMARKET_COLORS,
+  DEFAULT_CATEGORIES,
+  RECIPE_SHOPPING_SELECT,
+} from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
-import { searchGroceries, searchAllProducts, type GroceryProduct, GROCERY_CATEGORIES } from "@/lib/spanish-groceries";
+import type { GroceryProduct } from "@/lib/spanish-groceries";
+import { GROCERY_CATEGORIES } from "@/lib/grocery-categories";
 import { addCustomProduct } from "@/lib/supabase";
 import { combineQuantities, parseQuantity, formatQuantity } from "@/lib/unit-conversion";
 
@@ -315,6 +328,10 @@ function GrocerySearchModal({
   };
   const [searchResults, setSearchResults] = useState<GroceryProduct[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  // Lazy-loaded ~70KB module: only fetched once the user opens this modal.
+  const [groceryModule, setGroceryModule] =
+    useState<typeof import("@/lib/spanish-groceries") | null>(null);
+  const [allProducts, setAllProducts] = useState<GroceryProduct[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -323,11 +340,26 @@ function GrocerySearchModal({
     }
   }, [isOpen]);
 
+  // Fetch the grocery catalog only when the modal first opens.
   useEffect(() => {
+    if (!isOpen || groceryModule) return;
+    let cancelled = false;
+    import("@/lib/spanish-groceries").then(mod => {
+      if (cancelled) return;
+      setGroceryModule(mod);
+      setAllProducts(mod.searchGroceries("", 500));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, groceryModule]);
+
+  useEffect(() => {
+    if (!groceryModule) return;
     if (searchQuery.trim().length >= 2) {
       setIsSearching(true);
       // Búsqueda asíncrona que incluye productos personalizados del usuario
-      searchAllProducts(searchQuery, 30).then(results => {
+      groceryModule.searchAllProducts(searchQuery, 30).then(results => {
         setSearchResults(results);
         setSelectedCategory(null);
         setIsSearching(false);
@@ -336,7 +368,7 @@ function GrocerySearchModal({
       setSearchResults([]);
       setIsSearching(false);
     }
-  }, [searchQuery]);
+  }, [searchQuery, groceryModule]);
 
   const handleCategoryClick = (category: string) => {
     setSelectedCategory(category === selectedCategory ? null : category);
@@ -478,7 +510,7 @@ function GrocerySearchModal({
                     {selectedCategory}
                   </h3>
                   <div className="space-y-1 max-h-64 overflow-y-auto">
-                    {searchGroceries("", 500)
+                    {allProducts
                       .filter((p) => p.category === selectedCategory)
                       .map((product, index) => (
                         <button
@@ -1551,7 +1583,7 @@ export default function ShoppingPage() {
 
       const { data: mealPlans, error: plansError } = await supabase
         .from("meal_plans")
-        .select("*, recipe:recipes(*)")
+        .select(`*, recipe:recipes(${RECIPE_SHOPPING_SELECT})`)
         .gte("plan_date", todayStr)
         .order("plan_date", { ascending: true });
 

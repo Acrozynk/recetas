@@ -31,10 +31,17 @@ export async function GET(request: NextRequest) {
 
     if (recipesError) throw recipesError;
 
-    // Get all meal plans for history
+    // Get meal plans for the last 12 months to compute history.
+    // Anything older is irrelevant for the "días desde la última vez" hint and
+    // would make this query grow unbounded with usage.
+    const historyWindow = new Date();
+    historyWindow.setMonth(historyWindow.getMonth() - 12);
+    const historyCutoff = historyWindow.toISOString().split("T")[0];
+
     const { data: allPlans, error: plansError } = await supabase
       .from("meal_plans")
       .select("recipe_id, plan_date")
+      .gte("plan_date", historyCutoff)
       .not("recipe_id", "is", null);
 
     if (plansError) throw plansError;

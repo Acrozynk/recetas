@@ -2,7 +2,7 @@
   "name": "Recetas",
   "short_name": "Recetas",
   "description": "Gestor de recetas personal con planificación de comidas y listas de compras",
-  "start_url": "/",
+  "start_url": "/planner",
   "display": "standalone",
   "background_color": "#FFF7ED",
   "theme_color": "#F97316",

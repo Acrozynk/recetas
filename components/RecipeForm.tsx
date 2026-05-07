@@ -2,12 +2,18 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { supabase, type Recipe, type Ingredient, type Instruction, type Container, normalizeInstructions } from "@/lib/supabase";
 import {
   extractLinkedRecipeIdsFromInstructions,
   buildRecipeLinkToken,
 } from "@/lib/recipe-links";
-import InsertRecipeLinkModal from "@/components/InsertRecipeLinkModal";
+
+// Lazy-loaded: modal only appears after user clicks the link button.
+const InsertRecipeLinkModal = dynamic(
+  () => import("@/components/InsertRecipeLinkModal"),
+  { ssr: false, loading: () => null }
+);
 import Link from "next/link";
 import { 
   convertIngredient, 

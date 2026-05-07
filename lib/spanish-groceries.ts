@@ -8,18 +8,9 @@ export interface GroceryProduct {
   brand?: string;
 }
 
-export const GROCERY_CATEGORIES = [
-  "Frutas y Verduras",
-  "Lácteos",
-  "Carnes y Mariscos",
-  "Panadería",
-  "Despensa",
-  "Congelados",
-  "Bebidas",
-  "Comida Preparada",
-  "Droguería",
-  "Otros",
-] as const;
+// Re-exported from a small standalone module so consumers that only need the
+// category list can import it without pulling in the full ~70KB catalog.
+export { GROCERY_CATEGORIES } from "./grocery-categories";
 
 export const spanishGroceries: GroceryProduct[] = [
   // ============================================

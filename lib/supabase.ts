@@ -5,6 +5,37 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// ---------------------------------------------------------------------------
+// Common SELECT projections
+// ---------------------------------------------------------------------------
+// Avoid pulling the heaviest column (`instructions`) on list/grid views; the
+// detail page is the only surface that actually renders it and it can be
+// fetched on demand from there.
+
+/**
+ * SELECT projection for recipe lists/grids (planner picker, recipes page).
+ * Drops the `instructions` JSON column (the heaviest one) to reduce payload
+ * size dramatically. Includes the `container` join so modals can read
+ * `recipe.container?.name`.
+ */
+export const RECIPE_LIST_SELECT =
+  "id, title, description, source_url, image_url, prep_time_minutes, cook_time_minutes, servings, personas_batch_count, personas_adults_per_batch, personas_children_per_batch, servings_unit, tags, ingredients, notes, rating, made_it, container_id, container_quantity, variant_1_label, variant_2_label, created_at, container:containers(*)";
+
+/**
+ * SELECT projection for recipes embedded inside `meal_plans`. Cells only need
+ * a thumbnail and a title. The rest is looked up from the loaded recipes
+ * map (or fetched on demand) when the user opens a modal.
+ */
+export const MEAL_PLAN_CELL_RECIPE_SELECT = "id, title, image_url";
+
+/**
+ * SELECT projection used to generate the shopping list. We need `ingredients`
+ * and the portion-related fields, but `instructions` (the heavy field) is
+ * useless here.
+ */
+export const RECIPE_SHOPPING_SELECT =
+  "id, title, ingredients, servings, personas_batch_count, personas_adults_per_batch, personas_children_per_batch, servings_unit, container_id, container_quantity, variant_1_label, variant_2_label";
+
 // Types for the database
 export interface Instruction {
   text: string;
@@ -29,7 +60,9 @@ export interface Recipe {
   servings_unit: string | null; // Custom unit for servings (e.g., "tortitas", "galletas"). Null = personas
   tags: string[];
   ingredients: Ingredient[];
-  instructions: Instruction[] | string[]; // Soporta ambos formatos para retrocompatibilidad
+  // Optional because list queries omit the heavy `instructions` JSON to keep
+  // payload small. Detail pages and importers still select it explicitly.
+  instructions?: Instruction[] | string[];
   notes: string | null;
   rating: number | null; // 1-3 stars, null = not rated
   made_it: boolean; // Whether user has made this recipe
@@ -51,7 +84,9 @@ export interface Container {
 }
 
 // Helper para normalizar instrucciones (convierte strings a objetos Instruction)
-export function normalizeInstructions(instructions: Instruction[] | string[]): Instruction[] {
+export function normalizeInstructions(
+  instructions: Instruction[] | string[] | null | undefined
+): Instruction[] {
   if (!instructions || instructions.length === 0) return [];
   
   // Si ya son objetos Instruction, devolverlos

@@ -2,20 +2,33 @@
 
 import { useEffect, useState, useMemo, useCallback, Suspense, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { supabase, type Recipe, type Ingredient, type MealPlan } from "@/lib/supabase";
+import {
+  supabase,
+  type Recipe,
+  type Ingredient,
+  type MealPlan,
+  RECIPE_LIST_SELECT,
+  MEAL_PLAN_CELL_RECIPE_SELECT,
+} from "@/lib/supabase";
 import {
   haystackMatchesSearchTokens,
   isSearchQueryEmpty,
   normalizeSearchText,
   recipeTextMatchesQuery,
 } from "@/lib/recipe-search";
+import dynamic from "next/dynamic";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import RecipeCard from "@/components/RecipeCard";
 import BackupReminder from "@/components/BackupReminder";
 import TagInput from "@/components/TagInput";
-import AddToPlannerModal from "@/components/AddToPlannerModal";
 import Link from "next/link";
+
+// Lazy-loaded so its ~900 lines of JSX don't ship in the initial bundle.
+const AddToPlannerModal = dynamic(
+  () => import("@/components/AddToPlannerModal"),
+  { ssr: false, loading: () => null }
+);
 
 const SCROLL_POSITION_KEY = "recetas_home_scroll";
 
@@ -279,7 +292,7 @@ function HomePageContent() {
       const today = new Date().toISOString().split("T")[0];
       const { data, error } = await supabase
         .from("meal_plans")
-        .select("*, recipe:recipes(*)")
+        .select(`*, recipe:recipes(${MEAL_PLAN_CELL_RECIPE_SELECT})`)
         .eq("plan_date", today);
 
       if (error) throw error;
@@ -312,11 +325,11 @@ function HomePageContent() {
     try {
       const { data, error } = await supabase
         .from("recipes")
-        .select("*, container:containers(*)")
+        .select(RECIPE_LIST_SELECT)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setRecipes(data || []);
+      setRecipes((data ?? []) as unknown as Recipe[]);
     } catch (error) {
       console.error("Error loading recipes:", error);
     } finally {

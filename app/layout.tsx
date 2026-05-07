@@ -2,16 +2,24 @@ import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Source_Sans_3 } from "next/font/google";
 import "./globals.css";
 
+// Cormorant Garamond is only used through `.font-display` (headings), where we
+// only ever apply semibold (600) or bold (700). Skipping 400/500 saves two
+// woff2 files on the initial paint.
 const serif = Cormorant_Garamond({
   variable: "--font-serif",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["600", "700"],
+  display: "swap",
 });
 
+// Source Sans 3 is the body font. We use regular (400), semibold (600) and
+// bold (700) heavily; medium (500) is rare and the browser will synthesize an
+// acceptable in-between weight if encountered.
 const sans = Source_Sans_3({
   variable: "--font-sans",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "600", "700"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
