@@ -255,6 +255,13 @@ export default function AddToPlannerModal({
       const { error: insertError } = await supabase.from("meal_plans").insert(rows);
       if (insertError) {
         console.error("Error inserting meal plan:", insertError);
+        const message = insertError.message || "Error desconocido";
+        const looksLikeUnique = /unique|duplicate|conflict|23505/i.test(message);
+        alert(
+          looksLikeUnique
+            ? "No se pudo guardar porque la base de datos sigue exigiendo una receta única por hueco. Aplica la migración 020_meal_plans_allow_multiple.sql en Supabase y vuelve a intentarlo."
+            : `No se pudo guardar el menú: ${message}`
+        );
         throw insertError;
       }
 
