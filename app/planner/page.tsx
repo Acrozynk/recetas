@@ -831,6 +831,80 @@ export default function PlannerPage() {
     );
   };
 
+  // Free-text note editor state
+  const [noteEditor, setNoteEditor] = useState<{
+    planId?: string;
+    date: string;
+    mealType: MealType;
+    text: string;
+  } | null>(null);
+  const [savingNote, setSavingNote] = useState(false);
+
+  const openNoteEditor = (
+    date: string,
+    mealType: MealType,
+    plan?: MealPlan
+  ) => {
+    setNoteEditor({
+      planId: plan?.id,
+      date,
+      mealType,
+      text: plan?.note ?? "",
+    });
+  };
+
+  const closeNoteEditor = () => setNoteEditor(null);
+
+  const saveNote = async () => {
+    if (!noteEditor) return;
+    const text = noteEditor.text.trim();
+    if (!text) {
+      closeNoteEditor();
+      return;
+    }
+    setSavingNote(true);
+    try {
+      if (noteEditor.planId) {
+        const { error } = await supabase
+          .from("meal_plans")
+          .update({
+            note: text,
+            plan_date: noteEditor.date,
+            meal_type: noteEditor.mealType,
+          })
+          .eq("id", noteEditor.planId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("meal_plans").insert([
+          {
+            plan_date: noteEditor.date,
+            meal_type: noteEditor.mealType,
+            recipe_id: null,
+            note: text,
+            selected_variant: 1,
+            alternative_selections: {},
+            servings_multiplier: 1,
+          },
+        ]);
+        if (error) throw error;
+      }
+      closeNoteEditor();
+      loadData();
+    } catch (error) {
+      console.error("Error saving note:", error);
+      const message =
+        error instanceof Error ? error.message : "Error desconocido";
+      const looksLikeMissingColumn = /column .*note/i.test(message);
+      alert(
+        looksLikeMissingColumn
+          ? "No se pudo guardar la nota. Aplica la migración 021_meal_plans_notes.sql en Supabase y vuelve a intentarlo."
+          : `No se pudo guardar la nota: ${message}`
+      );
+    } finally {
+      setSavingNote(false);
+    }
+  };
+
   const addMealPlan = async (recipeId: string, variantSelection?: VariantSelection) => {
     if (!showRecipeSelector) return;
 
@@ -1258,14 +1332,16 @@ export default function PlannerPage() {
           <React.Fragment key={mealType}>
             {dates.map((date) => {
               const dateKey = formatDateKey(date);
-              const plansHere = getMealPlans(dateKey, mealType).filter((p) => p.recipe);
+              const slotItems = getMealPlans(dateKey, mealType).filter(
+                (p) => p.recipe || p.note
+              );
 
               const isDragOver =
                 dragOverSlot?.date === dateKey && dragOverSlot?.mealType === mealType;
               const isDraggingThis =
                 draggingPlan?.plan_date === dateKey && draggingPlan?.meal_type === mealType;
               const slotKey = getSlotKey(dateKey, mealType);
-              const compact = plansHere.length > 1;
+              const compact = slotItems.length > 1;
 
               return (
                 <div
@@ -1274,7 +1350,7 @@ export default function PlannerPage() {
                     if (el) slotRefs.current.set(slotKey, el);
                   }}
                   className={`min-h-[100px] rounded-lg border-2 p-2 transition-all flex flex-col gap-1.5 ${
-                    plansHere.length > 0
+                    slotItems.length > 0
                       ? `meal-${mealType} border-solid`
                       : "border-dashed border-[var(--border-color)] hover:border-[var(--color-purple)]"
                   } ${
@@ -1286,30 +1362,100 @@ export default function PlannerPage() {
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => handleDrop(e, dateKey, mealType)}
                 >
-                  {plansHere.length === 0 ? (
-                    <button
-                      onClick={() => openRecipeSelector(dateKey, mealType)}
-                      className="w-full h-full flex flex-col items-center justify-center text-[var(--color-slate-light)] hover:text-[var(--color-purple)]"
-                    >
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
+                  {slotItems.length === 0 ? (
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-1">
+                      <button
+                        onClick={() => openRecipeSelector(dateKey, mealType)}
+                        className="flex flex-col items-center text-[var(--color-slate-light)] hover:text-[var(--color-purple)]"
                       >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={1.5}
-                          d="M12 4v16m8-8H4"
-                        />
-                      </svg>
-                      <span className="text-[10px] mt-1">{MEAL_LABELS[mealType]}</span>
-                    </button>
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={1.5}
+                            d="M12 4v16m8-8H4"
+                          />
+                        </svg>
+                        <span className="text-[10px] mt-1">{MEAL_LABELS[mealType]}</span>
+                      </button>
+                      <button
+                        onClick={() => openNoteEditor(dateKey, mealType)}
+                        className="text-[10px] text-[var(--color-slate-light)] hover:text-amber-700 flex items-center gap-1"
+                        title="Añadir una nota (p. ej. cumpleaños)"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Nota
+                      </button>
+                    </div>
                   ) : (
                     <>
-                      {plansHere.map((plan) => {
+                      {slotItems.map((plan) => {
                         const isThisDragging = draggingPlan?.id === plan.id;
+                        const isNote = !plan.recipe && !!plan.note;
+
+                        if (isNote) {
+                          return (
+                            <div
+                              key={plan.id}
+                              className={`relative group/plan rounded-md bg-amber-100 border border-amber-300 p-1.5 ${
+                                isThisDragging ? "opacity-50" : ""
+                              } cursor-grab active:cursor-grabbing touch-none`}
+                              draggable
+                              onDragStart={(e) => handleDragStart(e, plan)}
+                              onDragEnd={handleDragEnd}
+                              onTouchStart={(e) => handleTouchStart(e, plan)}
+                              onTouchMove={handleTouchMove}
+                              onTouchEnd={handleTouchEnd}
+                            >
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeMealPlan(plan.id);
+                                }}
+                                className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs opacity-70 sm:opacity-0 sm:group-hover/plan:opacity-100 hover:opacity-100 transition-opacity z-10"
+                              >
+                                ×
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  openNoteEditor(dateKey, mealType, plan);
+                                }}
+                                className="absolute -top-1 left-0 w-5 h-5 bg-amber-500 text-white rounded-full flex items-center justify-center text-xs opacity-70 sm:opacity-0 sm:group-hover/plan:opacity-100 hover:opacity-100 transition-opacity z-10"
+                                title="Editar nota"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => openNoteEditor(dateKey, mealType, plan)}
+                                className="w-full text-left flex items-start gap-1.5"
+                              >
+                                <span className="text-base leading-none">📝</span>
+                                <p
+                                  className={`font-medium leading-tight whitespace-pre-wrap ${
+                                    compact
+                                      ? "text-[11px] line-clamp-2"
+                                      : "text-xs line-clamp-4"
+                                  } text-amber-900`}
+                                >
+                                  {plan.note}
+                                </p>
+                              </button>
+                            </div>
+                          );
+                        }
+
                         return (
                           <div
                             key={plan.id}
@@ -1407,21 +1553,33 @@ export default function PlannerPage() {
                           </div>
                         );
                       })}
-                      <button
-                        onClick={() => openRecipeSelector(dateKey, mealType)}
-                        className="mt-auto self-center text-[10px] flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/60 text-[var(--color-slate)] hover:bg-white hover:text-[var(--color-purple)] transition-colors"
-                        title="Añadir otra receta"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 4v16m8-8H4"
-                          />
-                        </svg>
-                        Añadir
-                      </button>
+                      <div className="mt-auto self-center flex items-center gap-1">
+                        <button
+                          onClick={() => openRecipeSelector(dateKey, mealType)}
+                          className="text-[10px] flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/60 text-[var(--color-slate)] hover:bg-white hover:text-[var(--color-purple)] transition-colors"
+                          title="Añadir otra receta"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 4v16m8-8H4"
+                            />
+                          </svg>
+                          Receta
+                        </button>
+                        <button
+                          onClick={() => openNoteEditor(dateKey, mealType)}
+                          className="text-[10px] flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/60 text-[var(--color-slate)] hover:bg-white hover:text-amber-700 transition-colors"
+                          title="Añadir una nota"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Nota
+                        </button>
+                      </div>
                     </>
                   )}
                 </div>
@@ -1737,6 +1895,96 @@ export default function PlannerPage() {
           weekDates={weekDates}
           isEditing={!!showRecipeOptions.existingPlanId}
         />
+      )}
+
+      {/* Free-text note editor */}
+      {noteEditor && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:pb-0">
+          <div className="bg-white rounded-t-2xl sm:rounded-xl w-full sm:max-w-md flex flex-col animate-fade-in">
+            <div className="flex-shrink-0 p-4 border-b border-[var(--border-color)] bg-amber-50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-display text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
+                    <span>📝</span>
+                    {noteEditor.planId ? "Editar nota" : "Añadir nota"}
+                  </h3>
+                  <p className="text-sm text-[var(--color-slate)] mt-1">
+                    {new Date(noteEditor.date + "T00:00:00").toLocaleDateString(
+                      "es-ES",
+                      { weekday: "long", day: "numeric", month: "long" }
+                    )}{" "}
+                    · {MEAL_LABELS[noteEditor.mealType]}
+                  </p>
+                </div>
+                <button
+                  onClick={closeNoteEditor}
+                  className="p-2 hover:bg-white/50 rounded-full transition-colors"
+                  aria-label="Cerrar"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="p-4 space-y-3">
+              <label className="block text-sm font-medium text-[var(--color-slate)]">
+                Texto libre
+              </label>
+              <textarea
+                value={noteEditor.text}
+                onChange={(e) =>
+                  setNoteEditor((prev) =>
+                    prev ? { ...prev, text: e.target.value } : prev
+                  )
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                    e.preventDefault();
+                    saveNote();
+                  }
+                }}
+                placeholder="Cumpleaños, fuera de casa, sobras…"
+                rows={3}
+                autoFocus
+                className="w-full px-3 py-2 border border-[var(--border-color)] rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-300 focus:border-amber-400 resize-y"
+              />
+              <p className="text-[11px] text-[var(--color-slate-light)]">
+                Las notas no añaden ingredientes a la lista de la compra.
+              </p>
+            </div>
+            <div className="flex-shrink-0 p-4 pt-2 border-t border-[var(--border-color)] flex gap-2">
+              {noteEditor.planId && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!noteEditor.planId) return;
+                    await removeMealPlan(noteEditor.planId);
+                    closeNoteEditor();
+                  }}
+                  className="px-3 py-2.5 rounded-lg text-red-600 hover:bg-red-50 text-sm font-medium"
+                >
+                  Eliminar
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={closeNoteEditor}
+                className="ml-auto px-4 py-2.5 rounded-lg bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] font-medium"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={saveNote}
+                disabled={savingNote || !noteEditor.text.trim()}
+                className="px-5 py-2.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed font-semibold"
+              >
+                {savingNote ? "Guardando…" : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <BottomNav />

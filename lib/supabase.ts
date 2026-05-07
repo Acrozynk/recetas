@@ -96,14 +96,16 @@ export interface MealPlan {
   id: string;
   plan_date: string;
   meal_type: "breakfast" | "lunch" | "dinner" | "snack";
-  recipe_id: string;
-  recipe?: Recipe;
+  recipe_id: string | null;
+  recipe?: Recipe | null;
   // Variant selection for recipes with ingredient variants
   selected_variant: 1 | 2; // 1 = primary amounts, 2 = secondary amounts
   // Alternative ingredient selections: { "ingredientIndex": true } means use alternative
   alternative_selections: Record<string, boolean>;
   // Servings multiplier (1 = recipe default, 2 = double, 0.5 = half, etc.)
   servings_multiplier: number;
+  // Free-text note (e.g. "Cumpleaños"). When set without a recipe the slot is a reminder.
+  note?: string | null;
 }
 
 export interface ShoppingItem {
