@@ -949,9 +949,16 @@ function IngredientPreviewModal({
   const [localIngredients, setLocalIngredients] = useState<PreviewIngredient[]>([]);
   const [saving, setSaving] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupByMode>("recipe");
+  // Track which recipes the user has deselected at the recipe level.
+  // We can't infer "active" recipes from selected ingredients alone because shared
+  // ingredients would keep multiple recipes looking "active" even after deselection.
+  const [deselectedRecipes, setDeselectedRecipes] = useState<Set<string>>(
+    new Set()
+  );
 
   useEffect(() => {
     setLocalIngredients([...ingredients]);
+    setDeselectedRecipes(new Set());
   }, [ingredients, isOpen]);
 
   const toggleIngredient = (id: string) => {
@@ -966,6 +973,17 @@ function IngredientPreviewModal({
     setLocalIngredients(prev =>
       prev.map(ing => ({ ...ing, selected }))
     );
+    if (selected) {
+      setDeselectedRecipes(new Set());
+    } else {
+      setDeselectedRecipes(() => {
+        const all = new Set<string>();
+        for (const ing of localIngredients) {
+          for (const r of ing.recipes) all.add(r);
+        }
+        return all;
+      });
+    }
   };
 
   const toggleCategory = (category: string, selected: boolean) => {
@@ -978,41 +996,43 @@ function IngredientPreviewModal({
 
   const toggleRecipe = (recipeName: string, selected: boolean) => {
     if (selected) {
-      // Selecting a recipe: select all its ingredients
+      // Activating a recipe: remove it from the deselected set and mark all
+      // its ingredients as selected (overriding any prior manual deselection).
+      setDeselectedRecipes(prev => {
+        const next = new Set(prev);
+        next.delete(recipeName);
+        return next;
+      });
       setLocalIngredients(prev =>
         prev.map(ing =>
           ing.recipes.includes(recipeName) ? { ...ing, selected: true } : ing
         )
       );
-    } else {
-      // Deselecting a recipe: only deselect ingredients that don't belong to other active recipes
-      setLocalIngredients(prev => {
-        // Find other recipes that have selected ingredients NOT belonging to the recipe being deselected
-        const activeOtherRecipes = new Set<string>();
-        
-        prev.forEach(ing => {
-          if (ing.selected && !ing.recipes.includes(recipeName)) {
-            // This selected ingredient doesn't belong to the recipe being deselected
-            ing.recipes.forEach(r => activeOtherRecipes.add(r));
-          }
-        });
-        
-        return prev.map(ing => {
-          if (!ing.recipes.includes(recipeName)) return ing;
-          
-          // Check if this ingredient belongs to any other active recipe
-          const belongsToActiveRecipe = ing.recipes.some(r => 
-            r !== recipeName && activeOtherRecipes.has(r)
-          );
-          
-          if (belongsToActiveRecipe) {
-            return ing; // Keep selected - it belongs to another active recipe
-          }
-          
-          return { ...ing, selected: false };
-        });
-      });
+      return;
     }
+
+    // Deactivating a recipe: add it to the deselected set and deselect each of
+    // its ingredients UNLESS another currently-active (= not deselected) recipe
+    // also uses that ingredient.
+    setDeselectedRecipes(prev => {
+      const nextDeselected = new Set(prev);
+      nextDeselected.add(recipeName);
+
+      setLocalIngredients(prevIngs =>
+        prevIngs.map(ing => {
+          if (!ing.recipes.includes(recipeName)) return ing;
+
+          const stillNeededByActiveRecipe = ing.recipes.some(
+            r => r !== recipeName && !nextDeselected.has(r)
+          );
+
+          if (stillNeededByActiveRecipe) return ing;
+          return { ...ing, selected: false };
+        })
+      );
+
+      return nextDeselected;
+    });
   };
 
   const handleConfirm = async () => {
