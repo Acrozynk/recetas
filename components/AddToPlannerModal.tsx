@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { supabase, type Recipe, type Ingredient } from "@/lib/supabase";
+import React, { useState, useEffect } from "react";
+import { supabase, type Recipe, type Ingredient, type MealPlan } from "@/lib/supabase";
 import {
   addCalendarDays,
   computeServingsMultiplierPersonas,
@@ -36,7 +36,9 @@ interface AddToPlannerModalProps {
 function getWeekDates(offset: number = 0): Date[] {
   const today = new Date();
   const monday = new Date(today);
-  monday.setDate(today.getDate() - today.getDay() + 1 + offset * 7);
+  // getDay() returns 0 for Sunday, but we want week to start on Monday
+  const dayOfWeek = today.getDay() || 7;
+  monday.setDate(today.getDate() - dayOfWeek + 1 + offset * 7);
 
   return Array.from({ length: 7 }, (_, i) => {
     const date = new Date(monday);
@@ -69,6 +71,8 @@ export default function AddToPlannerModal({
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedMealType, setSelectedMealType] = useState<MealType | null>(null);
   const [saving, setSaving] = useState(false);
+  const [weekPlans, setWeekPlans] = useState<MealPlan[]>([]);
+  const [loadingWeek, setLoadingWeek] = useState(false);
 
   // Options state
   const [selectedVariant, setSelectedVariant] = useState<1 | 2>(1);
@@ -80,7 +84,37 @@ export default function AddToPlannerModal({
   const [consecutiveDayCount, setConsecutiveDayCount] = useState(1);
 
   const weekDates = getWeekDates(weekOffset);
+  const weekStart = formatDateKey(weekDates[0]);
+  const weekEnd = formatDateKey(weekDates[6]);
   const personasMode = isPersonasPortionRecipe(recipe);
+
+  // Load meal plans for the visible week so the mini calendar mirrors the planner
+  useEffect(() => {
+    if (!isOpen || step !== "date") return;
+    let cancelled = false;
+    setLoadingWeek(true);
+    (async () => {
+      const { data, error } = await supabase
+        .from("meal_plans")
+        .select("*, recipe:recipes(id, title, image_url)")
+        .gte("plan_date", weekStart)
+        .lte("plan_date", weekEnd);
+      if (cancelled) return;
+      if (error) {
+        console.error("Error loading week plans:", error);
+        setWeekPlans([]);
+      } else {
+        setWeekPlans((data || []) as unknown as MealPlan[]);
+      }
+      setLoadingWeek(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, step, weekStart, weekEnd]);
+
+  const getPlanFor = (dateKey: string, mealType: MealType): MealPlan | undefined =>
+    weekPlans.find((p) => p.plan_date === dateKey && p.meal_type === mealType);
 
   // Reset state when modal opens
   useEffect(() => {
@@ -262,7 +296,11 @@ export default function AddToPlannerModal({
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white rounded-t-2xl sm:rounded-xl w-full sm:max-w-md max-h-[80vh] sm:max-h-[85vh] flex flex-col animate-fade-in">
+      <div
+        className={`bg-white rounded-t-2xl sm:rounded-xl w-full max-h-[80vh] sm:max-h-[85vh] flex flex-col animate-fade-in ${
+          step === "date" ? "sm:max-w-3xl" : "sm:max-w-md"
+        }`}
+      >
         {/* Header */}
         <div className="flex-shrink-0 p-4 border-b border-[var(--border-color)] bg-[var(--color-purple-bg)]">
           <div className="flex items-center justify-between">
@@ -294,6 +332,7 @@ export default function AddToPlannerModal({
                 <button
                   onClick={() => setWeekOffset(weekOffset - 1)}
                   className="p-2 text-[var(--color-slate)] hover:text-[var(--foreground)] transition-colors rounded-lg hover:bg-[var(--color-purple-bg)]"
+                  aria-label="Semana anterior"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -318,6 +357,7 @@ export default function AddToPlannerModal({
                 <button
                   onClick={() => setWeekOffset(weekOffset + 1)}
                   className="p-2 text-[var(--color-slate)] hover:text-[var(--foreground)] transition-colors rounded-lg hover:bg-[var(--color-purple-bg)]"
+                  aria-label="Semana siguiente"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -325,52 +365,98 @@ export default function AddToPlannerModal({
                 </button>
               </div>
 
-              {/* Days Grid */}
-              <div className="space-y-3">
-                {weekDates.map((date) => {
-                  const dateKey = formatDateKey(date);
-                  const today = isToday(date);
-                  const dayName = date.toLocaleDateString("es-ES", { weekday: "long" });
-                  const dayNumber = date.getDate();
-                  const monthName = date.toLocaleDateString("es-ES", { month: "short" });
-
-                  return (
-                    <div
-                      key={dateKey}
-                      className={`rounded-xl border overflow-hidden ${
-                        today
-                          ? "border-[var(--color-purple)] bg-[var(--color-purple-bg)]"
-                          : "border-[var(--border-color)]"
-                      }`}
-                    >
-                      {/* Day Header */}
-                      <div className={`px-3 py-2 ${today ? "bg-[var(--color-purple)] text-white" : "bg-gray-50"}`}>
-                        <span className="font-medium capitalize">{dayName}</span>
-                        <span className="ml-2 opacity-80">{dayNumber} {monthName}</span>
-                        {today && <span className="ml-2 text-xs bg-white/20 px-2 py-0.5 rounded-full">Hoy</span>}
+              {/* Mini calendar (horizontal, mirrors planner view) */}
+              <p className="text-xs text-[var(--color-slate)] mb-3">
+                Toca un hueco para añadir <strong>{recipe.title}</strong>. Las casillas con receta ya
+                planificada se reemplazarán al confirmar.
+              </p>
+              <div className="overflow-x-auto -mx-4 px-4 pb-2">
+                <div className="grid grid-cols-7 gap-2 min-w-[640px]">
+                  {weekDates.map((date) => {
+                    const today = isToday(date);
+                    return (
+                      <div
+                        key={`hdr-${date.toISOString()}`}
+                        className={`text-center p-2 rounded-lg ${
+                          today
+                            ? "bg-[var(--color-purple)] text-white"
+                            : "bg-[var(--color-purple-bg-dark)]"
+                        }`}
+                      >
+                        <div className="text-[10px] font-medium opacity-80 capitalize">
+                          {date.toLocaleDateString("es-ES", { weekday: "short" })}
+                        </div>
+                        <div className="text-base font-semibold">{date.getDate()}</div>
                       </div>
+                    );
+                  })}
 
-                      {/* Meal Types */}
-                      <div className="grid grid-cols-4 gap-1 p-2">
-                        {MEAL_TYPES.map((mealType) => (
+                  {MEAL_TYPES.map((mealType) => (
+                    <React.Fragment key={mealType}>
+                      {weekDates.map((date) => {
+                        const dateKey = formatDateKey(date);
+                        const plan = getPlanFor(dateKey, mealType);
+                        const isSelected =
+                          selectedDate === dateKey && selectedMealType === mealType;
+                        const isSameRecipe = plan?.recipe?.id === recipe.id;
+
+                        return (
                           <button
-                            key={mealType}
+                            key={`${dateKey}-${mealType}`}
+                            type="button"
                             onClick={() => handleDateMealSelect(dateKey, mealType)}
-                            className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-[var(--color-purple-bg)] transition-colors group"
+                            className={`relative min-h-[88px] rounded-lg border-2 p-1.5 text-left transition-all flex flex-col ${
+                              isSelected
+                                ? "border-[var(--color-purple)] bg-[var(--color-purple-bg)] ring-2 ring-[var(--color-purple)]/30"
+                                : plan
+                                  ? `meal-${mealType} border-solid hover:opacity-90`
+                                  : "border-dashed border-[var(--border-color)] hover:border-[var(--color-purple)] hover:bg-[var(--color-purple-bg)]"
+                            }`}
                           >
-                            <span className="text-lg group-hover:scale-110 transition-transform">
-                              {MEAL_ICONS[mealType]}
-                            </span>
-                            <span className="text-[10px] text-[var(--color-slate)] group-hover:text-[var(--color-purple)]">
+                            <span className="text-[9px] font-medium uppercase tracking-wide opacity-60 flex items-center gap-1">
+                              <span>{MEAL_ICONS[mealType]}</span>
                               {MEAL_LABELS[mealType]}
                             </span>
+                            {plan && plan.recipe ? (
+                              <>
+                                {plan.recipe.image_url && (
+                                  <div className="w-full aspect-[4/3] rounded-md overflow-hidden mt-1 flex-shrink-0 bg-white/40">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                      src={plan.recipe.image_url}
+                                      alt=""
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                )}
+                                <p className="text-[11px] font-medium line-clamp-2 mt-1 leading-tight">
+                                  {plan.recipe.title}
+                                </p>
+                                {isSameRecipe && (
+                                  <span className="absolute top-1 right-1 text-[9px] bg-[var(--color-purple)] text-white px-1.5 py-0.5 rounded-full">
+                                    ya planificada
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              <div className="flex-1 flex items-center justify-center text-[var(--color-slate-light)]">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v16m8-8H4" />
+                                </svg>
+                              </div>
+                            )}
                           </button>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
+                </div>
               </div>
+              {loadingWeek && (
+                <p className="text-xs text-[var(--color-slate-light)] mt-2 text-center">
+                  Cargando semana…
+                </p>
+              )}
             </div>
           ) : (
             <div className="p-4 space-y-6">
