@@ -748,6 +748,24 @@ function formatDateKey(date: Date): string {
   return date.toISOString().split("T")[0];
 }
 
+// Supabase returns PostgrestError objects which are NOT instances of Error.
+// This helper extracts a useful message + code for user-facing alerts and logging.
+function describeSupabaseError(error: unknown): { message: string; code: string | null } {
+  if (!error) return { message: "Error desconocido", code: null };
+  if (typeof error === "string") return { message: error, code: null };
+  if (typeof error === "object") {
+    const e = error as Record<string, unknown>;
+    const msg =
+      (typeof e.message === "string" && e.message) ||
+      (typeof e.details === "string" && e.details) ||
+      (typeof e.hint === "string" && e.hint) ||
+      JSON.stringify(error);
+    const code = typeof e.code === "string" ? e.code : null;
+    return { message: msg || "Error desconocido", code };
+  }
+  return { message: String(error), code: null };
+}
+
 function formatDayName(date: Date): string {
   return date.toLocaleDateString("es-ES", { weekday: "short" });
 }
@@ -892,12 +910,16 @@ export default function PlannerPage() {
       loadData();
     } catch (error) {
       console.error("Error saving note:", error);
-      const message =
-        error instanceof Error ? error.message : "Error desconocido";
-      const looksLikeMissingColumn = /column .*note/i.test(message);
+      const { message, code } = describeSupabaseError(error);
+      const looksLikeMigrationMissing =
+        /column .*note/i.test(message) ||
+        /recipe_id/i.test(message) ||
+        /null value in column/i.test(message) ||
+        code === "23502" ||
+        code === "42703";
       alert(
-        looksLikeMissingColumn
-          ? "No se pudo guardar la nota. Aplica la migración 021_meal_plans_notes.sql en Supabase y vuelve a intentarlo."
+        looksLikeMigrationMissing
+          ? `No se pudo guardar la nota.\n\nAplica la migración 021_meal_plans_notes.sql en Supabase (SQL Editor) y vuelve a intentarlo.\n\nDetalle: ${message}`
           : `No se pudo guardar la nota: ${message}`
       );
     } finally {
@@ -1008,12 +1030,12 @@ export default function PlannerPage() {
       loadData();
     } catch (error) {
       console.error("Error saving meal plan:", error);
-      const message =
-        error instanceof Error ? error.message : "Error desconocido";
-      const looksLikeUnique = /unique|duplicate|conflict|23505/i.test(message);
+      const { message, code } = describeSupabaseError(error);
+      const looksLikeUnique =
+        /unique|duplicate|conflict/i.test(message) || code === "23505";
       alert(
         looksLikeUnique
-          ? "No se pudo guardar porque la base de datos sigue exigiendo una receta única por hueco. Aplica la migración 020_meal_plans_allow_multiple.sql en Supabase y vuelve a intentarlo."
+          ? `No se pudo guardar porque la base de datos sigue exigiendo una receta única por hueco. Aplica la migración 020_meal_plans_allow_multiple.sql en Supabase y vuelve a intentarlo.\n\nDetalle: ${message}`
           : `No se pudo guardar el menú: ${message}`
       );
     }
