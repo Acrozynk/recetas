@@ -172,7 +172,7 @@ function RecipeOptionsModal({
       selectedVariant,
       alternativeSelections,
       servingsMultiplier,
-      consecutiveDayCount: isEditing ? 1 : Math.min(14, Math.max(1, consecutiveDayCount)),
+      consecutiveDayCount: Math.min(14, Math.max(1, consecutiveDayCount)),
       newDate: dateChanged ? selectedDate : undefined,
       newMealType: (dateChanged || mealTypeChanged) ? selectedMealType : undefined,
     });
@@ -427,65 +427,64 @@ function RecipeOptionsModal({
             )}
           </div>
 
-          {!isEditing && (
-            <div>
-              <h4 className="font-semibold text-[var(--foreground)] mb-3 flex items-center gap-2">
-                <span className="text-lg">📆</span>
-                Días consecutivos
-              </h4>
-              <div className="bg-[var(--color-purple-bg)] rounded-xl p-4 space-y-3">
-                <p className="text-xs text-[var(--color-slate)]">
-                  Si eliges más de <strong>1 día</strong>, se añade la misma receta en el mismo tipo
-                  de comida los días siguientes (p. ej. 3 días → lunes, martes y miércoles).
-                </p>
-                <div className="flex gap-2 justify-center flex-wrap">
-                  {quickDayCounts.map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => setConsecutiveDayCount(d)}
-                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
-                        consecutiveDayCount === d
-                          ? "bg-[var(--color-purple)] text-white"
-                          : "bg-white border border-[var(--border-color)] text-[var(--color-slate)] hover:border-[var(--color-purple)]"
-                      }`}
-                    >
-                      {d} día{d !== 1 ? "s" : ""}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center justify-center gap-2">
+          <div>
+            <h4 className="font-semibold text-[var(--foreground)] mb-3 flex items-center gap-2">
+              <span className="text-lg">📆</span>
+              Días consecutivos
+            </h4>
+            <div className="bg-[var(--color-purple-bg)] rounded-xl p-4 space-y-3">
+              <p className="text-xs text-[var(--color-slate)]">
+                {isEditing
+                  ? "Si eliges más de 1 día, la receta también ocupará los días siguientes (en el mismo tipo de comida), reemplazando lo que hubiera."
+                  : "Si eliges más de 1 día, se añade la misma receta en el mismo tipo de comida los días siguientes (p. ej. 3 días → lunes, martes y miércoles)."}
+              </p>
+              <div className="flex gap-2 justify-center flex-wrap">
+                {quickDayCounts.map((d) => (
                   <button
+                    key={d}
                     type="button"
-                    onClick={() => setConsecutiveDayCount(Math.max(1, consecutiveDayCount - 1))}
-                    className="w-8 h-8 rounded-full bg-white border border-[var(--border-color)]"
+                    onClick={() => setConsecutiveDayCount(d)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                      consecutiveDayCount === d
+                        ? "bg-[var(--color-purple)] text-white"
+                        : "bg-white border border-[var(--border-color)] text-[var(--color-slate)] hover:border-[var(--color-purple)]"
+                    }`}
                   >
-                    −
+                    {d} día{d !== 1 ? "s" : ""}
                   </button>
-                  <input
-                    type="number"
-                    value={consecutiveDayCount}
-                    onChange={(e) => {
-                      const v = parseInt(e.target.value, 10);
-                      if (!isNaN(v) && v >= 1 && v <= 14) setConsecutiveDayCount(v);
-                    }}
-                    min={1}
-                    max={14}
-                    className="w-16 text-center border border-[var(--border-color)] rounded-lg py-1 text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setConsecutiveDayCount(Math.min(14, consecutiveDayCount + 1))
-                    }
-                    className="w-8 h-8 rounded-full bg-white border border-[var(--border-color)]"
-                  >
-                    +
-                  </button>
-                </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConsecutiveDayCount(Math.max(1, consecutiveDayCount - 1))}
+                  className="w-8 h-8 rounded-full bg-white border border-[var(--border-color)]"
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  value={consecutiveDayCount}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    if (!isNaN(v) && v >= 1 && v <= 14) setConsecutiveDayCount(v);
+                  }}
+                  min={1}
+                  max={14}
+                  className="w-16 text-center border border-[var(--border-color)] rounded-lg py-1 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setConsecutiveDayCount(Math.min(14, consecutiveDayCount + 1))
+                  }
+                  className="w-8 h-8 rounded-full bg-white border border-[var(--border-color)]"
+                >
+                  +
+                </button>
               </div>
             </div>
-          )}
+          </div>
 
           {/* Date/Meal Type Selector (only when editing) */}
           {isEditing && (
@@ -882,14 +881,19 @@ export default function PlannerPage() {
     const targetMealType = selection.newMealType || mealType;
     
     try {
+      const days = Math.min(
+        14,
+        Math.max(1, Math.floor(selection.consecutiveDayCount || 1))
+      );
+
       if (existingPlanId) {
         // Check if we're moving to a different slot
         const isMoving = targetDate !== date || targetMealType !== mealType;
-        
+
         if (isMoving) {
           // Check if there's already a plan in the target slot
           const existingTargetPlan = getMealPlan(targetDate, targetMealType as MealType);
-          
+
           if (existingTargetPlan) {
             // Swap: move the existing plan to the original slot
             await supabase
@@ -901,7 +905,7 @@ export default function PlannerPage() {
               .eq("id", existingTargetPlan.id);
           }
         }
-        
+
         // Update existing meal plan (with potential new date/mealType)
         const { error } = await supabase
           .from("meal_plans")
@@ -915,11 +919,39 @@ export default function PlannerPage() {
           .eq("id", existingPlanId);
 
         if (error) throw error;
+
+        if (days > 1) {
+          const extraDates = Array.from({ length: days - 1 }, (_, i) =>
+            addCalendarDays(targetDate, i + 1)
+          );
+
+          // Clear any existing plans on the extra slots (avoid touching the just-updated row)
+          for (const d of extraDates) {
+            await supabase
+              .from("meal_plans")
+              .delete()
+              .eq("plan_date", d)
+              .eq("meal_type", targetMealType)
+              .neq("id", existingPlanId);
+          }
+
+          const extraRows = extraDates.map((d) => ({
+            plan_date: d,
+            meal_type: targetMealType,
+            recipe_id: recipe.id,
+            selected_variant: selection.selectedVariant,
+            alternative_selections: selection.alternativeSelections,
+            servings_multiplier: selection.servingsMultiplier,
+          }));
+
+          if (extraRows.length > 0) {
+            const { error: insertError } = await supabase
+              .from("meal_plans")
+              .insert(extraRows);
+            if (insertError) throw insertError;
+          }
+        }
       } else {
-        const days = Math.min(
-          14,
-          Math.max(1, Math.floor(selection.consecutiveDayCount || 1))
-        );
         const row = {
           meal_type: mealType,
           recipe_id: recipe.id,
