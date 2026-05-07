@@ -563,11 +563,6 @@ function HomePageContent() {
                         </p>
                         <p className="text-xs text-emerald-600">
                           {MEAL_LABELS[plan.meal_type] || plan.meal_type}
-                          {plan.servings_multiplier && plan.servings_multiplier !== 1 && (
-                            <span className="ml-1.5 px-1.5 py-0.5 bg-emerald-100 rounded-full text-emerald-700">
-                              ×{plan.servings_multiplier}
-                            </span>
-                          )}
                         </p>
                       </div>
                       <div className="flex-shrink-0 text-emerald-500 group-hover:text-emerald-700">

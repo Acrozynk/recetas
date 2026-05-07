@@ -1512,12 +1512,6 @@ export default function PlannerPage() {
                                   <p className="text-[11px] font-medium leading-tight line-clamp-2">
                                     {plan.recipe!.title}
                                   </p>
-                                  {plan.servings_multiplier &&
-                                    plan.servings_multiplier !== 1 && (
-                                      <span className="inline-block text-[9px] bg-[var(--color-purple)] text-white px-1 py-0.5 rounded-full mt-0.5">
-                                        ×{plan.servings_multiplier}
-                                      </span>
-                                    )}
                                 </div>
                               </Link>
                             ) : (
@@ -1541,13 +1535,6 @@ export default function PlannerPage() {
                                 <p className="text-xs font-medium line-clamp-2 mt-0.5">
                                   {plan.recipe!.title}
                                 </p>
-                                {plan.servings_multiplier && plan.servings_multiplier !== 1 && (
-                                  <div className="flex items-center gap-1 mt-1">
-                                    <span className="text-[10px] bg-[var(--color-purple)] text-white px-1.5 py-0.5 rounded-full">
-                                      ×{plan.servings_multiplier}
-                                    </span>
-                                  </div>
-                                )}
                               </Link>
                             )}
                           </div>
