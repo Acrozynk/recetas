@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useLayoutEffect, useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import {
   supabase,
@@ -117,6 +117,11 @@ export default function PlannerPage() {
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const dragGhostRef = useRef<HTMLDivElement | null>(null);
   const slotRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  // Horizontal-scroll container for the *current* week's grid. Used to snap
+  // today's column into view on narrow screens (the grid has a 640px min-width
+  // so it overflows on mobile).
+  const currentWeekScrollRef = useRef<HTMLDivElement | null>(null);
+  const todayScrolledRef = useRef(false);
 
   const weekDates = getWeekDates(weekOffset);
   const weekDatesNext = getWeekDates(weekOffset + 1);
@@ -154,6 +159,35 @@ export default function PlannerPage() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Reset the "already scrolled to today" guard whenever the user changes week.
+  useEffect(() => {
+    todayScrolledRef.current = false;
+  }, [weekOffset]);
+
+  // Snap the horizontal grid to today's column on narrow screens.
+  // Only fires for the current week and only the first time the grid renders
+  // for that week, so manual scrolling by the user isn't overridden.
+  useLayoutEffect(() => {
+    if (loading) return;
+    if (weekOffset !== 0) return;
+    if (todayScrolledRef.current) return;
+
+    const container = currentWeekScrollRef.current;
+    if (!container) return;
+    if (container.scrollWidth <= container.clientWidth) return;
+
+    const todayEl = container.querySelector<HTMLElement>('[data-today="true"]');
+    if (!todayEl) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const targetRect = todayEl.getBoundingClientRect();
+    const offsetLeft =
+      targetRect.left - containerRect.left + container.scrollLeft;
+    // Leave a small left margin so today's column isn't flush against the edge.
+    container.scrollLeft = Math.max(0, offsetLeft - 8);
+    todayScrolledRef.current = true;
+  }, [loading, weekOffset]);
 
   const getMealPlans = (date: string, mealType: MealType): MealPlan[] => {
     return mealPlans.filter(
@@ -646,13 +680,17 @@ export default function PlannerPage() {
     );
   };
 
-  const renderWeekGrid = (dates: Date[]) => (
-    <div className="overflow-x-auto -mx-4 px-4">
+  const renderWeekGrid = (
+    dates: Date[],
+    scrollRef?: React.RefObject<HTMLDivElement | null>
+  ) => (
+    <div ref={scrollRef} className="overflow-x-auto -mx-4 px-4">
       <div className="grid grid-cols-7 gap-2 min-w-[640px]">
         {/* Day Headers */}
         {dates.map((date) => (
           <div
             key={date.toISOString()}
+            data-today={isToday(date) ? "true" : undefined}
             className={`text-center p-2 rounded-lg ${
               isToday(date)
                 ? "bg-[var(--color-purple)] text-white"
@@ -992,7 +1030,7 @@ export default function PlannerPage() {
           </div>
         ) : (
           <>
-            {renderWeekGrid(weekDates)}
+            {renderWeekGrid(weekDates, currentWeekScrollRef)}
 
             {/* Next week below on wider screens */}
             <div className="hidden lg:block mt-8">
