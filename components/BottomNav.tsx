@@ -69,20 +69,17 @@ const navItems = [
 ];
 
 export default function BottomNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() ?? "";
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--border-color)] pb-safe z-50">
       <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
         {navItems.map((item) => {
+          // Exact match or descendant route (e.g. /recipes/123 → Recetas).
+          // The bare "/" is a server redirect to /planner so it should
+          // never linger long enough to highlight any specific tab.
           const isActive =
-            item.href === "/recipes"
-              ? pathname === "/recipes" || pathname.startsWith("/recipes/")
-              : item.href === "/planner"
-                ? pathname === "/" ||
-                  pathname === "/planner" ||
-                  pathname.startsWith("/planner/")
-                : pathname === item.href || pathname.startsWith(item.href + "/");
+            pathname === item.href || pathname.startsWith(item.href + "/");
 
           return (
             <Link
