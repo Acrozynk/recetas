@@ -20,6 +20,7 @@ import type { GroceryProduct } from "@/lib/spanish-groceries";
 import { GROCERY_CATEGORIES } from "@/lib/grocery-categories";
 import { addCustomProduct } from "@/lib/supabase";
 import { combineQuantities, parseQuantity, formatQuantity } from "@/lib/unit-conversion";
+import { addCalendarDays } from "@/lib/meal-plan-portions";
 
 // Category icons mapping
 const CATEGORY_ICONS: Record<string, string> = {
@@ -960,6 +961,19 @@ interface PreviewIngredient {
   recipes: string[]; // Recipe names that use this ingredient
 }
 
+/**
+ * Cook-day info per recipe surfaced in the preview modal so users can see
+ * exactly when a recipe is planned (and decide whether they actually need to
+ * shop for it now). Consecutive runs are collapsed so a recipe planned for 3
+ * consecutive days only shows the day it will actually be cooked.
+ */
+interface RecipeCookInfo {
+  /** ISO YYYY-MM-DD of the first cook day; used to sort recipes chronologically. */
+  firstISO: string;
+  /** Pretty label such as "lun 9 may" or "lun 9 · jue 12 may". */
+  label: string;
+}
+
 // Ingredient Preview Modal - shows before adding from planner
 type GroupByMode = "recipe" | "category";
 
@@ -970,6 +984,7 @@ function IngredientPreviewModal({
   onConfirm,
   categoryOrder,
   dateRangeInfo,
+  recipeCookInfo,
 }: {
   isOpen: boolean;
   onClose: () => void;
@@ -977,6 +992,7 @@ function IngredientPreviewModal({
   onConfirm: (selectedIngredients: PreviewIngredient[]) => void;
   categoryOrder: string[];
   dateRangeInfo?: string;
+  recipeCookInfo?: Record<string, RecipeCookInfo>;
 }) {
   const [localIngredients, setLocalIngredients] = useState<PreviewIngredient[]>([]);
   const [saving, setSaving] = useState(false);
@@ -1101,8 +1117,17 @@ function IngredientPreviewModal({
     {} as Record<string, PreviewIngredient[]>
   );
 
-  // Get sorted recipe names
-  const recipeNames = Object.keys(groupedByRecipe).sort();
+  // Sort recipes chronologically by their first cook day (so the next thing
+  // you'll cook appears at the top of the list). Recipes without a known cook
+  // day fall back to alphabetical order at the end.
+  const recipeNames = Object.keys(groupedByRecipe).sort((a, b) => {
+    const aFirst = recipeCookInfo?.[a]?.firstISO;
+    const bFirst = recipeCookInfo?.[b]?.firstISO;
+    if (aFirst && bFirst && aFirst !== bFirst) return aFirst.localeCompare(bFirst);
+    if (aFirst && !bFirst) return -1;
+    if (!aFirst && bFirst) return 1;
+    return a.localeCompare(b);
+  });
 
   const selectedCount = localIngredients.filter(i => i.selected).length;
   const totalCount = localIngredients.length;
@@ -1208,17 +1233,30 @@ function IngredientPreviewModal({
                 const recipeSelectedCount = recipeIngredients.filter(i => i.selected).length;
                 const allSelected = recipeSelectedCount === recipeIngredients.length;
 
+                const cookInfo = recipeCookInfo?.[recipeName];
+
                 return (
                   <div key={recipeName}>
                     {/* Recipe Header */}
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-semibold text-[var(--foreground)] flex items-center gap-2">
-                        <span className="text-lg">📖</span>
-                        <span className="truncate max-w-[200px]" title={recipeName}>{recipeName}</span>
-                        <span className="text-xs font-normal text-[var(--color-slate-light)] flex-shrink-0">
-                          ({recipeSelectedCount}/{recipeIngredients.length})
-                        </span>
-                      </h3>
+                    <div className="flex items-start justify-between mb-2 gap-2">
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-semibold text-[var(--foreground)] flex items-center gap-2">
+                          <span className="text-lg">📖</span>
+                          <span className="truncate" title={recipeName}>{recipeName}</span>
+                          <span className="text-xs font-normal text-[var(--color-slate-light)] flex-shrink-0">
+                            ({recipeSelectedCount}/{recipeIngredients.length})
+                          </span>
+                        </h3>
+                        {cookInfo && (
+                          <p
+                            className="text-xs text-[var(--color-slate)] mt-0.5 ml-7 truncate"
+                            title={`Día${cookInfo.label.includes(" · ") ? "s" : ""} de cocina: ${cookInfo.label}`}
+                          >
+                            <span className="mr-1">🗓️</span>
+                            Cocinas: <span className="font-medium text-[var(--foreground)]">{cookInfo.label}</span>
+                          </p>
+                        )}
+                      </div>
                       <button
                         onClick={() => toggleRecipe(recipeName, !allSelected)}
                         className="text-xs text-[var(--color-purple)] hover:text-[var(--color-purple-dark)] transition-colors flex-shrink-0"
@@ -1382,6 +1420,9 @@ export default function ShoppingPage() {
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewIngredients, setPreviewIngredients] = useState<PreviewIngredient[]>([]);
   const [previewDateRange, setPreviewDateRange] = useState<string>("");
+  const [previewRecipeCookInfo, setPreviewRecipeCookInfo] = useState<
+    Record<string, RecipeCookInfo>
+  >({});
   
   // Supermarket state
   const [selectedSupermarket, setSelectedSupermarket] = useState<SupermarketName>("Mercadona");
@@ -1614,8 +1655,18 @@ export default function ShoppingPage() {
         }
       >();
 
+      // Track which calendar days each recipe is planned on. We'll later
+      // collapse consecutive runs so a recipe planned for several days in a
+      // row only shows the day the user actually cooks (the first one).
+      const recipeDates = new Map<string, Set<string>>();
+
       for (const plan of mealPlans as MealPlan[]) {
         if (!plan.recipe) continue;
+
+        const recipeTitle = plan.recipe.title;
+        const datesForRecipe = recipeDates.get(recipeTitle) ?? new Set<string>();
+        datesForRecipe.add(plan.plan_date);
+        recipeDates.set(recipeTitle, datesForRecipe);
 
         const ingredients = plan.recipe.ingredients as Ingredient[];
         const selectedVariant = plan.selected_variant || 1;
@@ -1724,9 +1775,40 @@ export default function ShoppingPage() {
         return a.name.localeCompare(b.name);
       });
 
+      // Collapse consecutive cook days per recipe and format for display.
+      // E.g. Mon/Tue/Wed → "lun 9 may"; Mon + Fri → "lun 9 · vie 12 may".
+      const cookInfo: Record<string, RecipeCookInfo> = {};
+      for (const [title, dateSet] of recipeDates.entries()) {
+        const sorted = Array.from(dateSet).sort();
+        const firstCookDays: string[] = [];
+        for (let i = 0; i < sorted.length; i++) {
+          if (i === 0) {
+            firstCookDays.push(sorted[i]);
+            continue;
+          }
+          const expectedNext = addCalendarDays(sorted[i - 1], 1);
+          if (sorted[i] !== expectedNext) {
+            firstCookDays.push(sorted[i]);
+          }
+        }
+        const fmt = (iso: string) => {
+          const d = new Date(`${iso}T12:00:00`);
+          return d.toLocaleDateString("es-ES", {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+          });
+        };
+        cookInfo[title] = {
+          firstISO: sorted[0],
+          label: firstCookDays.map(fmt).join(" · "),
+        };
+      }
+
       // Show preview modal
       setPreviewIngredients(preview);
       setPreviewDateRange(dateRangeText);
+      setPreviewRecipeCookInfo(cookInfo);
       setIsPreviewModalOpen(true);
     } catch (error) {
       console.error("Error generating shopping list:", error);
@@ -2936,6 +3018,7 @@ export default function ShoppingPage() {
         onConfirm={confirmAddIngredients}
         categoryOrder={categoryOrder}
         dateRangeInfo={previewDateRange}
+        recipeCookInfo={previewRecipeCookInfo}
       />
     </div>
   );
