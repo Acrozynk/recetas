@@ -42,6 +42,36 @@ export interface LotesMigrationResult {
   skippedRecipes: { id: string; title: string; reason: string }[];
 }
 
+/**
+ * Pre-migration snapshot of every value the migration is about to touch.
+ * Designed to be downloaded as a JSON file: feeding it back to
+ * `restoreFromSnapshot` undoes the migration exactly.
+ */
+export interface LotesMigrationSnapshot {
+  /** Marker for safety checks during restore. */
+  kind: "lotes-migration-snapshot";
+  /** Bumped if we ever change the snapshot shape. */
+  version: 1;
+  createdAt: string;
+  recipes: {
+    id: string;
+    title: string;
+    ingredients: Ingredient[] | null;
+    personas_batch_count: number | null;
+  }[];
+  mealPlans: {
+    id: string;
+    recipe_id: string;
+    servings_multiplier: number;
+  }[];
+}
+
+export interface LotesRestoreResult {
+  recipesRestored: number;
+  plansRestored: number;
+  errors: string[];
+}
+
 interface RecipeRow {
   id: string;
   title: string;
@@ -123,6 +153,106 @@ export async function previewLotesMigration(): Promise<LotesMigrationPreview> {
       batchCount: r.personas_batch_count as number,
     })),
   };
+}
+
+/**
+ * Capture a point-in-time copy of every value the migration is about to
+ * change. Save this JSON somewhere safe (the Settings UI auto-downloads it)
+ * and you can pipe it back through `restoreFromSnapshot` to undo the
+ * migration without needing the full backup.
+ */
+export async function buildLotesMigrationSnapshot(): Promise<LotesMigrationSnapshot> {
+  const { data: recipes, error: recipesErr } = await supabase
+    .from("recipes")
+    .select("id, title, ingredients, personas_batch_count")
+    .gt("personas_batch_count", 1);
+  if (recipesErr) throw recipesErr;
+
+  const recipeRows = (recipes ?? []) as RecipeRow[];
+  const recipeIds = recipeRows.map((r) => r.id);
+
+  let plans: { id: string; recipe_id: string; servings_multiplier: number }[] =
+    [];
+  if (recipeIds.length > 0) {
+    const { data: plansData, error: plansErr } = await supabase
+      .from("meal_plans")
+      .select("id, recipe_id, servings_multiplier")
+      .in("recipe_id", recipeIds);
+    if (plansErr) throw plansErr;
+    plans = (plansData ?? []).map((p) => ({
+      id: p.id as string,
+      recipe_id: p.recipe_id as string,
+      servings_multiplier: (p.servings_multiplier ?? 1) as number,
+    }));
+  }
+
+  return {
+    kind: "lotes-migration-snapshot",
+    version: 1,
+    createdAt: new Date().toISOString(),
+    recipes: recipeRows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      ingredients: r.ingredients,
+      personas_batch_count: r.personas_batch_count,
+    })),
+    mealPlans: plans,
+  };
+}
+
+/**
+ * Restore recipes + meal plans to the values captured in `snapshot`. Idempotent:
+ * running it twice gives the same result as running it once, because every row
+ * is forced back to the exact pre-migration value.
+ */
+export async function restoreFromSnapshot(
+  snapshot: LotesMigrationSnapshot
+): Promise<LotesRestoreResult> {
+  if (snapshot?.kind !== "lotes-migration-snapshot") {
+    throw new Error(
+      "El archivo no parece un snapshot válido (falta el campo kind)."
+    );
+  }
+  if (snapshot.version !== 1) {
+    throw new Error(
+      `Versión de snapshot no soportada: ${String(snapshot.version)}.`
+    );
+  }
+
+  const result: LotesRestoreResult = {
+    recipesRestored: 0,
+    plansRestored: 0,
+    errors: [],
+  };
+
+  for (const r of snapshot.recipes) {
+    const { error: err } = await supabase
+      .from("recipes")
+      .update({
+        ingredients: r.ingredients,
+        personas_batch_count: r.personas_batch_count,
+      })
+      .eq("id", r.id);
+    if (err) {
+      result.errors.push(`Receta ${r.title}: ${err.message}`);
+      continue;
+    }
+    result.recipesRestored += 1;
+  }
+
+  for (const p of snapshot.mealPlans) {
+    const { error: err } = await supabase
+      .from("meal_plans")
+      .update({ servings_multiplier: p.servings_multiplier })
+      .eq("id", p.id);
+    if (err) {
+      result.errors.push(`Plan ${p.id}: ${err.message}`);
+      continue;
+    }
+    result.plansRestored += 1;
+  }
+
+  return result;
 }
 
 /**

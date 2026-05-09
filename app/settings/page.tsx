@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import UnitConverter from "@/components/UnitConverter";
@@ -12,10 +12,14 @@ import {
 } from "@/components/BackupReminder";
 import { supabase, type Container } from "@/lib/supabase";
 import {
+  buildLotesMigrationSnapshot,
   previewLotesMigration,
+  restoreFromSnapshot,
   runLotesMigration,
   type LotesMigrationPreview,
   type LotesMigrationResult,
+  type LotesMigrationSnapshot,
+  type LotesRestoreResult,
 } from "@/lib/lotes-migration";
 
 type ExportFormat = "json" | "csv" | "markdown" | "html" | "all";
@@ -136,6 +140,11 @@ export default function SettingsPage() {
   const [lotesResult, setLotesResult] = useState<LotesMigrationResult | null>(
     null
   );
+  const [lotesAutoBackup, setLotesAutoBackup] = useState(true);
+  const [lotesRestoring, setLotesRestoring] = useState(false);
+  const [lotesRestoreResult, setLotesRestoreResult] =
+    useState<LotesRestoreResult | null>(null);
+  const lotesRestoreInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     loadRecipes();
@@ -158,14 +167,41 @@ export default function SettingsPage() {
     }
   };
 
+  const downloadLotesSnapshot = (
+    snapshot: LotesMigrationSnapshot
+  ): void => {
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const stamp = new Date()
+      .toISOString()
+      .replace(/[:.]/g, "-")
+      .slice(0, 19);
+    a.download = `lotes-snapshot-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleRunLotesMigration = async () => {
     if (!lotesPreview || lotesPreview.recipesToFix === 0) return;
     const ok = window.confirm(
-      `Se van a actualizar ${lotesPreview.recipesToFix} receta(s) y reescalar ${lotesPreview.plansToFix} plan(es) de comida. Esta acción no se puede deshacer (haz un backup primero si tienes dudas). ¿Continuar?`
+      lotesAutoBackup
+        ? `Se descargará un snapshot con el estado actual y luego se actualizarán ${lotesPreview.recipesToFix} receta(s) y se reescalarán ${lotesPreview.plansToFix} plan(es). Si algo sale mal, podrás restaurar con el archivo descargado. ¿Continuar?`
+        : `Se van a actualizar ${lotesPreview.recipesToFix} receta(s) y reescalar ${lotesPreview.plansToFix} plan(es). NO se descargará ningún snapshot porque has desactivado la copia. ¿Continuar?`
     );
     if (!ok) return;
     setLotesMigrating(true);
+    setLotesRestoreResult(null);
     try {
+      if (lotesAutoBackup) {
+        const snapshot = await buildLotesMigrationSnapshot();
+        downloadLotesSnapshot(snapshot);
+      }
       const result = await runLotesMigration();
       setLotesResult(result);
       await loadLotesPreview();
@@ -178,6 +214,64 @@ export default function SettingsPage() {
       );
     } finally {
       setLotesMigrating(false);
+    }
+  };
+
+  const handleDownloadLotesSnapshot = async () => {
+    try {
+      const snapshot = await buildLotesMigrationSnapshot();
+      if (snapshot.recipes.length === 0 && snapshot.mealPlans.length === 0) {
+        alert(
+          "No hay nada que respaldar: ninguna receta tiene lotes > 1 ahora mismo."
+        );
+        return;
+      }
+      downloadLotesSnapshot(snapshot);
+    } catch (err) {
+      console.error("Error building lotes snapshot:", err);
+      alert(
+        `No se pudo generar el snapshot: ${
+          err instanceof Error ? err.message : "Error desconocido"
+        }`
+      );
+    }
+  };
+
+  const handleLotesRestoreFile = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (file) e.target.value = "";
+    if (!file) return;
+
+    setLotesRestoring(true);
+    setLotesRestoreResult(null);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text) as LotesMigrationSnapshot;
+      const ok = window.confirm(
+        `Vas a restaurar ${parsed.recipes?.length ?? 0} receta(s) y ${
+          parsed.mealPlans?.length ?? 0
+        } plan(es) al estado guardado el ${
+          parsed.createdAt
+            ? new Date(parsed.createdAt).toLocaleString("es-ES")
+            : "(fecha desconocida)"
+        }. Esto SOBRESCRIBIRÁ los valores actuales de esas filas. ¿Continuar?`
+      );
+      if (!ok) return;
+      const result = await restoreFromSnapshot(parsed);
+      setLotesRestoreResult(result);
+      setLotesResult(null);
+      await loadLotesPreview();
+    } catch (err) {
+      console.error("Error restoring lotes snapshot:", err);
+      alert(
+        `No se pudo restaurar el snapshot: ${
+          err instanceof Error ? err.message : "Error desconocido"
+        }`
+      );
+    } finally {
+      setLotesRestoring(false);
     }
   };
 
@@ -1072,10 +1166,49 @@ export default function SettingsPage() {
               </div>
             )}
 
+            {lotesRestoreResult && (
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 space-y-2">
+                <p>
+                  Restauradas <strong>{lotesRestoreResult.recipesRestored}</strong>{" "}
+                  receta(s) y <strong>{lotesRestoreResult.plansRestored}</strong>{" "}
+                  plan(es) desde el snapshot.
+                </p>
+                {lotesRestoreResult.errors.length > 0 && (
+                  <div>
+                    <p className="font-medium">Errores:</p>
+                    <ul className="list-disc list-inside text-xs">
+                      {lotesRestoreResult.errors.map((e, i) => (
+                        <li key={i}>{e}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {lotesPreview && lotesPreview.recipesToFix > 0 && (
+              <label className="flex items-start gap-2 p-2 rounded-lg cursor-pointer hover:bg-[var(--color-purple-bg)]/40 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={lotesAutoBackup}
+                  onChange={(e) => setLotesAutoBackup(e.target.checked)}
+                  className="checkbox mt-0.5"
+                />
+                <span className="text-sm text-[var(--foreground)]">
+                  Descargar un snapshot del estado actual antes de migrar (recomendado).
+                  <span className="block text-xs text-[var(--color-slate)]">
+                    Si algo se calcula mal, podrás restaurar con ese archivo desde el
+                    botón de abajo.
+                  </span>
+                </span>
+              </label>
+            )}
+
             <button
               onClick={handleRunLotesMigration}
               disabled={
                 lotesMigrating ||
+                lotesRestoring ||
                 !lotesPreview ||
                 lotesPreview.recipesToFix === 0
               }
@@ -1087,6 +1220,38 @@ export default function SettingsPage() {
                   ? `Migrar ${lotesPreview.recipesToFix} receta(s)`
                   : "Nada que migrar"}
             </button>
+
+            <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-[var(--border-color)]">
+              <button
+                type="button"
+                onClick={handleDownloadLotesSnapshot}
+                disabled={lotesMigrating || lotesRestoring}
+                className="flex-1 px-3 py-2 rounded-lg border border-[var(--border-color)] text-sm font-medium text-[var(--foreground)] hover:bg-[var(--color-purple-bg)] transition-colors disabled:opacity-50"
+              >
+                Descargar snapshot ahora
+              </button>
+              <button
+                type="button"
+                onClick={() => lotesRestoreInputRef.current?.click()}
+                disabled={lotesMigrating || lotesRestoring}
+                className="flex-1 px-3 py-2 rounded-lg border border-[var(--border-color)] text-sm font-medium text-[var(--foreground)] hover:bg-[var(--color-purple-bg)] transition-colors disabled:opacity-50"
+              >
+                {lotesRestoring ? "Restaurando…" : "Restaurar desde snapshot…"}
+              </button>
+              <input
+                ref={lotesRestoreInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                onChange={handleLotesRestoreFile}
+              />
+            </div>
+
+            <p className="text-xs text-[var(--color-slate-light)]">
+              Si quieres una red más amplia, antes haz también una{" "}
+              <strong>Copia de Seguridad Completa</strong> en la sección de arriba:
+              te guarda toda la base de datos.
+            </p>
           </div>
         </section>
 
