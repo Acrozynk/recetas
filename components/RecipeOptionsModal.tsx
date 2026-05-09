@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import type { Recipe, Ingredient } from "@/lib/supabase";
 import {
   computeServingsMultiplierPersonas,
+  getRecipeDefaultPersonas,
   getRecipePortionsBaseline,
   inferPersonasStateFromMultiplier,
   isPersonasPortionRecipe,
@@ -40,7 +41,6 @@ export default function RecipeOptionsModal({
   const [selectedVariant, setSelectedVariant] = useState<1 | 2>(initialSelection?.selectedVariant ?? 1);
   const [alternativeSelections, setAlternativeSelections] = useState<Record<string, boolean>>(initialSelection?.alternativeSelections ?? {});
   const [simpleServingsMultiplier, setSimpleServingsMultiplier] = useState(initialSelection?.servingsMultiplier ?? 1);
-  const [batchCount, setBatchCount] = useState(1);
   const [adultsPerBatch, setAdultsPerBatch] = useState(4);
   const [childrenPerBatch, setChildrenPerBatch] = useState(0);
   const [consecutiveDayCount, setConsecutiveDayCount] = useState(1);
@@ -79,28 +79,16 @@ export default function RecipeOptionsModal({
           recipe,
           initialSelection.servingsMultiplier
         );
-        setBatchCount(inferred.batchCount);
         setAdultsPerBatch(inferred.adultsPerBatch);
         setChildrenPerBatch(inferred.childrenPerBatch);
       } else {
-        const has =
-          recipe.personas_batch_count != null &&
-          recipe.personas_adults_per_batch != null &&
-          recipe.personas_children_per_batch != null;
-        if (has) {
-          setBatchCount(Math.max(1, recipe.personas_batch_count!));
-          setAdultsPerBatch(Math.max(0, recipe.personas_adults_per_batch!));
-          setChildrenPerBatch(Math.max(0, recipe.personas_children_per_batch!));
-        } else {
-          setBatchCount(1);
-          setAdultsPerBatch(Math.max(1, recipe.servings || 4));
-          setChildrenPerBatch(0);
-        }
+        const defaults = getRecipeDefaultPersonas(recipe);
+        setAdultsPerBatch(defaults.adults);
+        setChildrenPerBatch(defaults.children);
       }
       setSimpleServingsMultiplier(1);
     } else {
       setSimpleServingsMultiplier(initialSelection?.servingsMultiplier ?? 1);
-      setBatchCount(1);
       setAdultsPerBatch(Math.max(1, recipe.servings || 4));
       setChildrenPerBatch(0);
     }
@@ -136,12 +124,12 @@ export default function RecipeOptionsModal({
     : recipe.servings_unit || "personas";
 
   const servingsMultiplier = personasMode
-    ? computeServingsMultiplierPersonas(recipe, batchCount, adultsPerBatch, childrenPerBatch)
+    ? computeServingsMultiplierPersonas(recipe, adultsPerBatch, childrenPerBatch)
     : simpleServingsMultiplier;
 
   const calculatedServings = Math.round(baseServings * servingsMultiplier * 10) / 10;
   const baseline = getRecipePortionsBaseline(recipe);
-  const equivalentPerBatch = adultsPerBatch + childrenPerBatch * 0.5;
+  const totalPortions = adultsPerBatch + childrenPerBatch * 0.5;
 
   const toggleAlternative = (index: number) => {
     setAlternativeSelections(prev => ({
@@ -203,45 +191,14 @@ export default function RecipeOptionsModal({
             {personasMode ? (
               <div className="bg-[var(--color-purple-bg)] rounded-xl p-4 space-y-4">
                 <p className="text-xs text-[var(--color-slate)]">
-                  Lotes (veces que cocinas), adultos y niños por lote (½ ración). Los ingredientes
-                  escalan con{" "}
-                  <strong>lotes × (adultos + ½ niños)</strong> respecto a la receta.
+                  Adultos y niños (½ ración). Para cocinar más, usa <strong>días consecutivos</strong>
+                  abajo. Los ingredientes escalan con <strong>(adultos + ½ niños)</strong> respecto a
+                  la receta.
                 </p>
-                <div className="flex flex-col items-center p-3 bg-white/60 rounded-xl">
-                  <span className="text-sm font-medium text-[var(--color-slate)] mb-2">
-                    Lotes (cocina)
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setBatchCount(Math.max(1, batchCount - 1))}
-                      className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-[var(--border-color)] hover:bg-[var(--color-purple-bg)] text-lg font-medium"
-                    >
-                      −
-                    </button>
-                    <input
-                      type="number"
-                      value={batchCount}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value, 10);
-                        if (!isNaN(val) && val >= 1) setBatchCount(val);
-                      }}
-                      min={1}
-                      className="w-14 text-center text-xl font-bold text-[var(--foreground)] bg-white border border-[var(--border-color)] rounded-lg py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setBatchCount(batchCount + 1)}
-                      className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-[var(--border-color)] hover:bg-[var(--color-purple-bg)] text-lg font-medium"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col items-center p-3 bg-white/60 rounded-xl">
                     <span className="text-sm font-medium text-[var(--color-slate)] mb-2 text-center">
-                      Adultos / lote
+                      Adultos
                     </span>
                     <div className="flex items-center gap-2">
                       <button
@@ -277,7 +234,7 @@ export default function RecipeOptionsModal({
                   </div>
                   <div className="flex flex-col items-center p-3 bg-amber-50/80 rounded-xl border border-amber-100">
                     <span className="text-sm font-medium text-[var(--color-slate)] mb-2 text-center">
-                      Niños / lote <span className="text-amber-700">(½)</span>
+                      Niños <span className="text-amber-700">(½)</span>
                     </span>
                     <div className="flex items-center gap-2">
                       <button
@@ -310,32 +267,21 @@ export default function RecipeOptionsModal({
                     </div>
                   </div>
                 </div>
-                <div className="text-sm text-[var(--color-slate)] border-t border-[var(--border-color)] pt-3 space-y-1">
-                  <p>
-                    Por lote:{" "}
-                    <strong className="text-[var(--foreground)]">
-                      {equivalentPerBatch % 1 === 0
-                        ? equivalentPerBatch
-                        : equivalentPerBatch.toLocaleString("es-ES", {
-                            maximumFractionDigits: 1,
-                          })}
-                    </strong>{" "}
-                    porciones ({adultsPerBatch} adultos
-                    {childrenPerBatch > 0
-                      ? ` + ${childrenPerBatch} niño${childrenPerBatch !== 1 ? "s" : ""}`
-                      : ""}
-                    )
-                  </p>
+                <div className="text-sm text-[var(--color-slate)] border-t border-[var(--border-color)] pt-3">
                   <p>
                     Total:{" "}
                     <strong className="text-[var(--color-purple)]">
-                      {(batchCount * equivalentPerBatch) % 1 === 0
-                        ? batchCount * equivalentPerBatch
-                        : (batchCount * equivalentPerBatch).toLocaleString("es-ES", {
+                      {totalPortions % 1 === 0
+                        ? totalPortions
+                        : totalPortions.toLocaleString("es-ES", {
                             maximumFractionDigits: 1,
                           })}
                     </strong>{" "}
-                    porciones (Base receta: {baseline.toLocaleString("es-ES", { maximumFractionDigits: 1 })}{" "}
+                    porciones ({adultsPerBatch} adulto{adultsPerBatch !== 1 ? "s" : ""}
+                    {childrenPerBatch > 0
+                      ? ` + ${childrenPerBatch} niño${childrenPerBatch !== 1 ? "s" : ""}`
+                      : ""}
+                    ; base receta {baseline.toLocaleString("es-ES", { maximumFractionDigits: 1 })}{" "}
                     ≈ ×{servingsMultiplier.toLocaleString("es-ES", { maximumFractionDigits: 2 })})
                   </p>
                 </div>

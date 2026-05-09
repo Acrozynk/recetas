@@ -34,26 +34,26 @@ interface RecipeFormProps {
 }
 
 function getInitialPersonasFromRecipe(r: Recipe | undefined): {
-  batchCount: number;
   adultsPerBatch: number;
   childrenPerBatch: number;
 } {
   if (!r?.servings) {
-    return { batchCount: 1, adultsPerBatch: 4, childrenPerBatch: 0 };
+    return { adultsPerBatch: 4, childrenPerBatch: 0 };
   }
   if (
-    r.personas_batch_count != null &&
     r.personas_adults_per_batch != null &&
     r.personas_children_per_batch != null
   ) {
+    // Collapse legacy `personas_batch_count > 1` into the adults/children
+    // counts so the form shows the recipe's full size and lets the migration
+    // tool (Settings → Migrar lotes) take care of fixing the stored data.
+    const batches = Math.max(1, r.personas_batch_count ?? 1);
     return {
-      batchCount: Math.max(1, r.personas_batch_count),
-      adultsPerBatch: Math.max(0, r.personas_adults_per_batch),
-      childrenPerBatch: Math.max(0, r.personas_children_per_batch),
+      adultsPerBatch: Math.max(0, batches * r.personas_adults_per_batch),
+      childrenPerBatch: Math.max(0, batches * r.personas_children_per_batch),
     };
   }
   return {
-    batchCount: 1,
     adultsPerBatch: r.servings,
     childrenPerBatch: 0,
   };
@@ -257,7 +257,6 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
   const [cookTime, setCookTime] = useState(recipe?.cook_time_minutes?.toString() || "");
   const [servings, setServings] = useState(recipe?.servings?.toString() || "4");
   const personasInit = getInitialPersonasFromRecipe(recipe);
-  const [personasBatchCount, setPersonasBatchCount] = useState(personasInit.batchCount);
   const [personasAdultsPerBatch, setPersonasAdultsPerBatch] = useState(personasInit.adultsPerBatch);
   const [personasChildrenPerBatch, setPersonasChildrenPerBatch] = useState(personasInit.childrenPerBatch);
   const [tags, setTags] = useState<string[]>(recipe?.tags || []);
@@ -879,8 +878,7 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
 
     try {
       const personasEquivalent =
-        personasBatchCount *
-        (personasAdultsPerBatch + 0.5 * personasChildrenPerBatch);
+        personasAdultsPerBatch + 0.5 * personasChildrenPerBatch;
       const personasServingsRounded = Math.max(
         1,
         Math.round(personasEquivalent)
@@ -904,8 +902,7 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                 : null,
         // "unidades" marker when using unit-based portions, null = personas
         servings_unit: portionType === 'unidades' ? "unidades" : null,
-        personas_batch_count:
-          portionType === "personas" ? personasBatchCount : null,
+        personas_batch_count: portionType === "personas" ? 1 : null,
         personas_adults_per_batch:
           portionType === "personas" ? personasAdultsPerBatch : null,
         personas_children_per_batch:
@@ -1196,7 +1193,6 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                 onClick={() => {
                   if (portionType !== "personas") {
                     const n = Math.max(1, parseInt(servings, 10) || 4);
-                    setPersonasBatchCount(1);
                     setPersonasAdultsPerBatch(n);
                     setPersonasChildrenPerBatch(0);
                   }
@@ -1215,9 +1211,7 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                 onClick={() => {
                   if (portionType === "personas") {
                     const eq =
-                      personasBatchCount *
-                      (personasAdultsPerBatch +
-                        0.5 * personasChildrenPerBatch);
+                      personasAdultsPerBatch + 0.5 * personasChildrenPerBatch;
                     setServings(String(Math.max(1, Math.round(eq))));
                   }
                   setPortionType("unidades");
@@ -1235,9 +1229,7 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                 onClick={() => {
                   if (portionType === "personas") {
                     const eq =
-                      personasBatchCount *
-                      (personasAdultsPerBatch +
-                        0.5 * personasChildrenPerBatch);
+                      personasAdultsPerBatch + 0.5 * personasChildrenPerBatch;
                     setServings(String(Math.max(1, Math.round(eq))));
                   }
                   setPortionType("recipiente");
@@ -1255,50 +1247,14 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
             {portionType === 'personas' ? (
               <div className="space-y-3">
                 <p className="text-xs text-[var(--color-slate)]">
-                  Los ingredientes se escalan respecto al total:{" "}
-                  <strong>
-                    lotes × (adultos + ½ niños por lote)
-                  </strong>
-                  . Se guarda el equivalente en porciones (redondeado).
+                  Define cuántas porciones rinde la receta:{" "}
+                  <strong>adultos + ½ niños</strong>. Para cocinar varios días, usa{" "}
+                  <strong>días consecutivos</strong> al planificar.
                 </p>
-                <div className="flex flex-col items-center p-3 bg-slate-50 rounded-xl border border-[var(--border-color)]">
-                  <span className="text-xs font-medium text-[var(--color-slate)] mb-2">
-                    Lotes (veces que cocinas)
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setPersonasBatchCount(Math.max(1, personasBatchCount - 1))
-                      }
-                      disabled={personasBatchCount <= 1}
-                      className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-[var(--border-color)] hover:bg-[var(--color-purple-bg)] disabled:opacity-40 text-lg font-medium"
-                    >
-                      −
-                    </button>
-                    <input
-                      type="number"
-                      min={1}
-                      value={personasBatchCount}
-                      onChange={(e) => {
-                        const v = parseInt(e.target.value, 10);
-                        if (!isNaN(v) && v >= 1) setPersonasBatchCount(v);
-                      }}
-                      className="w-14 text-center text-lg font-bold bg-white border border-[var(--border-color)] rounded-lg py-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setPersonasBatchCount(personasBatchCount + 1)}
-                      className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-[var(--border-color)] hover:bg-[var(--color-purple-bg)] text-lg font-medium"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex flex-col items-center p-3 bg-[var(--color-purple-bg)] rounded-xl border border-[var(--border-color)]">
                     <span className="text-xs font-medium text-[var(--color-slate)] mb-2 text-center">
-                      Adultos por lote
+                      Adultos
                     </span>
                     <div className="flex items-center gap-2">
                       <button
@@ -1340,7 +1296,7 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                   </div>
                   <div className="flex flex-col items-center p-3 bg-amber-50 rounded-xl border border-amber-200">
                     <span className="text-xs font-medium text-[var(--color-slate)] mb-2 text-center">
-                      Niños por lote <span className="text-amber-700">(½)</span>
+                      Niños <span className="text-amber-700">(½)</span>
                     </span>
                     <div className="flex items-center gap-2">
                       <button
@@ -1380,10 +1336,10 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                     </div>
                   </div>
                 </div>
-                <div className="text-xs text-[var(--color-slate)] space-y-1 pt-1 border-t border-[var(--border-color)]">
+                <div className="text-xs text-[var(--color-slate)] pt-1 border-t border-[var(--border-color)]">
                   <p>
-                    Por lote:{" "}
-                    <strong>
+                    Total:{" "}
+                    <strong className="text-[var(--color-purple)]">
                       {(() => {
                         const per =
                           personasAdultsPerBatch +
@@ -1398,39 +1354,11 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                     porciones
                     <span className="text-[var(--color-slate-light)]">
                       {" "}
-                      ({personasAdultsPerBatch} adultos
+                      ({personasAdultsPerBatch} adulto
+                      {personasAdultsPerBatch !== 1 ? "s" : ""}
                       {personasChildrenPerBatch > 0
                         ? ` + ${personasChildrenPerBatch} niño${personasChildrenPerBatch !== 1 ? "s" : ""}`
                         : ""}
-                      )
-                    </span>
-                  </p>
-                  <p>
-                    Total guardado:{" "}
-                    <strong className="text-[var(--color-purple)]">
-                      {Math.max(
-                        1,
-                        Math.round(
-                          personasBatchCount *
-                            (personasAdultsPerBatch +
-                              0.5 * personasChildrenPerBatch)
-                        )
-                      )}
-                    </strong>{" "}
-                    porciones (equiv.)
-                    <span className="text-[var(--color-slate-light)]">
-                      {" "}
-                      ({personasBatchCount} ×{" "}
-                      {(() => {
-                        const per =
-                          personasAdultsPerBatch +
-                          0.5 * personasChildrenPerBatch;
-                        return per % 1 === 0
-                          ? per
-                          : per.toLocaleString("es-ES", {
-                              maximumFractionDigits: 1,
-                            });
-                      })()}
                       )
                     </span>
                   </p>

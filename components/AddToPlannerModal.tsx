@@ -5,6 +5,7 @@ import { supabase, type Recipe, type Ingredient, type MealPlan } from "@/lib/sup
 import {
   addCalendarDays,
   computeServingsMultiplierPersonas,
+  getRecipeDefaultPersonas,
   getRecipePortionsBaseline,
   isPersonasPortionRecipe,
 } from "@/lib/meal-plan-portions";
@@ -78,7 +79,6 @@ export default function AddToPlannerModal({
   const [selectedVariant, setSelectedVariant] = useState<1 | 2>(1);
   const [alternativeSelections, setAlternativeSelections] = useState<Record<string, boolean>>({});
   const [simpleServingsMultiplier, setSimpleServingsMultiplier] = useState(1);
-  const [batchCount, setBatchCount] = useState(1);
   const [adultsPerBatch, setAdultsPerBatch] = useState(4);
   const [childrenPerBatch, setChildrenPerBatch] = useState(0);
   const [consecutiveDayCount, setConsecutiveDayCount] = useState(1);
@@ -128,21 +128,10 @@ export default function AddToPlannerModal({
     setConsecutiveDayCount(1);
     setWeekOffset(0);
     if (personasMode) {
-      const has =
-        recipe.personas_batch_count != null &&
-        recipe.personas_adults_per_batch != null &&
-        recipe.personas_children_per_batch != null;
-      if (has) {
-        setBatchCount(Math.max(1, recipe.personas_batch_count!));
-        setAdultsPerBatch(Math.max(0, recipe.personas_adults_per_batch!));
-        setChildrenPerBatch(Math.max(0, recipe.personas_children_per_batch!));
-      } else {
-        setBatchCount(1);
-        setAdultsPerBatch(Math.max(1, recipe.servings || 4));
-        setChildrenPerBatch(0);
-      }
+      const defaults = getRecipeDefaultPersonas(recipe);
+      setAdultsPerBatch(defaults.adults);
+      setChildrenPerBatch(defaults.children);
     } else {
-      setBatchCount(1);
       setAdultsPerBatch(Math.max(1, recipe.servings || 4));
       setChildrenPerBatch(0);
     }
@@ -184,11 +173,11 @@ export default function AddToPlannerModal({
       : recipe.servings || 4;
   const servingsUnit = getServingsUnit();
   const servingsMultiplier = personasMode
-    ? computeServingsMultiplierPersonas(recipe, batchCount, adultsPerBatch, childrenPerBatch)
+    ? computeServingsMultiplierPersonas(recipe, adultsPerBatch, childrenPerBatch)
     : simpleServingsMultiplier;
   const calculatedServings = Math.round(baseServings * servingsMultiplier * 10) / 10;
   const baseline = getRecipePortionsBaseline(recipe);
-  const equivalentPerBatch = adultsPerBatch + childrenPerBatch * 0.5;
+  const totalPortions = adultsPerBatch + childrenPerBatch * 0.5;
 
   // Get appropriate icon for servings unit
   const getServingsIcon = (unit: string) => {
@@ -516,44 +505,13 @@ export default function AddToPlannerModal({
                 {personasMode ? (
                   <div className="bg-[var(--color-purple-bg)] rounded-xl p-4 space-y-4">
                     <p className="text-xs text-[var(--color-slate)]">
-                      Lotes (veces que cocinas), adultos y niños por lote (½ ración). Igual que en la
-                      ficha de la receta.
+                      Adultos y niños (½ ración). Para cocinar más, usa <strong>días consecutivos</strong>
+                      abajo.
                     </p>
-                    <div className="flex flex-col items-center p-3 bg-white/60 rounded-xl">
-                      <span className="text-sm font-medium text-[var(--color-slate)] mb-2">
-                        Lotes (cocina)
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setBatchCount(Math.max(1, batchCount - 1))}
-                          className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-[var(--border-color)] text-lg"
-                        >
-                          −
-                        </button>
-                        <input
-                          type="number"
-                          value={batchCount}
-                          onChange={(e) => {
-                            const v = parseInt(e.target.value, 10);
-                            if (!isNaN(v) && v >= 1) setBatchCount(v);
-                          }}
-                          min={1}
-                          className="w-14 text-center text-xl font-bold bg-white border border-[var(--border-color)] rounded-lg py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setBatchCount(batchCount + 1)}
-                          className="w-8 h-8 rounded-full bg-white border border-[var(--border-color)] text-lg"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="flex flex-col items-center p-3 bg-white/60 rounded-xl">
                         <span className="text-sm font-medium text-[var(--color-slate)] mb-2 text-center">
-                          Adultos / lote
+                          Adultos
                         </span>
                         <div className="flex items-center gap-2">
                           <button
@@ -585,7 +543,7 @@ export default function AddToPlannerModal({
                       </div>
                       <div className="flex flex-col items-center p-3 bg-amber-50/80 rounded-xl border border-amber-100">
                         <span className="text-sm font-medium text-[var(--color-slate)] mb-2 text-center">
-                          Niños / lote <span className="text-amber-700">(½)</span>
+                          Niños <span className="text-amber-700">(½)</span>
                         </span>
                         <div className="flex items-center gap-2">
                           <button
@@ -619,9 +577,9 @@ export default function AddToPlannerModal({
                     <div className="text-sm text-[var(--color-slate)] border-t border-[var(--border-color)] pt-3">
                       Total:{" "}
                       <strong className="text-[var(--color-purple)]">
-                        {(batchCount * equivalentPerBatch) % 1 === 0
-                          ? batchCount * equivalentPerBatch
-                          : (batchCount * equivalentPerBatch).toLocaleString("es-ES", {
+                        {totalPortions % 1 === 0
+                          ? totalPortions
+                          : totalPortions.toLocaleString("es-ES", {
                               maximumFractionDigits: 1,
                             })}
                       </strong>{" "}

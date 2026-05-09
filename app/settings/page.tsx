@@ -11,6 +11,12 @@ import {
   setReminderDays,
 } from "@/components/BackupReminder";
 import { supabase, type Container } from "@/lib/supabase";
+import {
+  previewLotesMigration,
+  runLotesMigration,
+  type LotesMigrationPreview,
+  type LotesMigrationResult,
+} from "@/lib/lotes-migration";
 
 type ExportFormat = "json" | "csv" | "markdown" | "html" | "all";
 
@@ -121,12 +127,59 @@ export default function SettingsPage() {
   const [savingTag, setSavingTag] = useState<string | null>(null);
   const [deletingTag, setDeletingTag] = useState<string | null>(null);
 
+  // Lotes → 1 lote migration
+  const [lotesPreview, setLotesPreview] = useState<LotesMigrationPreview | null>(
+    null
+  );
+  const [lotesPreviewError, setLotesPreviewError] = useState<string | null>(null);
+  const [lotesMigrating, setLotesMigrating] = useState(false);
+  const [lotesResult, setLotesResult] = useState<LotesMigrationResult | null>(
+    null
+  );
+
   useEffect(() => {
     loadRecipes();
     loadContainers();
     loadTags();
     loadBackupSettings();
+    loadLotesPreview();
   }, []);
+
+  const loadLotesPreview = async () => {
+    try {
+      setLotesPreviewError(null);
+      const preview = await previewLotesMigration();
+      setLotesPreview(preview);
+    } catch (err) {
+      console.error("Error loading lotes migration preview:", err);
+      setLotesPreviewError(
+        err instanceof Error ? err.message : "Error desconocido"
+      );
+    }
+  };
+
+  const handleRunLotesMigration = async () => {
+    if (!lotesPreview || lotesPreview.recipesToFix === 0) return;
+    const ok = window.confirm(
+      `Se van a actualizar ${lotesPreview.recipesToFix} receta(s) y reescalar ${lotesPreview.plansToFix} plan(es) de comida. Esta acción no se puede deshacer (haz un backup primero si tienes dudas). ¿Continuar?`
+    );
+    if (!ok) return;
+    setLotesMigrating(true);
+    try {
+      const result = await runLotesMigration();
+      setLotesResult(result);
+      await loadLotesPreview();
+    } catch (err) {
+      console.error("Error running lotes migration:", err);
+      alert(
+        `No se pudo completar la migración: ${
+          err instanceof Error ? err.message : "Error desconocido"
+        }`
+      );
+    } finally {
+      setLotesMigrating(false);
+    }
+  };
 
   const loadBackupSettings = async () => {
     const [backupDate, days] = await Promise.all([
@@ -922,6 +975,118 @@ export default function SettingsPage() {
                 o servicios como Google Drive o Dropbox. Así nunca perderás tus recetas favoritas.
               </p>
             </div>
+          </div>
+        </section>
+
+        {/* Lotes Migration Section */}
+        <section className="bg-white rounded-xl border border-[var(--border-color)] overflow-hidden">
+          <div className="p-4 border-b border-[var(--border-color)]">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-[var(--color-purple-bg)] rounded-lg flex items-center justify-center text-[var(--color-orange)]">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-[var(--foreground)]">
+                  Migrar lotes a 1 lote
+                </h2>
+                <p className="text-sm text-[var(--color-slate)]">
+                  Elimina el concepto de lotes manteniendo lo que tienes planeado.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 space-y-3">
+            <div className="text-sm text-[var(--color-slate)] space-y-2">
+              <p>
+                Las recetas guardadas con varios lotes se reescriben para representar
+                un solo lote: sus ingredientes se dividen entre el número de lotes que
+                tenían (por ejemplo, una receta con 3 lotes pasa a tener un tercio de
+                cada ingrediente).
+              </p>
+              <p>
+                Para que la lista de la compra y los menús que ya tienes planeados
+                sigan dando lo mismo, los planes existentes se reescalan automáticamente
+                (su multiplicador se multiplica por los lotes antiguos).
+              </p>
+            </div>
+
+            {lotesPreviewError && (
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                No se pudo comprobar el estado: {lotesPreviewError}
+              </div>
+            )}
+
+            {lotesPreview && lotesPreview.recipesToFix === 0 && !lotesResult && (
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800">
+                No hay recetas con lotes &gt; 1. La migración ya está aplicada o no
+                hace falta.
+              </div>
+            )}
+
+            {lotesPreview && lotesPreview.recipesToFix > 0 && (
+              <div className="p-3 rounded-lg bg-[var(--color-purple-bg)] border border-[var(--border-color)] text-sm text-[var(--foreground)] space-y-2">
+                <p>
+                  <strong>{lotesPreview.recipesToFix}</strong> receta(s) con lotes &gt; 1.{" "}
+                  <strong>{lotesPreview.plansToFix}</strong> plan(es) de comida apuntan
+                  a esas recetas y se reescalarán.
+                </p>
+                {lotesPreview.sampleRecipes.length > 0 && (
+                  <ul className="list-disc list-inside text-xs text-[var(--color-slate)]">
+                    {lotesPreview.sampleRecipes.map((r) => (
+                      <li key={r.id}>
+                        {r.title} ({r.batchCount} lotes)
+                      </li>
+                    ))}
+                    {lotesPreview.recipesToFix > lotesPreview.sampleRecipes.length && (
+                      <li>
+                        …y {lotesPreview.recipesToFix - lotesPreview.sampleRecipes.length}{" "}
+                        más.
+                      </li>
+                    )}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {lotesResult && (
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 space-y-2">
+                <p>
+                  <strong>{lotesResult.recipesUpdated}</strong> receta(s) actualizada(s) y{" "}
+                  <strong>{lotesResult.plansUpdated}</strong> plan(es) reescalado(s).
+                </p>
+                {lotesResult.skippedRecipes.length > 0 && (
+                  <div>
+                    <p className="font-medium">Recetas omitidas:</p>
+                    <ul className="list-disc list-inside text-xs">
+                      {lotesResult.skippedRecipes.map((r) => (
+                        <li key={r.id}>
+                          {r.title}: {r.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button
+              onClick={handleRunLotesMigration}
+              disabled={
+                lotesMigrating ||
+                !lotesPreview ||
+                lotesPreview.recipesToFix === 0
+              }
+              className="w-full px-4 py-2.5 rounded-lg bg-[var(--color-orange)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {lotesMigrating
+                ? "Migrando…"
+                : lotesPreview && lotesPreview.recipesToFix > 0
+                  ? `Migrar ${lotesPreview.recipesToFix} receta(s)`
+                  : "Nada que migrar"}
+            </button>
           </div>
         </section>
 
