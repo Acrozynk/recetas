@@ -6,9 +6,7 @@ import {
   supabase,
   type Recipe,
   type Ingredient,
-  type MealPlan,
   RECIPE_LIST_SELECT,
-  MEAL_PLAN_CELL_RECIPE_SELECT,
 } from "@/lib/supabase";
 import {
   haystackMatchesSearchTokens,
@@ -22,6 +20,7 @@ import BottomNav from "@/components/BottomNav";
 import RecipeCard from "@/components/RecipeCard";
 import BackupReminder from "@/components/BackupReminder";
 import TagInput from "@/components/TagInput";
+import TodayMealsBanner from "@/components/TodayMealsBanner";
 import Link from "next/link";
 
 // Lazy-loaded so its ~900 lines of JSX don't ship in the initial bundle.
@@ -135,25 +134,12 @@ interface ActiveImportSession {
   }[];
 }
 
-interface TodayMealPlan extends MealPlan {
-  recipe: Recipe;
-}
-
-const MEAL_LABELS: Record<string, string> = {
-  breakfast: "Desayuno",
-  lunch: "Comida",
-  snack: "Merienda",
-  dinner: "Cena",
-};
-
 function HomePageContent() {
   const searchParams = useSearchParams();
   
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeImportSession, setActiveImportSession] = useState<ActiveImportSession | null>(null);
-  const [todayMealPlans, setTodayMealPlans] = useState<TodayMealPlan[]>([]);
-  const [todayBannerDismissed, setTodayBannerDismissed] = useState(false);
   
   // Initialize filter state from URL params
   const [search, setSearch] = useState(() => searchParams.get("q") || "");
@@ -225,7 +211,6 @@ function HomePageContent() {
   useEffect(() => {
     loadRecipes();
     checkActiveImportSession();
-    checkTodayMealPlans();
   }, []);
 
   // Restore scroll position after recipes are loaded
@@ -265,16 +250,6 @@ function HomePageContent() {
     };
   }, []);
 
-  // Reset banner dismissal when date changes
-  useEffect(() => {
-    const today = new Date().toISOString().split("T")[0];
-    const lastDismissedDate = sessionStorage.getItem("todayBannerDismissedDate");
-    if (lastDismissedDate !== today) {
-      setTodayBannerDismissed(false);
-      sessionStorage.removeItem("todayBannerDismissedDate");
-    }
-  }, []);
-
   const checkActiveImportSession = async () => {
     try {
       const response = await fetch("/api/import-session");
@@ -285,33 +260,6 @@ function HomePageContent() {
     } catch (err) {
       console.error("Error checking import session:", err);
     }
-  };
-
-  const checkTodayMealPlans = async () => {
-    try {
-      const today = new Date().toISOString().split("T")[0];
-      const { data, error } = await supabase
-        .from("meal_plans")
-        .select(`*, recipe:recipes(${MEAL_PLAN_CELL_RECIPE_SELECT})`)
-        .eq("plan_date", today);
-
-      if (error) throw error;
-      
-      // Filter to only include plans with recipes
-      const plansWithRecipes = (data || []).filter(
-        (plan): plan is TodayMealPlan => plan.recipe !== null
-      );
-      
-      setTodayMealPlans(plansWithRecipes);
-    } catch (err) {
-      console.error("Error checking today's meal plans:", err);
-    }
-  };
-
-  const dismissTodayBanner = () => {
-    setTodayBannerDismissed(true);
-    const today = new Date().toISOString().split("T")[0];
-    sessionStorage.setItem("todayBannerDismissedDate", today);
   };
 
   const getImportProgress = () => {
@@ -534,73 +482,7 @@ function HomePageContent() {
           </Link>
         )}
 
-        {/* Today's Recipes Banner */}
-        {todayMealPlans.length > 0 && !todayBannerDismissed && (
-          <div className="mb-4 p-4 bg-emerald-50 border border-emerald-300 rounded-xl animate-fade-in">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-10 h-10 bg-emerald-200 rounded-full flex items-center justify-center">
-                <span className="text-xl">👨‍🍳</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-semibold text-emerald-900">
-                  ¡Hoy toca cocinar!
-                </p>
-                <p className="text-sm text-emerald-700 mt-0.5">
-                  {todayMealPlans.length === 1
-                    ? `Tienes 1 receta planeada para hoy`
-                    : `Tienes ${todayMealPlans.length} recetas planeadas para hoy`}
-                </p>
-                
-                {/* Recipe list */}
-                <div className="mt-3 space-y-2">
-                  {todayMealPlans.map((plan) => (
-                    <Link
-                      key={plan.id}
-                      href={`/recipes/${plan.recipe_id}`}
-                      className="flex items-center gap-3 p-2 bg-white rounded-lg border border-emerald-200 hover:border-emerald-400 hover:bg-emerald-50 transition-colors group"
-                    >
-                      {plan.recipe.image_url ? (
-                        <img
-                          src={plan.recipe.image_url}
-                          alt=""
-                          className="w-10 h-10 rounded-md object-cover flex-shrink-0"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-md bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                          <span className="text-lg">🍽️</span>
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-emerald-900 truncate group-hover:text-emerald-700">
-                          {plan.recipe.title}
-                        </p>
-                        <p className="text-xs text-emerald-600">
-                          {MEAL_LABELS[plan.meal_type] || plan.meal_type}
-                        </p>
-                      </div>
-                      <div className="flex-shrink-0 text-emerald-500 group-hover:text-emerald-700">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Dismiss button */}
-              <button
-                onClick={dismissTodayBanner}
-                className="flex-shrink-0 p-1 text-emerald-400 hover:text-emerald-600 transition-colors"
-                title="Ocultar por hoy"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
+        <TodayMealsBanner />
 
         {/* Search bar with filter toggle */}
         <div className="flex gap-2 mb-4">
