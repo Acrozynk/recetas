@@ -9,6 +9,7 @@ import {
   type Recipe,
 } from "@/lib/supabase";
 import { MEAL_LABELS } from "@/lib/meal-plan-types";
+import { addCalendarDays } from "@/lib/meal-plan-portions";
 
 type TodayMealPlan = Omit<MealPlan, "recipe"> & {
   recipe: Pick<Recipe, "id" | "title" | "image_url">;
@@ -37,17 +38,38 @@ export default function TodayMealsBanner() {
     let cancelled = false;
     (async () => {
       try {
+        // Pull yesterday too so we can detect the case where today is just a
+        // leftover day of a consecutive-day plan (cooked previously). Same
+        // recipe + same meal type the day before = today is not a cook day.
+        const yesterday = addCalendarDays(today, -1);
         const { data, error } = await supabase
           .from("meal_plans")
           .select(`*, recipe:recipes(${MEAL_PLAN_CELL_RECIPE_SELECT})`)
-          .eq("plan_date", today);
+          .gte("plan_date", yesterday)
+          .lte("plan_date", today);
 
         if (cancelled) return;
         if (error) throw error;
 
-        const plansWithRecipes = (data || []).filter(
-          (plan): plan is TodayMealPlan => plan.recipe !== null
+        const allPlans = data || [];
+        const yesterdayKeys = new Set(
+          allPlans
+            .filter(
+              (p) => p.plan_date === yesterday && p.recipe_id != null
+            )
+            .map((p) => `${p.recipe_id}::${p.meal_type}`)
         );
+
+        const plansWithRecipes = allPlans
+          .filter((plan) => plan.plan_date === today)
+          .filter(
+            (plan): plan is TodayMealPlan =>
+              plan.recipe !== null && plan.recipe_id !== null
+          )
+          .filter(
+            (plan) =>
+              !yesterdayKeys.has(`${plan.recipe_id}::${plan.meal_type}`)
+          );
         setTodayMealPlans(plansWithRecipes);
       } catch (err) {
         console.error("Error checking today's meal plans:", err);
