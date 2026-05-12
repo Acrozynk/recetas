@@ -582,11 +582,30 @@ function enrichStepWithIngredients(
   const validIngredients = ingredients.filter(
     ing => !ing.isHeader && !ing.name.startsWith('**')
   );
-  
+
+  // Expand: each main ingredient + every alternative ingredient is a separate
+  // matchable candidate so steps mentioning the mixture (e.g. "chía, lino,
+  // agua") get their amount tooltips just like the main ingredient.
+  const expandedCandidates: Ingredient[] = [];
+  for (const ing of validIngredients) {
+    expandedCandidates.push(ing);
+    for (const alt of getAlternativeIngredients(ing)) {
+      if (alt.name && alt.name.trim()) {
+        expandedCandidates.push({
+          name: alt.name,
+          amount: alt.amount,
+          unit: alt.unit,
+          amount2: alt.amount2,
+          unit2: alt.unit2,
+        });
+      }
+    }
+  }
+
   // Find all ingredient mentions in the step
   const mentions: { ingredient: Ingredient; position: number; length: number }[] = [];
-  
-  for (const ingredient of validIngredients) {
+
+  for (const ingredient of expandedCandidates) {
     const { found } = findIngredientMention(stepText, ingredient.name);
     if (found) {
       // Find where this ingredient is mentioned in the original text
