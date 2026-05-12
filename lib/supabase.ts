@@ -122,9 +122,36 @@ export interface Ingredient {
   category?: string;
   // Section header (e.g., "Para la base:", "Para el relleno:")
   isHeader?: boolean;
-  // Alternative ingredient that can substitute this one
-  // e.g., "½ tsp baking powder" can be replaced by "⅛ tsp baking soda"
+  /**
+   * @deprecated Use `alternatives`. Single alternative kept for backwards
+   * compatibility. New code should read via `getAlternativeIngredients()`.
+   */
   alternative?: AlternativeIngredient;
+  /**
+   * Mixture of ingredients that together substitute this one
+   * (e.g. 2 eggs → 6 g chía + 6 g lino + 70 g agua + 70 g yogur).
+   * When this exists, it takes precedence over `alternative`.
+   */
+  alternatives?: AlternativeIngredient[];
+}
+
+/**
+ * Returns the effective list of alternative ingredients for `ing`, merging
+ * the legacy singular `alternative` field with the new `alternatives` array.
+ */
+export function getAlternativeIngredients(
+  ing: Ingredient | null | undefined
+): AlternativeIngredient[] {
+  if (!ing) return [];
+  if (Array.isArray(ing.alternatives) && ing.alternatives.length > 0) {
+    return ing.alternatives.filter(
+      (a) => a && ((a.name && a.name.trim()) || (a.amount && a.amount.trim()))
+    );
+  }
+  if (ing.alternative && (ing.alternative.name || ing.alternative.amount)) {
+    return [ing.alternative];
+  }
+  return [];
 }
 
 export interface MealPlan {

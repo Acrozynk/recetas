@@ -13,6 +13,7 @@ import {
   SUPERMARKET_COLORS,
   DEFAULT_CATEGORIES,
   RECIPE_SHOPPING_SELECT,
+  getAlternativeIngredients,
 } from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
@@ -1686,69 +1687,95 @@ export default function ShoppingPage() {
           const ingredientNameLower = ing.name.toLowerCase().trim();
           if (excludedIngredients.some(excluded => ingredientNameLower === excluded || ingredientNameLower.includes(excluded))) continue;
           
-          // Check if we should use the alternative ingredient
+          // Check if we should use the alternative ingredient(s)
           const useAlternative = alternativeSelections[idx.toString()] === true;
-          
-          let ingredientName: string;
-          let ingredientAmount: string;
-          let ingredientUnit: string;
-          
-          if (useAlternative && ing.alternative?.name) {
-            // Use alternative ingredient
-            const alt = ing.alternative;
-            ingredientName = alt.name;
-            // Use variant 2 amounts for alternative if available and selected
-            if (selectedVariant === 2 && alt.amount2) {
-              ingredientAmount = alt.amount2;
-              ingredientUnit = alt.unit2 || alt.unit || "";
-            } else {
-              ingredientAmount = alt.amount || "";
-              ingredientUnit = alt.unit || "";
-            }
-          } else {
-            // Use primary ingredient
-            ingredientName = ing.name;
-            // Use variant 2 amounts if selected and available
-            if (selectedVariant === 2 && ing.amount2) {
-              ingredientAmount = ing.amount2;
-              ingredientUnit = ing.unit2 || ing.unit || "";
-            } else {
-              ingredientAmount = ing.amount || "";
-              ingredientUnit = ing.unit || "";
-            }
-          }
-          
-          // Apply servings multiplier to the amount
-          let adjustedAmount = ingredientAmount;
-          if (ingredientAmount && servingsMultiplier !== 1) {
-            const parsed = parseQuantity(ingredientAmount);
-            if (parsed && parsed.amount !== null) {
-              const multipliedValue = parsed.amount * servingsMultiplier;
-              // Format nicely - round to 2 decimal places and remove trailing zeros
-              const formattedValue = Math.round(multipliedValue * 100) / 100;
-              adjustedAmount = formattedValue.toString();
-            }
-          }
-          
-          const key = ingredientName.toLowerCase().trim();
-          const existing = ingredientMap.get(key);
-          const newQuantity = adjustedAmount ? `${adjustedAmount} ${ingredientUnit}`.trim() : "";
+          const altList = getAlternativeIngredients(ing);
 
-          if (existing) {
-            // Combine quantities intelligently
-            if (newQuantity && existing.quantity) {
-              existing.quantity = combineQuantities(existing.quantity, newQuantity, ingredientName);
-            } else if (newQuantity) {
-              existing.quantity = newQuantity;
+          // Build the list of (name, amount, unit) tuples this ingredient
+          // contributes. With a mixture alternative we expand into many.
+          type Item = { name: string; amount: string; unit: string };
+          const items: Item[] = [];
+
+          if (useAlternative && altList.length > 0) {
+            for (const alt of altList) {
+              if (selectedVariant === 2 && alt.amount2) {
+                items.push({
+                  name: alt.name,
+                  amount: alt.amount2 || "",
+                  unit: alt.unit2 || alt.unit || "",
+                });
+              } else {
+                items.push({
+                  name: alt.name,
+                  amount: alt.amount || "",
+                  unit: alt.unit || "",
+                });
+              }
             }
-            existing.recipes.add(plan.recipe.title);
           } else {
-            ingredientMap.set(key, {
-              name: ingredientName,
-              quantity: newQuantity,
-              category: categorizeIngredient(ingredientName),
-              recipes: new Set([plan.recipe.title]),
-            });
+            if (selectedVariant === 2 && ing.amount2) {
+              items.push({
+                name: ing.name,
+                amount: ing.amount2,
+                unit: ing.unit2 || ing.unit || "",
+              });
+            } else {
+              items.push({
+                name: ing.name,
+                amount: ing.amount || "",
+                unit: ing.unit || "",
+              });
+            }
+          }
+
+          for (const item of items) {
+            if (!item.name || !item.name.trim()) continue;
+
+            const itemNameLower = item.name.toLowerCase().trim();
+            if (
+              excludedIngredients.some(
+                (excluded) =>
+                  itemNameLower === excluded || itemNameLower.includes(excluded)
+              )
+            ) {
+              continue;
+            }
+
+            let adjustedAmount = item.amount;
+            if (item.amount && servingsMultiplier !== 1) {
+              const parsed = parseQuantity(item.amount);
+              if (parsed && parsed.amount !== null) {
+                const multipliedValue = parsed.amount * servingsMultiplier;
+                const formattedValue = Math.round(multipliedValue * 100) / 100;
+                adjustedAmount = formattedValue.toString();
+              }
+            }
+
+            const key = itemNameLower;
+            const existing = ingredientMap.get(key);
+            const newQuantity = adjustedAmount
+              ? `${adjustedAmount} ${item.unit}`.trim()
+              : "";
+
+            if (existing) {
+              if (newQuantity && existing.quantity) {
+                existing.quantity = combineQuantities(
+                  existing.quantity,
+                  newQuantity,
+                  item.name
+                );
+              } else if (newQuantity) {
+                existing.quantity = newQuantity;
+              }
+              existing.recipes.add(plan.recipe.title);
+            } else {
+              ingredientMap.set(key, {
+                name: item.name,
+                quantity: newQuantity,
+                category: categorizeIngredient(item.name),
+                recipes: new Set([plan.recipe.title]),
+              });
+            }
           }
         }
       }

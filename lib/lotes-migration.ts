@@ -119,6 +119,18 @@ function divideIngredients(
         next.alternative.amount2 = divideAmount(ing.alternative.amount2, divisor);
       }
     }
+    if (Array.isArray(ing.alternatives) && ing.alternatives.length > 0) {
+      next.alternatives = ing.alternatives.map((alt) => {
+        const out = {
+          ...alt,
+          amount: divideAmount(alt.amount, divisor),
+        };
+        if (alt.amount2 !== undefined) {
+          out.amount2 = divideAmount(alt.amount2, divisor);
+        }
+        return out;
+      });
+    }
     return next;
   });
 }

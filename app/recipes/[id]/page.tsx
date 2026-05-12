@@ -5,7 +5,18 @@ import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { supabase, type Recipe, type Ingredient, type Instruction, type Container, normalizeInstructions, type SupermarketName, SUPERMARKETS, SUPERMARKET_COLORS } from "@/lib/supabase";
+import {
+  supabase,
+  type Recipe,
+  type Ingredient,
+  type Instruction,
+  type Container,
+  normalizeInstructions,
+  getAlternativeIngredients,
+  type SupermarketName,
+  SUPERMARKETS,
+  SUPERMARKET_COLORS,
+} from "@/lib/supabase";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 
@@ -2100,17 +2111,23 @@ export default function RecipeDetailPage() {
                     
                   const isChecked = checkedIngredients.has(i);
                   
-                  // Check if this ingredient has an alternative
-                  const hasAlternative = ingredient.alternative?.name;
-                  // Use amount2/unit2 for alternative when variant 2 is selected
-                  const altHasVariant2 = !!ingredient.alternative?.amount2;
-                  const altBaseAmount = useVariant2 && altHasVariant2 
-                    ? ingredient.alternative?.amount2 
-                    : ingredient.alternative?.amount;
-                  const altBaseUnit = useVariant2 && altHasVariant2 
-                    ? (ingredient.alternative?.unit2 || ingredient.alternative?.unit)
-                    : ingredient.alternative?.unit;
-                  const altScaledAmount = hasAlternative ? scaleAmount(altBaseAmount || '') : '';
+                  // Alternatives (mezcla de uno o varios ingredientes)
+                  const alternativesList = getAlternativeIngredients(ingredient);
+                  const hasAlternative = alternativesList.length > 0;
+                  const alternativeDisplay = alternativesList.map((alt) => {
+                    const altHasVariant2 = !!alt.amount2;
+                    const baseAmount =
+                      useVariant2 && altHasVariant2 ? alt.amount2 : alt.amount;
+                    const baseUnit =
+                      useVariant2 && altHasVariant2
+                        ? alt.unit2 || alt.unit
+                        : alt.unit;
+                    return {
+                      amount: scaleAmount(baseAmount || ""),
+                      unit: baseUnit || "",
+                      name: alt.name || "",
+                    };
+                  });
                   
                   return (
                     <li
@@ -2141,15 +2158,27 @@ export default function RecipeDetailPage() {
                             ({originalScaled} {baseDisplayUnit})
                           </span>
                         )}
-                        {/* Show alternative ingredient */}
+                        {/* Show alternative ingredients (mezcla) */}
                         {hasAlternative && (
                           <span className="text-emerald-700">
                             {", o "}
-                            <strong className="font-medium">
-                              {altScaledAmount}
-                              {altBaseUnit && ` ${altBaseUnit}`}
-                            </strong>{" "}
-                            {ingredient.alternative?.name}
+                            {alternativeDisplay.map((alt, ai) => (
+                              <span key={ai}>
+                                {ai > 0 && (
+                                  <span className="text-emerald-600"> + </span>
+                                )}
+                                <strong className="font-medium">
+                                  {alt.amount}
+                                  {alt.unit && ` ${alt.unit}`}
+                                </strong>
+                                {" "}{alt.name}
+                              </span>
+                            ))}
+                            {alternativeDisplay.length > 1 && (
+                              <span className="text-emerald-600 text-xs italic">
+                                {" "}(mezcla)
+                              </span>
+                            )}
                           </span>
                         )}
                       </span>

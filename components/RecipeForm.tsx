@@ -3,7 +3,16 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { supabase, type Recipe, type Ingredient, type Instruction, type Container, normalizeInstructions } from "@/lib/supabase";
+import {
+  supabase,
+  type Recipe,
+  type Ingredient,
+  type Instruction,
+  type Container,
+  type AlternativeIngredient,
+  normalizeInstructions,
+  getAlternativeIngredients,
+} from "@/lib/supabase";
 import {
   extractLinkedRecipeIdsFromInstructions,
   buildRecipeLinkToken,
@@ -275,9 +284,25 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
   const [selectedContainers, setSelectedContainers] = useState<Array<{ id: string; quantity: string }>>([]);
   const [newContainerName, setNewContainerName] = useState("");
   const [addingContainer, setAddingContainer] = useState(false);
-  const [ingredients, setIngredients] = useState<Ingredient[]>(
-    (recipe?.ingredients as Ingredient[]) || Array.from({ length: 5 }, () => ({ name: "", amount: "", unit: "", amount2: "", unit2: "" }))
-  );
+  const [ingredients, setIngredients] = useState<Ingredient[]>(() => {
+    const raw =
+      (recipe?.ingredients as Ingredient[]) ||
+      Array.from({ length: 5 }, () => ({
+        name: "",
+        amount: "",
+        unit: "",
+        amount2: "",
+        unit2: "",
+      }));
+    // Normalise: legacy `alternative` (singular) → first item of `alternatives`.
+    return raw.map((ing) => {
+      const existing = getAlternativeIngredients(ing);
+      if (existing.length > 0) {
+        return { ...ing, alternatives: existing, alternative: undefined };
+      }
+      return ing;
+    });
+  });
   const [expandedIngredients, setExpandedIngredients] = useState<Set<number>>(new Set());
   // Track which ingredients have their alternative section expanded
   const [showAlternative, setShowAlternative] = useState<Set<number>>(() => {
@@ -285,7 +310,7 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
     const initial = new Set<number>();
     if (recipe?.ingredients) {
       (recipe.ingredients as Ingredient[]).forEach((ing, idx) => {
-        if (ing.alternative?.name) {
+        if (getAlternativeIngredients(ing).length > 0) {
           initial.add(idx);
         }
       });
@@ -623,34 +648,95 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
   };
 
   const toggleShowAlternative = (index: number) => {
-    setShowAlternative(prev => {
+    setShowAlternative((prev) => {
       const next = new Set(prev);
       if (next.has(index)) {
         next.delete(index);
-        // Clear the alternative when hiding
+        // Clear all alternatives when hiding the section
         const updated = [...ingredients];
-        updated[index] = { ...updated[index], alternative: undefined };
+        updated[index] = {
+          ...updated[index],
+          alternative: undefined,
+          alternatives: undefined,
+        };
         setIngredients(updated);
       } else {
         next.add(index);
-        // Initialize empty alternative
+        // Initialize with one empty row
         const updated = [...ingredients];
-        if (!updated[index].alternative) {
-          updated[index] = { ...updated[index], alternative: { name: "", amount: "", unit: "" } };
-          setIngredients(updated);
-        }
+        const existing = getAlternativeIngredients(updated[index]);
+        updated[index] = {
+          ...updated[index],
+          alternative: undefined,
+          alternatives:
+            existing.length > 0
+              ? existing
+              : [{ name: "", amount: "", unit: "" }],
+        };
+        setIngredients(updated);
       }
       return next;
     });
   };
 
-  const updateAlternative = (index: number, field: "name" | "amount" | "unit", value: string) => {
+  const updateAlternativeAt = (
+    index: number,
+    altIdx: number,
+    field: keyof AlternativeIngredient,
+    value: string
+  ) => {
     const updated = [...ingredients];
-    const currentAlt = updated[index].alternative || { name: "", amount: "", unit: "" };
-    updated[index] = { 
-      ...updated[index], 
-      alternative: { ...currentAlt, [field]: value }
+    const current = updated[index].alternatives
+      ? [...updated[index].alternatives!]
+      : getAlternativeIngredients(updated[index]).slice();
+    if (current.length === 0) current.push({ name: "", amount: "", unit: "" });
+    current[altIdx] = { ...current[altIdx], [field]: value };
+    updated[index] = {
+      ...updated[index],
+      alternative: undefined,
+      alternatives: current,
     };
+    setIngredients(updated);
+  };
+
+  const addAlternativeRow = (index: number) => {
+    const updated = [...ingredients];
+    const current = updated[index].alternatives
+      ? [...updated[index].alternatives!]
+      : getAlternativeIngredients(updated[index]).slice();
+    current.push({ name: "", amount: "", unit: "" });
+    updated[index] = {
+      ...updated[index],
+      alternative: undefined,
+      alternatives: current,
+    };
+    setIngredients(updated);
+  };
+
+  const removeAlternativeRow = (index: number, altIdx: number) => {
+    const updated = [...ingredients];
+    const current = updated[index].alternatives
+      ? [...updated[index].alternatives!]
+      : getAlternativeIngredients(updated[index]).slice();
+    current.splice(altIdx, 1);
+    if (current.length === 0) {
+      updated[index] = {
+        ...updated[index],
+        alternative: undefined,
+        alternatives: undefined,
+      };
+      setShowAlternative((prev) => {
+        const next = new Set(prev);
+        next.delete(index);
+        return next;
+      });
+    } else {
+      updated[index] = {
+        ...updated[index],
+        alternative: undefined,
+        alternatives: current,
+      };
+    }
     setIngredients(updated);
   };
 
@@ -911,7 +997,22 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
         container_id: portionType === 'recipiente' && selectedContainers[0] ? selectedContainers[0].id : null,
         container_quantity: portionType === 'recipiente' && selectedContainers[0] ? parseFloat(selectedContainers[0].quantity) : null,
         tags: tags.filter((t) => t.trim()),
-        ingredients: ingredients.filter((i) => i.name.trim()),
+        ingredients: ingredients
+          .filter((i) => i.name.trim())
+          .map((ing) => {
+            const cleaned = { ...ing };
+            const alts = (cleaned.alternatives ?? []).filter(
+              (a) => (a.name && a.name.trim()) || (a.amount && a.amount.trim())
+            );
+            if (alts.length > 0) {
+              cleaned.alternatives = alts;
+            } else {
+              delete cleaned.alternatives;
+            }
+            // Drop legacy singular field; alternatives is the source of truth.
+            delete cleaned.alternative;
+            return cleaned;
+          }),
         instructions: instructions.filter((i) => i.text.trim()),
         notes: notes.trim() || null,
         rating: rating,
@@ -1859,58 +1960,97 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                   </button>
                 </div>
                 
-                {/* Alternative ingredient row */}
-                {showAlternative.has(index) && (
-                  <div className="ml-4 flex items-center gap-2 pl-2 border-l-2 border-emerald-300 bg-emerald-50/50 rounded-r-lg py-2 pr-2">
-                    <span className="text-xs text-emerald-700 font-medium" style={{ width: '20px' }}>
-                      o
-                    </span>
-                    <div className="flex-1 flex flex-col sm:flex-row gap-2">
-                      {/* Cantidad y unidad alternativa */}
-                      <div className="flex gap-2 shrink-0">
-                        <input
-                          type="text"
-                          value={ingredient.alternative?.amount || ""}
-                          onChange={(e) => updateAlternative(index, "amount", e.target.value)}
-                          onFocus={handleInputFocus}
-                          onSelect={handleInputSelect}
-                          className="input text-sm text-center w-[60px]"
-                          placeholder="⅛"
-                        />
-                        <input
-                          type="text"
-                          value={ingredient.alternative?.unit || ""}
-                          onChange={(e) => updateAlternative(index, "unit", e.target.value)}
-                          onFocus={handleInputFocus}
-                          onSelect={handleInputSelect}
-                          className="input text-sm w-[90px]"
-                          placeholder="cdta"
-                          list="unit-suggestions"
-                        />
+                {/* Alternative ingredients (mixture) */}
+                {showAlternative.has(index) && (() => {
+                  const alts =
+                    ingredient.alternatives && ingredient.alternatives.length > 0
+                      ? ingredient.alternatives
+                      : getAlternativeIngredients(ingredient);
+                  const rows = alts.length > 0 ? alts : [{ name: "", amount: "", unit: "" }];
+                  return (
+                    <div className="ml-4 pl-2 border-l-2 border-emerald-300 bg-emerald-50/50 rounded-r-lg py-2 pr-2 space-y-2">
+                      {rows.length > 1 && (
+                        <p className="text-[11px] text-emerald-700 font-medium uppercase tracking-wide">
+                          Mezcla (todos juntos sustituyen a {ingredient.name || "este ingrediente"})
+                        </p>
+                      )}
+                      {rows.map((alt, altIdx) => (
+                        <div key={altIdx} className="flex items-center gap-2">
+                          <span
+                            className="text-xs text-emerald-700 font-medium"
+                            style={{ width: "20px" }}
+                          >
+                            {altIdx === 0 ? "o" : "+"}
+                          </span>
+                          <div className="flex-1 flex flex-col sm:flex-row gap-2">
+                            <div className="flex gap-2 shrink-0">
+                              <input
+                                type="text"
+                                value={alt.amount || ""}
+                                onChange={(e) =>
+                                  updateAlternativeAt(index, altIdx, "amount", e.target.value)
+                                }
+                                onFocus={handleInputFocus}
+                                onSelect={handleInputSelect}
+                                className="input text-sm text-center w-[60px]"
+                                placeholder="⅛"
+                              />
+                              <input
+                                type="text"
+                                value={alt.unit || ""}
+                                onChange={(e) =>
+                                  updateAlternativeAt(index, altIdx, "unit", e.target.value)
+                                }
+                                onFocus={handleInputFocus}
+                                onSelect={handleInputSelect}
+                                className="input text-sm w-[90px]"
+                                placeholder="g"
+                                list="unit-suggestions"
+                              />
+                            </div>
+                            <input
+                              type="text"
+                              value={alt.name || ""}
+                              onChange={(e) =>
+                                updateAlternativeAt(index, altIdx, "name", e.target.value)
+                              }
+                              onFocus={handleInputFocus}
+                              onSelect={handleInputSelect}
+                              className="input text-sm flex-1 min-w-0"
+                              placeholder="Nombre del ingrediente alternativo"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeAlternativeRow(index, altIdx)}
+                            className="p-1.5 shrink-0 text-emerald-600 hover:text-red-600 transition-colors"
+                            title={
+                              rows.length === 1
+                                ? "Quitar alternativa"
+                                : "Quitar este ingrediente de la mezcla"
+                            }
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => addAlternativeRow(index)}
+                          className="ml-[28px] text-xs text-emerald-700 font-medium hover:underline inline-flex items-center gap-1"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Añadir otro ingrediente a la mezcla
+                        </button>
                       </div>
-                      {/* Nombre del ingrediente alternativo */}
-                      <input
-                        type="text"
-                        value={ingredient.alternative?.name || ""}
-                        onChange={(e) => updateAlternative(index, "name", e.target.value)}
-                        onFocus={handleInputFocus}
-                        onSelect={handleInputSelect}
-                        className="input text-sm flex-1 min-w-0"
-                        placeholder="Nombre del ingrediente alternativo"
-                      />
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => toggleShowAlternative(index)}
-                      className="p-1.5 shrink-0 text-emerald-600 hover:text-red-600 transition-colors"
-                      title="Quitar alternativa"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                )}
+                  );
+                })()}
                 
                 {/* Secondary measurement row (collapsed by default) */}
                 {(isExpanded || hasSecondary) && (
@@ -1967,53 +2107,53 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                       </button>
                     </div>
                     
-                    {/* Alternative ingredient variant row - only show if alternative exists and variants enabled */}
-                    {showAlternative.has(index) && ingredient.alternative?.name && (
-                      <div className="flex items-center gap-2 bg-emerald-50/50 rounded-r-lg py-1 pr-2">
-                        <span className="text-xs text-emerald-600 font-medium shrink-0" style={{ width: '30px' }}>
-                          o
-                        </span>
-                        <div className="flex-1 grid gap-2" style={{ gridTemplateColumns: '60px 90px 1fr' }}>
-                          <input
-                            type="text"
-                            value={ingredient.alternative?.amount2 || ""}
-                            onChange={(e) => {
-                              const updated = [...ingredients];
-                              const currentAlt = updated[index].alternative || { name: "", amount: "", unit: "" };
-                              updated[index] = { 
-                                ...updated[index], 
-                                alternative: { ...currentAlt, amount2: e.target.value }
-                              };
-                              setIngredients(updated);
-                            }}
-                            onFocus={handleInputFocus}
-                            onSelect={handleInputSelect}
-                            className="input text-sm text-center"
-                            placeholder="—"
-                          />
-                          <input
-                            type="text"
-                            value={ingredient.alternative?.unit2 || ingredient.alternative?.unit || ""}
-                            onChange={(e) => {
-                              const updated = [...ingredients];
-                              const currentAlt = updated[index].alternative || { name: "", amount: "", unit: "" };
-                              updated[index] = { 
-                                ...updated[index], 
-                                alternative: { ...currentAlt, unit2: e.target.value }
-                              };
-                              setIngredients(updated);
-                            }}
-                            className="input text-sm"
-                            placeholder={ingredient.alternative?.unit || "g"}
-                            list="unit-suggestions"
-                          />
-                          <span className="text-xs text-emerald-600 flex items-center truncate">
-                            {ingredient.alternative?.name || "—"}
-                          </span>
-                        </div>
-                        <div className="w-7"></div> {/* Spacer to align with delete button above */}
-                      </div>
-                    )}
+                    {/* Alternative ingredients variant 2 rows */}
+                    {showAlternative.has(index) &&
+                      (ingredient.alternatives ?? getAlternativeIngredients(ingredient)).map(
+                        (alt, altIdx) => (
+                          <div
+                            key={altIdx}
+                            className="flex items-center gap-2 bg-emerald-50/50 rounded-r-lg py-1 pr-2"
+                          >
+                            <span
+                              className="text-xs text-emerald-600 font-medium shrink-0"
+                              style={{ width: "30px" }}
+                            >
+                              {altIdx === 0 ? "o" : "+"}
+                            </span>
+                            <div
+                              className="flex-1 grid gap-2"
+                              style={{ gridTemplateColumns: "60px 90px 1fr" }}
+                            >
+                              <input
+                                type="text"
+                                value={alt.amount2 || ""}
+                                onChange={(e) =>
+                                  updateAlternativeAt(index, altIdx, "amount2", e.target.value)
+                                }
+                                onFocus={handleInputFocus}
+                                onSelect={handleInputSelect}
+                                className="input text-sm text-center"
+                                placeholder="—"
+                              />
+                              <input
+                                type="text"
+                                value={alt.unit2 || alt.unit || ""}
+                                onChange={(e) =>
+                                  updateAlternativeAt(index, altIdx, "unit2", e.target.value)
+                                }
+                                className="input text-sm"
+                                placeholder={alt.unit || "g"}
+                                list="unit-suggestions"
+                              />
+                              <span className="text-xs text-emerald-600 flex items-center truncate">
+                                {alt.name || "—"}
+                              </span>
+                            </div>
+                            <div className="w-7"></div>
+                          </div>
+                        )
+                      )}
                   </div>
                 )}
               </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import type { Recipe, Ingredient } from "@/lib/supabase";
+import { getAlternativeIngredients, type Recipe, type Ingredient } from "@/lib/supabase";
 import {
   computeServingsMultiplierPersonas,
   getRecipeDefaultPersonas,
@@ -108,7 +108,11 @@ export default function RecipeOptionsModal({
   const ingredients = (recipe.ingredients ?? []) as Ingredient[];
   const ingredientsWithAlternatives = ingredients
     .map((ing, idx) => ({ ingredient: ing, index: idx }))
-    .filter(({ ingredient }) => ingredient.alternative?.name && !ingredient.isHeader);
+    .filter(
+      ({ ingredient }) =>
+        !ingredient.isHeader &&
+        getAlternativeIngredients(ingredient).length > 0
+    );
 
   const hasAlternatives = ingredientsWithAlternatives.length > 0;
 
@@ -552,9 +556,11 @@ export default function RecipeOptionsModal({
               <div className="space-y-3">
                 {ingredientsWithAlternatives.map(({ ingredient, index }) => {
                   const useAlternative = alternativeSelections[index.toString()] || false;
-                  const alt = ingredient.alternative!;
+                  const altList = getAlternativeIngredients(ingredient);
                   const primaryText = `${ingredient.amount} ${ingredient.unit} ${ingredient.name}`.trim();
-                  const altText = `${alt.amount} ${alt.unit} ${alt.name}`.trim();
+                  const altText = altList
+                    .map((alt) => `${alt.amount} ${alt.unit} ${alt.name}`.trim())
+                    .join(" + ");
 
                   return (
                     <div key={index} className="bg-[var(--color-purple-bg)] rounded-xl p-3">
