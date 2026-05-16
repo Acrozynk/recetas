@@ -116,6 +116,8 @@ export default function PlannerPage() {
   const [touchDragging, setTouchDragging] = useState(false);
   const touchStartPos = useRef<{ x: number; y: number } | null>(null);
   const dragGhostRef = useRef<HTMLDivElement | null>(null);
+  const draggingPlanRef = useRef<MealPlan | null>(null);
+  const dragOverSlotRef = useRef<{ date: string; mealType: MealType } | null>(null);
   const slotRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   // Horizontal-scroll container for the *current* week's grid. Used to snap
   // today's column into view on narrow screens (the grid has a 640px min-width
@@ -420,10 +422,80 @@ export default function PlannerPage() {
   };
 
   // Drag and drop handlers
+  useEffect(() => {
+    draggingPlanRef.current = draggingPlan;
+  }, [draggingPlan]);
+
+  useEffect(() => {
+    dragOverSlotRef.current = dragOverSlot;
+  }, [dragOverSlot]);
+
+  const getSlotKey = (date: string, mealType: MealType) => `${date}-${mealType}`;
+
+  const findSlotUnderTouch = (x: number, y: number): { date: string; mealType: MealType } | null => {
+    for (const [key, element] of slotRefs.current.entries()) {
+      const rect = element.getBoundingClientRect();
+      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+        const [date, mealType] = key.split(/-(?=[^-]+$)/);
+        return { date, mealType: mealType as MealType };
+      }
+    }
+    return null;
+  };
+
+  const removeDragGhost = () => {
+    if (dragGhostRef.current) {
+      dragGhostRef.current.remove();
+      dragGhostRef.current = null;
+    }
+  };
+
+  const createDragGhost = (plan: MealPlan, x: number, y: number) => {
+    removeDragGhost();
+    const ghost = document.createElement("div");
+    ghost.className =
+      "fixed pointer-events-none z-[100] bg-white rounded-lg shadow-xl border-2 border-[var(--color-purple)] p-2 opacity-90 max-w-[140px]";
+    ghost.style.left = `${x}px`;
+    ghost.style.top = `${y}px`;
+    ghost.style.transform = "translate(-50%, -50%)";
+    const label = document.createElement("p");
+    label.className = "text-xs font-medium line-clamp-2";
+    label.textContent = plan.recipe?.title || plan.note || "Nota";
+    ghost.appendChild(label);
+    document.body.appendChild(ghost);
+    dragGhostRef.current = ghost;
+  };
+
+  const movePlanToSlot = async (
+    plan: MealPlan,
+    targetDate: string,
+    targetMealType: MealType
+  ) => {
+    if (plan.plan_date === targetDate && plan.meal_type === targetMealType) return;
+
+    try {
+      await supabase
+        .from("meal_plans")
+        .update({
+          plan_date: targetDate,
+          meal_type: targetMealType,
+        })
+        .eq("id", plan.id);
+
+      if (navigator.vibrate) {
+        navigator.vibrate(100);
+      }
+
+      loadData();
+    } catch (error) {
+      console.error("Error moving meal plan:", error);
+    }
+  };
+
   const handleDragStart = (e: React.DragEvent, plan: MealPlan) => {
     setDraggingPlan(plan);
     e.dataTransfer.effectAllowed = "move";
-    // Add some transparency to the dragged element
+    e.dataTransfer.setData("text/plain", plan.id);
     if (e.currentTarget instanceof HTMLElement) {
       e.currentTarget.style.opacity = "0.5";
     }
@@ -453,151 +525,77 @@ export default function PlannerPage() {
 
     if (!draggingPlan) return;
 
-    // If dropping on the same slot, do nothing
-    if (draggingPlan.plan_date === targetDate && draggingPlan.meal_type === targetMealType) {
-      setDraggingPlan(null);
-      return;
-    }
-
-    try {
-      // Move the dragged plan to the target slot. Any existing plans there
-      // are kept — multiple recipes can coexist in the same meal slot.
-      await supabase
-        .from("meal_plans")
-        .update({
-          plan_date: targetDate,
-          meal_type: targetMealType,
-        })
-        .eq("id", draggingPlan.id);
-
-      loadData();
-    } catch (error) {
-      console.error("Error moving meal plan:", error);
-    } finally {
-      setDraggingPlan(null);
-    }
-  };
-
-  // Touch event handlers for mobile drag and drop
-  const getSlotKey = (date: string, mealType: MealType) => `${date}-${mealType}`;
-
-  const findSlotUnderTouch = (x: number, y: number): { date: string; mealType: MealType } | null => {
-    for (const [key, element] of slotRefs.current.entries()) {
-      const rect = element.getBoundingClientRect();
-      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-        const [date, mealType] = key.split(/-(?=[^-]+$)/);
-        return { date, mealType: mealType as MealType };
-      }
-    }
-    return null;
+    await movePlanToSlot(draggingPlan, targetDate, targetMealType);
+    setDraggingPlan(null);
   };
 
   const handleTouchStart = (e: React.TouchEvent, plan: MealPlan) => {
+    if ((e.target as HTMLElement).closest("[data-plan-action]")) return;
+
     const touch = e.touches[0];
     touchStartPos.current = { x: touch.clientX, y: touch.clientY };
-    
-    // Create ghost element after a short delay to distinguish from tap
+
     const timer = setTimeout(() => {
       setDraggingPlan(plan);
       setTouchDragging(true);
-      
-      // Create ghost element
-      const ghost = document.createElement('div');
-      ghost.className = 'fixed pointer-events-none z-[100] bg-white rounded-lg shadow-xl border-2 border-[var(--color-purple)] p-2 opacity-90 transform -translate-x-1/2 -translate-y-1/2';
-      ghost.style.left = `${touch.clientX}px`;
-      ghost.style.top = `${touch.clientY}px`;
-      ghost.style.width = '120px';
-      ghost.innerHTML = `
-        <p class="text-xs font-medium line-clamp-2">${plan.recipe?.title || ''}</p>
-      `;
-      document.body.appendChild(ghost);
-      dragGhostRef.current = ghost;
-      
-      // Vibrate for feedback if available
+      createDragGhost(plan, touch.clientX, touch.clientY);
       if (navigator.vibrate) {
         navigator.vibrate(50);
       }
     }, 200);
-    
-    // Store timer to cancel if touch ends quickly (it's a tap, not drag)
+
     (e.currentTarget as HTMLElement).dataset.touchTimer = String(timer);
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchDragging || !draggingPlan) return;
-    
-    e.preventDefault();
-    const touch = e.touches[0];
-    
-    // Move ghost element
-    if (dragGhostRef.current) {
-      dragGhostRef.current.style.left = `${touch.clientX}px`;
-      dragGhostRef.current.style.top = `${touch.clientY}px`;
-    }
-    
-    // Find slot under touch
-    const slot = findSlotUnderTouch(touch.clientX, touch.clientY);
-    setDragOverSlot(slot);
-  };
-
-  const handleTouchEnd = async (e: React.TouchEvent) => {
-    // Clear the timer if touch ended quickly
-    const timer = (e.currentTarget as HTMLElement).dataset.touchTimer;
+  const handleTouchEndCleanup = (e: React.TouchEvent) => {
+    const el = e.currentTarget as HTMLElement;
+    const timer = el.dataset.touchTimer;
     if (timer) {
       clearTimeout(Number(timer));
-    }
-    
-    // Remove ghost element
-    if (dragGhostRef.current) {
-      dragGhostRef.current.remove();
-      dragGhostRef.current = null;
-    }
-    
-    if (!touchDragging || !draggingPlan) {
-      setTouchDragging(false);
-      touchStartPos.current = null;
-      return;
-    }
-    
-    const targetSlot = dragOverSlot;
-    setTouchDragging(false);
-    setDragOverSlot(null);
-    touchStartPos.current = null;
-    
-    if (!targetSlot) {
-      setDraggingPlan(null);
-      return;
-    }
-    
-    // If dropping on the same slot, do nothing
-    if (draggingPlan.plan_date === targetSlot.date && draggingPlan.meal_type === targetSlot.mealType) {
-      setDraggingPlan(null);
-      return;
-    }
-    
-    try {
-      // Move the dragged plan to the target slot. Any existing plans there
-      // are kept — multiple recipes can coexist in the same meal slot.
-      await supabase
-        .from("meal_plans")
-        .update({
-          plan_date: targetSlot.date,
-          meal_type: targetSlot.mealType,
-        })
-        .eq("id", draggingPlan.id);
-
-      // Vibrate for feedback
-      if (navigator.vibrate) {
-        navigator.vibrate(100);
-      }
-      
-      loadData();
-    } catch (error) {
-      console.error("Error moving meal plan:", error);
-    } finally {
-      setDraggingPlan(null);
+      delete el.dataset.touchTimer;
     }
   };
+
+  useEffect(() => {
+    if (!touchDragging) return;
+
+    const onMove = (e: TouchEvent) => {
+      e.preventDefault();
+      const touch = e.touches[0];
+      if (!touch) return;
+
+      if (dragGhostRef.current) {
+        dragGhostRef.current.style.left = `${touch.clientX}px`;
+        dragGhostRef.current.style.top = `${touch.clientY}px`;
+      }
+
+      setDragOverSlot(findSlotUnderTouch(touch.clientX, touch.clientY));
+    };
+
+    const onEnd = async () => {
+      const plan = draggingPlanRef.current;
+      const targetSlot = dragOverSlotRef.current;
+
+      removeDragGhost();
+      setTouchDragging(false);
+      setDragOverSlot(null);
+      setDraggingPlan(null);
+      touchStartPos.current = null;
+
+      if (!plan || !targetSlot) return;
+      await movePlanToSlot(plan, targetSlot.date, targetSlot.mealType);
+    };
+
+    document.addEventListener("touchmove", onMove, { passive: false });
+    document.addEventListener("touchend", onEnd);
+    document.addEventListener("touchcancel", onEnd);
+
+    return () => {
+      document.removeEventListener("touchmove", onMove);
+      document.removeEventListener("touchend", onEnd);
+      document.removeEventListener("touchcancel", onEnd);
+    };
+  }, [touchDragging, loadData]);
 
   const filteredRecipes = recipes.filter((recipe) => {
     const matchesSearch = recipeTextMatchesQuery(
@@ -783,15 +781,16 @@ export default function PlannerPage() {
                               key={plan.id}
                               className={`relative group/plan rounded-md bg-amber-100 border border-amber-300 p-1.5 ${
                                 isThisDragging ? "opacity-50" : ""
-                              } cursor-grab active:cursor-grabbing touch-none`}
+                              } cursor-grab active:cursor-grabbing touch-none select-none`}
                               draggable
                               onDragStart={(e) => handleDragStart(e, plan)}
                               onDragEnd={handleDragEnd}
                               onTouchStart={(e) => handleTouchStart(e, plan)}
-                              onTouchMove={handleTouchMove}
-                              onTouchEnd={handleTouchEnd}
+                              onTouchEnd={handleTouchEndCleanup}
                             >
                               <button
+                                type="button"
+                                data-plan-action
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   removeMealPlan(plan.id);
@@ -801,6 +800,8 @@ export default function PlannerPage() {
                                 ×
                               </button>
                               <button
+                                type="button"
+                                data-plan-action
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   e.preventDefault();
@@ -813,14 +814,10 @@ export default function PlannerPage() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                 </svg>
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => openNoteEditor(dateKey, mealType, plan)}
-                                className="w-full text-left flex items-start gap-1.5"
-                              >
-                                <span className="text-base leading-none">📝</span>
+                              <div className="w-full text-left flex items-start gap-1.5 pr-4">
+                                <span className="text-base leading-none shrink-0">📝</span>
                                 <p
-                                  className={`font-medium leading-tight whitespace-pre-wrap ${
+                                  className={`font-medium leading-tight whitespace-pre-wrap select-none ${
                                     compact
                                       ? "text-[11px] line-clamp-2"
                                       : "text-xs line-clamp-4"
@@ -828,7 +825,7 @@ export default function PlannerPage() {
                                 >
                                   {plan.note}
                                 </p>
-                              </button>
+                              </div>
                             </div>
                           );
                         }
@@ -843,10 +840,11 @@ export default function PlannerPage() {
                             onDragStart={(e) => handleDragStart(e, plan)}
                             onDragEnd={handleDragEnd}
                             onTouchStart={(e) => handleTouchStart(e, plan)}
-                            onTouchMove={handleTouchMove}
-                            onTouchEnd={handleTouchEnd}
+                            onTouchEnd={handleTouchEndCleanup}
                           >
                             <button
+                              type="button"
+                              data-plan-action
                               onClick={(e) => {
                                 e.stopPropagation();
                                 removeMealPlan(plan.id);
@@ -856,6 +854,8 @@ export default function PlannerPage() {
                               ×
                             </button>
                             <button
+                              type="button"
+                              data-plan-action
                               onClick={(e) => {
                                 e.stopPropagation();
                                 e.preventDefault();
