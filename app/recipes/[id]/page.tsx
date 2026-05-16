@@ -36,6 +36,7 @@ import {
   splitInstructionWithRecipeLinks,
   extractLinkedRecipeIdsFromInstructions,
 } from "@/lib/recipe-links";
+import { getRecipeDefaultPersonas } from "@/lib/meal-plan-portions";
 
 // Helper function to normalize text for matching (remove accents, lowercase)
 function normalizeText(text: string): string {
@@ -901,22 +902,9 @@ export default function RecipeDetailPage() {
     if (recipe.servings_unit) {
       setUnitsQuantity(recipe.servings);
     } else if (!recipe.container_id && !recipe.variant_1_label) {
-      const hasPersonasMeta =
-        recipe.personas_adults_per_batch != null &&
-        recipe.personas_children_per_batch != null;
-      if (hasPersonasMeta) {
-        // Collapse legacy `personas_batch_count > 1` into adults/children so the
-        // page shows the recipe's full size pre-migration. After migration this
-        // is a no-op since `personas_batch_count` is always 1.
-        const b = Math.max(1, recipe.personas_batch_count ?? 1);
-        const a = recipe.personas_adults_per_batch!;
-        const c = recipe.personas_children_per_batch!;
-        setAdultsPerBatch(Math.max(0, b * a));
-        setChildrenPerBatch(Math.max(0, b * c));
-      } else {
-        setAdultsPerBatch(recipe.servings);
-        setChildrenPerBatch(0);
-      }
+      const defaults = getRecipeDefaultPersonas(recipe);
+      setAdultsPerBatch(defaults.adults);
+      setChildrenPerBatch(defaults.children);
     }
   }, [recipe?.id]);
 
@@ -982,6 +970,11 @@ export default function RecipeDetailPage() {
         : recipe?.servings || 1;
 
   const servingMultiplier = totalPortions / originalServings;
+
+  const defaultPersonas =
+    recipe && !usesContainer && !usesUnits && !recipe.variant_1_label
+      ? getRecipeDefaultPersonas(recipe)
+      : null;
 
   const handleDelete = async () => {
     if (!recipe) return;
@@ -1623,12 +1616,13 @@ export default function RecipeDetailPage() {
                 <span className="font-medium text-[var(--color-slate)]">
                   Ajustar porciones
                 </span>
-                {(adultsPerBatch !== recipe.servings ||
-                  childrenPerBatch !== 0) && (
+                {defaultPersonas &&
+                  (adultsPerBatch !== defaultPersonas.adults ||
+                    childrenPerBatch !== defaultPersonas.children) && (
                   <button
                     onClick={() => {
-                      setAdultsPerBatch(recipe.servings || 1);
-                      setChildrenPerBatch(0);
+                      setAdultsPerBatch(defaultPersonas.adults);
+                      setChildrenPerBatch(defaultPersonas.children);
                     }}
                     className="text-sm text-[var(--color-purple)] hover:underline"
                   >
