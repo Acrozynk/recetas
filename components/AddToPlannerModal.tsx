@@ -346,7 +346,7 @@ export default function AddToPlannerModal({
                       onClick={() => setWeekOffset(0)}
                       className="text-xs text-[var(--color-purple)] hover:underline"
                     >
-                      Semana actual
+                      Ir a hoy
                     </button>
                   )}
                 </div>
