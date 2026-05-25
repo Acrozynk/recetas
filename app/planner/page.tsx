@@ -814,14 +814,13 @@ export default function PlannerPage() {
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                 </svg>
                               </button>
-                              <div className="w-full text-left flex items-start gap-1.5 pr-4">
-                                <span className="text-base leading-none shrink-0">📝</span>
+                              <div className="w-full min-w-0 pr-5 pt-0.5 text-left">
                                 <p
-                                  className={`font-medium leading-tight whitespace-pre-wrap select-none ${
+                                  className={`font-medium leading-snug whitespace-pre-wrap select-none break-words text-amber-900 ${
                                     compact
-                                      ? "text-[11px] line-clamp-2"
-                                      : "text-xs line-clamp-4"
-                                  } text-amber-900`}
+                                      ? "text-[12px] line-clamp-4"
+                                      : "text-sm sm:text-xs line-clamp-6 sm:line-clamp-4"
+                                  }`}
                                 >
                                   {plan.note}
                                 </p>

@@ -750,6 +750,8 @@ export default function RecipeDetailPage() {
   const [adultsPerBatch, setAdultsPerBatch] = useState(0);
   /** Children (each counts as ½ adult portion) */
   const [childrenPerBatch, setChildrenPerBatch] = useState(0);
+  /** Scale ingredient amounts on top of (adultos + ½ niños), e.g. cook the same menu twice (×2). */
+  const [portionExtraMultiplier, setPortionExtraMultiplier] = useState(1);
   const [unitsQuantity, setUnitsQuantity] = useState(0); // For units-based recipes
   // Container-based scaling
   const [containerQuantity, setContainerQuantity] = useState(1);
@@ -905,6 +907,7 @@ export default function RecipeDetailPage() {
       const defaults = getRecipeDefaultPersonas(recipe);
       setAdultsPerBatch(defaults.adults);
       setChildrenPerBatch(defaults.children);
+      setPortionExtraMultiplier(1);
     }
   }, [recipe?.id]);
 
@@ -939,15 +942,16 @@ export default function RecipeDetailPage() {
     }
   };
 
-  // Person-based: total portions = adults + ½ × children.
+  // Person-based: total portions = (adults + ½ × children) × portionExtraMultiplier.
   // For container-based recipes, use containerQuantity; for unit-based, unitsQuantity.
   const usesContainer = !!recipe?.container_id;
   const usesUnits = !!recipe?.servings_unit;
+  const basePeoplePortions = adultsPerBatch + childrenPerBatch * 0.5;
   const totalPortions = usesContainer
     ? containerQuantity
     : usesUnits
       ? unitsQuantity
-      : adultsPerBatch + childrenPerBatch * 0.5;
+      : basePeoplePortions * portionExtraMultiplier;
 
   // Baseline for scaling: ingredient amounts in DB are written for this many adult-equivalent portions.
   // If we saved personas_* fields, use that exact total — not recipe.servings, which is rounded to
@@ -1618,11 +1622,13 @@ export default function RecipeDetailPage() {
                 </span>
                 {defaultPersonas &&
                   (adultsPerBatch !== defaultPersonas.adults ||
-                    childrenPerBatch !== defaultPersonas.children) && (
+                    childrenPerBatch !== defaultPersonas.children ||
+                    portionExtraMultiplier !== 1) && (
                   <button
                     onClick={() => {
                       setAdultsPerBatch(defaultPersonas.adults);
                       setChildrenPerBatch(defaultPersonas.children);
+                      setPortionExtraMultiplier(1);
                     }}
                     className="text-sm text-[var(--color-purple)] hover:underline"
                   >
@@ -1633,7 +1639,7 @@ export default function RecipeDetailPage() {
 
               <p className="text-xs text-[var(--color-slate)] mb-3">
                 Adultos y niños (½ ración). Los ingredientes se escalan con{" "}
-                <strong>(adultos + ½ niños)</strong> respecto a la receta.
+                <strong>(adultos + ½ niños) × multiplicador</strong> respecto a la receta.
               </p>
 
               <div className="grid grid-cols-2 gap-4">
@@ -1721,6 +1727,58 @@ export default function RecipeDetailPage() {
                 </div>
               </div>
 
+              <div className="mt-4 space-y-2">
+                <span className="text-xs font-medium text-[var(--color-slate)]">
+                  Multiplicar cantidad
+                </span>
+                <p className="text-[11px] text-[var(--color-slate-light)] leading-snug">
+                  Escala toda la lista de ingredientes (por ejemplo ×3 sin poner 6 adultos y 9
+                  niños). El total de porciones abajo incluye este factor.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  {([1, 1.5, 2, 3] as const).map((preset) => {
+                    const active = Math.abs(portionExtraMultiplier - preset) < 0.0001;
+                    return (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => setPortionExtraMultiplier(preset)}
+                        className={`min-w-[2.75rem] px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
+                          active
+                            ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                            : "bg-white text-[var(--color-slate)] border-amber-200 hover:bg-amber-50"
+                        }`}
+                      >
+                        {preset === 1 ? "1×" : `${preset}×`}
+                      </button>
+                    );
+                  })}
+                  <label className="flex items-center gap-1.5 text-xs text-[var(--color-slate)] ml-auto sm:ml-0">
+                    <span className="whitespace-nowrap">Otro:</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={0.25}
+                      max={99}
+                      step="any"
+                      value={portionExtraMultiplier}
+                      onChange={(e) => {
+                        const v = parseFloat(e.target.value.replace(",", "."));
+                        if (Number.isNaN(v)) return;
+                        setPortionExtraMultiplier(v);
+                      }}
+                      onBlur={() => {
+                        setPortionExtraMultiplier((m) => {
+                          if (!Number.isFinite(m) || m < 0.25) return 1;
+                          return Math.min(99, m);
+                        });
+                      }}
+                      className="w-16 text-center text-sm font-semibold text-amber-700 bg-white border border-amber-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-amber-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                  </label>
+                </div>
+              </div>
+
               {/* Total portions summary */}
               <div className="mt-4 pt-3 border-t border-[var(--border-color)]">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -1742,6 +1800,16 @@ export default function RecipeDetailPage() {
                         : ""}
                       )
                     </span>
+                    {portionExtraMultiplier !== 1 && (
+                      <span className="text-amber-700 ml-1 font-medium">
+                        · ×
+                        {portionExtraMultiplier % 1 === 0
+                          ? portionExtraMultiplier
+                          : portionExtraMultiplier.toLocaleString("es-ES", {
+                              maximumFractionDigits: 2,
+                            })}
+                      </span>
+                    )}
                     {servingMultiplier !== 1 && (
                       <span className="text-[var(--color-purple)] ml-1">
                         (×
