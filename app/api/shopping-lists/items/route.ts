@@ -18,6 +18,7 @@ export async function GET(request: Request) {
       .from("shopping_list_items")
       .select("*")
       .eq("list_id", listId)
+      .order("pinned", { ascending: false })
       .order("category")
       .order("checked")
       .order("name");

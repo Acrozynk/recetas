@@ -1406,6 +1406,143 @@ function IngredientPreviewModal({
   );
 }
 
+function isItemPinned(item: ShoppingItem): boolean {
+  return !!item.pinned;
+}
+
+function ShoppingListItemRow({
+  item,
+  selectedItems,
+  onToggleChecked,
+  onTogglePin,
+  onEdit,
+  onAdjustQuantity,
+  onToggleSelection,
+  onDelete,
+  highlightPinned,
+}: {
+  item: ShoppingItem;
+  selectedItems: Set<string>;
+  onToggleChecked: (item: ShoppingItem) => void;
+  onTogglePin: (item: ShoppingItem) => void;
+  onEdit: (item: ShoppingItem) => void;
+  onAdjustQuantity: (item: ShoppingItem, delta: number) => void;
+  onToggleSelection: (id: string) => void;
+  onDelete: (id: string) => void;
+  highlightPinned?: boolean;
+}) {
+  const pinned = isItemPinned(item);
+
+  return (
+    <div
+      className={`group/item flex items-center gap-1 p-3 transition-colors ${
+        selectedItems.has(item.id) ? "bg-[var(--color-purple-bg)]" : ""
+      } ${highlightPinned ? "bg-amber-50/80" : ""}`}
+    >
+      <label
+        className="flex items-center justify-center w-10 h-10 cursor-pointer flex-shrink-0 -m-1"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <input
+          type="checkbox"
+          checked={item.checked}
+          onChange={() => onToggleChecked(item)}
+          className="checkbox"
+        />
+      </label>
+
+      <button
+        type="button"
+        onClick={() => onTogglePin(item)}
+        className={`w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center transition-colors ${
+          pinned
+            ? "bg-amber-200 text-amber-800"
+            : "text-[var(--color-slate-light)] hover:bg-amber-50 hover:text-amber-700 opacity-80 sm:opacity-50 sm:group-hover/item:opacity-100"
+        }`}
+        title={pinned ? "Quitar de fijados" : "Fijar arriba (compra rápida)"}
+        aria-label={pinned ? "Quitar de fijados" : "Fijar arriba"}
+        aria-pressed={pinned}
+      >
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill={pinned ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2}>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 2c-3.87 0-7 3.13-7 7 0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
+          />
+          <circle cx="12" cy="9" r="2.5" fill={pinned ? "white" : "currentColor"} stroke="none" />
+        </svg>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onEdit(item)}
+        className="flex-1 min-w-0 text-left hover:bg-[var(--color-purple-bg)] rounded-lg px-2 py-1 transition-colors"
+      >
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="text-[var(--foreground)]">{item.name}</span>
+          {item.quantity && (
+            <span className="text-sm font-medium text-[var(--color-purple)]">{item.quantity}</span>
+          )}
+        </div>
+        {item.recipe_sources && item.recipe_sources.length > 0 && (
+          <p className="text-xs mt-0.5 truncate text-[var(--color-slate)]">
+            📖 {item.recipe_sources.join(", ")}
+          </p>
+        )}
+      </button>
+
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => onAdjustQuantity(item, -1)}
+          className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] active:scale-95"
+          title="Reducir cantidad"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          onClick={() => onAdjustQuantity(item, 1)}
+          className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] active:scale-95"
+          title="Aumentar cantidad"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+        </button>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => onToggleSelection(item.id)}
+        className={`w-7 h-7 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
+          selectedItems.has(item.id)
+            ? "bg-[var(--color-purple)] text-white"
+            : "bg-blue-100 text-blue-600 hover:bg-blue-200"
+        }`}
+        title="Seleccionar para mover/copiar a otro supermercado"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+        </svg>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onDelete(item.id)}
+        className="p-1 text-[var(--color-slate-light)] hover:text-red-600 transition-colors flex-shrink-0"
+        title="Eliminar"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 export default function ShoppingPage() {
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1416,6 +1553,7 @@ export default function ShoppingPage() {
   const [isGroceryModalOpen, setIsGroceryModalOpen] = useState(false);
   const [isCategoryOrderModalOpen, setIsCategoryOrderModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
+  const [hideUnpinned, setHideUnpinned] = useState(false);
   
   // Preview modal state
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -1502,14 +1640,26 @@ export default function ShoppingPage() {
 
   const loadItems = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      const baseQuery = supabase
         .from("shopping_items")
         .select("*")
         .eq("supermarket", selectedSupermarket)
-        .is("deleted_at", null)
+        .is("deleted_at", null);
+
+      let { data, error } = await baseQuery
+        .order("pinned", { ascending: false })
         .order("category")
         .order("checked")
         .order("name");
+
+      if (error && /column .*pinned/i.test(error.message || "")) {
+        const fallback = await baseQuery.order("category").order("checked").order("name");
+        data = fallback.data;
+        error = fallback.error;
+        if (data) {
+          data = data.map((row) => ({ ...row, pinned: false }));
+        }
+      }
 
       if (error) throw error;
       setItems(data || []);
@@ -1951,6 +2101,33 @@ export default function ShoppingPage() {
     }
   };
 
+  const togglePin = async (item: ShoppingItem) => {
+    const nextPinned = !isItemPinned(item);
+    try {
+      const { error } = await supabase
+        .from("shopping_items")
+        .update({ pinned: nextPinned })
+        .eq("id", item.id);
+
+      if (error) {
+        const message = error.message || "";
+        if (/column .*pinned/i.test(message)) {
+          alert(
+            "Falta la columna «pinned» en la base de datos. Aplica la migración 022_shopping_items_pinned.sql en Supabase y vuelve a intentarlo."
+          );
+        }
+        throw error;
+      }
+
+      setItems(
+        items.map((i) => (i.id === item.id ? { ...i, pinned: nextPinned } : i))
+      );
+      if (nextPinned) setHideUnpinned(false);
+    } catch (error) {
+      console.error("Error toggling pin:", error);
+    }
+  };
+
   const addManualItem = async (name: string, quantity: string, category: string) => {
     if (!name.trim()) return;
 
@@ -2242,6 +2419,7 @@ export default function ShoppingPage() {
     setSelectedSupermarket(market);
     setSelectedItems(new Set());
     setSelectionMode(false);
+    setHideUnpinned(false);
   };
 
   const openMoveModalForSelection = () => {
@@ -2286,6 +2464,7 @@ export default function ShoppingPage() {
         quantity: item.quantity,
         category: item.category,
         checked: false,
+        pinned: false,
         recipe_id: item.recipe_id,
         recipe_sources: item.recipe_sources || [],
         supermarket: targetSupermarket,
@@ -2338,8 +2517,16 @@ export default function ShoppingPage() {
   const uncheckedItems = items.filter((item) => !item.checked);
   const checkedItems = items.filter((item) => item.checked);
 
-  // Group only unchecked items by category
-  const groupedItems = uncheckedItems.reduce(
+  const sortByName = (a: ShoppingItem, b: ShoppingItem) =>
+    a.name.localeCompare(b.name, "es");
+
+  const pinnedUnchecked = uncheckedItems
+    .filter((item) => isItemPinned(item))
+    .sort(sortByName);
+  const unpinnedUnchecked = uncheckedItems.filter((item) => !isItemPinned(item));
+
+  // Group unpinned unchecked items by category (pinned items live in their own section)
+  const groupedItems = unpinnedUnchecked.reduce(
     (acc, item) => {
       const category = item.category || "Otros";
       if (!acc[category]) acc[category] = [];
@@ -2348,6 +2535,8 @@ export default function ShoppingPage() {
     },
     {} as Record<string, ShoppingItem[]>
   );
+
+  Object.values(groupedItems).forEach((list) => list.sort(sortByName));
 
   const checkedCount = checkedItems.length;
   const totalCount = items.length;
@@ -2761,107 +2950,88 @@ export default function ShoppingPage() {
           </div>
         ) : totalCount > 0 ? (
           <div className="space-y-6">
-            {/* Unchecked items grouped by category */}
-            {categoryOrder.filter((cat) => groupedItems[cat]?.length > 0).map(
-              (category) => (
-                <div key={category}>
-                  <h3 className="font-display text-lg font-semibold text-[var(--foreground)] mb-2 flex items-center gap-2">
-                    <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${supermarketColor.bg} ${supermarketColor.text}`}>
-                      {categoryOrder.indexOf(category) + 1}
+            {pinnedUnchecked.length > 0 && (
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <h3 className="font-display text-lg font-semibold text-[var(--foreground)] flex items-center gap-2">
+                    <span className="text-xl">📌</span>
+                    Fijados
+                    <span className="text-sm font-normal text-[var(--color-slate)]">
+                      ({pinnedUnchecked.length})
                     </span>
-                    <span className="text-xl">{CATEGORY_ICONS[category] || "📦"}</span>
-                    {category}
                   </h3>
-                  <div className="bg-white rounded-xl border border-[var(--border-color)] divide-y divide-[var(--border-color)]">
-                    {groupedItems[category].map((item) => (
-                      <div
-                        key={item.id}
-                        className={`flex items-center gap-1 p-3 transition-colors ${
-                          selectedItems.has(item.id) ? "bg-[var(--color-purple-bg)]" : ""
-                        }`}
-                      >
-                        {/* Normal checkbox for marking as bought - wrapped in label for larger touch target */}
-                        <label 
-                          className="flex items-center justify-center w-10 h-10 cursor-pointer flex-shrink-0 -m-1"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={item.checked}
-                            onChange={() => toggleItem(item)}
-                            className="checkbox"
-                          />
-                        </label>
-                        
-                        <button
-                          onClick={() => setEditingItem(item)}
-                          className="flex-1 min-w-0 text-left hover:bg-[var(--color-purple-bg)] rounded-lg px-2 py-1 ml-1 transition-colors"
-                        >
-                          <div className="flex items-baseline gap-2 flex-wrap">
-                            <span className="text-[var(--foreground)]">
-                              {item.name}
-                            </span>
-                            {item.quantity && (
-                              <span className="text-sm font-medium text-[var(--color-purple)]">
-                                {item.quantity}
-                              </span>
-                            )}
-                          </div>
-                          {item.recipe_sources && item.recipe_sources.length > 0 && (
-                            <p className="text-xs mt-0.5 truncate text-[var(--color-slate)]">
-                              📖 {item.recipe_sources.join(", ")}
-                            </p>
-                          )}
-                        </button>
-                        {/* Quantity controls */}
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          <button
-                            onClick={() => adjustQuantity(item, -1)}
-                            className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] active:scale-95"
-                            title="Reducir cantidad"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => adjustQuantity(item, 1)}
-                            className="w-7 h-7 rounded-full flex items-center justify-center transition-all bg-[var(--color-purple-bg)] text-[var(--color-purple)] hover:bg-[var(--color-purple-bg-dark)] active:scale-95"
-                            title="Aumentar cantidad"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                          </button>
-                        </div>
-                        {/* Move/Copy button */}
-                        <button
-                          onClick={() => toggleItemSelection(item.id)}
-                          className={`w-7 h-7 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
-                            selectedItems.has(item.id)
-                              ? "bg-[var(--color-purple)] text-white"
-                              : "bg-blue-100 text-blue-600 hover:bg-blue-200"
-                          }`}
-                          title="Seleccionar para mover/copiar a otro supermercado"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => deleteItem(item.id)}
-                          className="p-1 text-[var(--color-slate-light)] hover:text-red-600 transition-colors flex-shrink-0"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                  {unpinnedUnchecked.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setHideUnpinned((v) => !v)}
+                      className="text-sm text-[var(--color-purple)] hover:underline"
+                    >
+                      {hideUnpinned
+                        ? `Mostrar resto (${unpinnedUnchecked.length})`
+                        : "Ocultar resto de la lista"}
+                    </button>
+                  )}
                 </div>
-              )
+                <p className="text-xs text-[var(--color-slate)] mb-2">
+                  Compra rápida: solo lo que necesitas ahora. El resto de la lista sigue guardado.
+                </p>
+                <div className="bg-white rounded-xl border-2 border-amber-200 divide-y divide-amber-100 shadow-sm">
+                  {pinnedUnchecked.map((item) => (
+                    <ShoppingListItemRow
+                      key={item.id}
+                      item={item}
+                      selectedItems={selectedItems}
+                      onToggleChecked={toggleItem}
+                      onTogglePin={togglePin}
+                      onEdit={setEditingItem}
+                      onAdjustQuantity={adjustQuantity}
+                      onToggleSelection={toggleItemSelection}
+                      onDelete={deleteItem}
+                      highlightPinned
+                    />
+                  ))}
+                </div>
+              </div>
             )}
+
+            {!hideUnpinned && (() => {
+              const categoriesWithItems = categoryOrder.filter(
+                (cat) => groupedItems[cat]?.length > 0
+              );
+              return categoriesWithItems.map((category, categoryIndex) => (
+                  <div key={category}>
+                    {pinnedUnchecked.length > 0 && categoryIndex === 0 && (
+                      <p className="text-xs font-medium uppercase tracking-wide text-[var(--color-slate-light)] mb-3 mt-1">
+                        Resto de la lista
+                      </p>
+                    )}
+                    <h3 className="font-display text-lg font-semibold text-[var(--foreground)] mb-2 flex items-center gap-2">
+                      <span
+                        className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${supermarketColor.bg} ${supermarketColor.text}`}
+                      >
+                        {categoryOrder.indexOf(category) + 1}
+                      </span>
+                      <span className="text-xl">{CATEGORY_ICONS[category] || "📦"}</span>
+                      {category}
+                    </h3>
+                    <div className="bg-white rounded-xl border border-[var(--border-color)] divide-y divide-[var(--border-color)]">
+                      {groupedItems[category].map((item) => (
+                        <ShoppingListItemRow
+                          key={item.id}
+                          item={item}
+                          selectedItems={selectedItems}
+                          onToggleChecked={toggleItem}
+                          onTogglePin={togglePin}
+                          onEdit={setEditingItem}
+                          onAdjustQuantity={adjustQuantity}
+                          onToggleSelection={toggleItemSelection}
+                          onDelete={deleteItem}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ));
+            })()}
 
             {/* Checked items - all together at the bottom without categories */}
             {checkedItems.length > 0 && (

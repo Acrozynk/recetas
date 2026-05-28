@@ -393,7 +393,7 @@ export default function AddToPlannerModal({
                       {weekDates.map((date) => {
                         const dateKey = formatDateKey(date);
                         const plansHere = getPlansFor(dateKey, mealType).filter(
-                          (p) => p.recipe
+                          (p) => p.recipe || (p.note && p.note.trim())
                         );
                         const isSelected =
                           selectedDate === dateKey && selectedMealType === mealType;
@@ -401,17 +401,72 @@ export default function AddToPlannerModal({
                           (p) => p.recipe?.id === recipe.id
                         );
                         const compact = plansHere.length > 1;
+                        const hasOccupied = plansHere.length > 0;
+
+                        const renderPlanRow = (p: MealPlan) => {
+                          if (p.note?.trim() && !p.recipe) {
+                            return (
+                              <div
+                                key={p.id}
+                                className="flex items-start gap-1 min-w-0 rounded-md bg-amber-100/95 border border-amber-200 px-1 py-0.5"
+                              >
+                                <svg
+                                  className="w-3 h-3 text-amber-700 shrink-0 mt-0.5"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                  aria-hidden
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                  />
+                                </svg>
+                                <p className="text-[9px] sm:text-[10px] font-medium text-amber-900 leading-snug line-clamp-3 min-w-0 break-words">
+                                  {p.note}
+                                </p>
+                              </div>
+                            );
+                          }
+                          if (!p.recipe) return null;
+                          return (
+                            <div key={p.id} className="flex items-center gap-1.5 min-w-0">
+                              {p.recipe.image_url ? (
+                                <div className="w-7 h-7 rounded overflow-hidden flex-shrink-0 bg-white/40">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={p.recipe.image_url}
+                                    alt=""
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              ) : (
+                                <div className="w-7 h-7 rounded bg-white/40 flex-shrink-0" />
+                              )}
+                              <p className="text-[10px] font-medium leading-tight line-clamp-2 min-w-0 break-words">
+                                {p.recipe.title}
+                              </p>
+                            </div>
+                          );
+                        };
 
                         return (
                           <button
                             key={`${dateKey}-${mealType}`}
                             type="button"
                             onClick={() => handleDateMealSelect(dateKey, mealType)}
-                            className={`relative min-h-[88px] rounded-lg border-2 p-1.5 text-left transition-all flex flex-col gap-1 ${
+                            title={
+                              hasOccupied
+                                ? "Añadir también esta receta a este hueco (se guarda junto a lo demás)"
+                                : undefined
+                            }
+                            className={`group relative min-h-[88px] rounded-lg border-2 p-1.5 text-left transition-all flex flex-col gap-1 ${
                               isSelected
                                 ? "border-[var(--color-purple)] bg-[var(--color-purple-bg)] ring-2 ring-[var(--color-purple)]/30"
-                                : plansHere.length > 0
-                                  ? `meal-${mealType} border-solid hover:opacity-90`
+                                : hasOccupied
+                                  ? `meal-${mealType} border-solid hover:opacity-95 active:scale-[0.99]`
                                   : "border-dashed border-[var(--border-color)] hover:border-[var(--color-purple)] hover:bg-[var(--color-purple-bg)]"
                             }`}
                           >
@@ -426,46 +481,62 @@ export default function AddToPlannerModal({
                                 </svg>
                               </div>
                             ) : compact ? (
-                              <div className="flex flex-col gap-1">
-                                {plansHere.map((p) => (
-                                  <div key={p.id} className="flex items-center gap-1.5">
-                                    {p.recipe!.image_url ? (
-                                      <div className="w-7 h-7 rounded overflow-hidden flex-shrink-0 bg-white/40">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img
-                                          src={p.recipe!.image_url}
-                                          alt=""
-                                          className="w-full h-full object-cover"
-                                        />
-                                      </div>
-                                    ) : (
-                                      <div className="w-7 h-7 rounded bg-white/40 flex-shrink-0" />
-                                    )}
-                                    <p className="text-[10px] font-medium leading-tight line-clamp-2">
-                                      {p.recipe!.title}
-                                    </p>
-                                  </div>
-                                ))}
+                              <div className="flex flex-col gap-1 min-h-0 flex-1 overflow-hidden pr-0.5 pb-5">
+                                {plansHere.map((p) => renderPlanRow(p))}
+                              </div>
+                            ) : plansHere[0].note?.trim() && !plansHere[0].recipe ? (
+                              <div className="flex-1 flex flex-col min-h-0 mt-0.5 pr-0.5 pb-5">
+                                <div className="flex items-start gap-1 min-w-0 rounded-md bg-amber-100/95 border border-amber-200 p-1.5 flex-1">
+                                  <svg
+                                    className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                    aria-hidden
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth={2}
+                                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                    />
+                                  </svg>
+                                  <p className="text-[10px] sm:text-[11px] font-medium text-amber-900 leading-snug line-clamp-6 min-w-0 break-words whitespace-pre-wrap">
+                                    {plansHere[0].note}
+                                  </p>
+                                </div>
                               </div>
                             ) : (
                               <>
-                                {plansHere[0].recipe!.image_url && (
+                                {plansHere[0].recipe?.image_url && (
                                   <div className="w-full aspect-[4/3] rounded-md overflow-hidden mt-1 flex-shrink-0 bg-white/40">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
-                                      src={plansHere[0].recipe!.image_url}
+                                      src={plansHere[0].recipe.image_url}
                                       alt=""
                                       className="w-full h-full object-cover"
                                     />
                                   </div>
                                 )}
-                                <p className="text-[11px] font-medium line-clamp-2 mt-1 leading-tight">
+                                <p className="text-[11px] font-medium line-clamp-2 mt-1 leading-tight pr-0.5 pb-4">
                                   {plansHere[0].recipe!.title}
                                 </p>
                               </>
                             )}
+                            {hasOccupied && (
+                              <span
+                                className={`pointer-events-none absolute bottom-1 left-1/2 z-[1] flex -translate-x-1/2 items-center gap-0.5 rounded-full border border-[var(--color-purple)] bg-white/95 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wide text-[var(--color-purple)] shadow-sm transition-opacity ${
+                                  compact ? "max-w-[90%]" : ""
+                                } opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-visible:opacity-100`}
+                              >
+                                <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                                </svg>
+                                Añadir
+                              </span>
+                            )}
                             {hasSameRecipe && (
-                              <span className="absolute top-1 right-1 text-[9px] bg-[var(--color-purple)] text-white px-1.5 py-0.5 rounded-full">
+                              <span className="absolute top-1 right-1 z-[2] text-[9px] bg-[var(--color-purple)] text-white px-1.5 py-0.5 rounded-full">
                                 ya planificada
                               </span>
                             )}

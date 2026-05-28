@@ -176,6 +176,8 @@ export interface ShoppingItem {
   quantity: string | null;
   category: string | null;
   checked: boolean;
+  /** When true, shown in the fixed "Fijados" section at the top of the list. */
+  pinned?: boolean;
   recipe_id: string | null;
   week_start: string;
   recipe_sources: string[]; // Recipe titles that contributed to this item
@@ -211,6 +213,7 @@ export interface ShoppingListItem {
   quantity: string | null;
   category: string | null;
   checked: boolean;
+  pinned?: boolean;
   recipe_id: string | null;
   created_at: string;
 }
