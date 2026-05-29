@@ -158,6 +158,9 @@ export default function PlannerPage() {
     }
   }, [weekStart, loadEnd]);
 
+  const loadDataRef = useRef(loadData);
+  loadDataRef.current = loadData;
+
   useEffect(() => {
     loadData();
   }, [loadData]);
@@ -474,7 +477,7 @@ export default function PlannerPage() {
     if (plan.plan_date === targetDate && plan.meal_type === targetMealType) return;
 
     try {
-      await supabase
+      const { error } = await supabase
         .from("meal_plans")
         .update({
           plan_date: targetDate,
@@ -482,13 +485,18 @@ export default function PlannerPage() {
         })
         .eq("id", plan.id);
 
+      if (error) throw error;
+
       if (navigator.vibrate) {
         navigator.vibrate(100);
       }
 
-      loadData();
+      await loadDataRef.current();
     } catch (error) {
       console.error("Error moving meal plan:", error);
+      const msg =
+        error instanceof Error ? error.message : "Error al mover la receta";
+      alert(msg);
     }
   };
 
@@ -536,6 +544,7 @@ export default function PlannerPage() {
     touchStartPos.current = { x: touch.clientX, y: touch.clientY };
 
     const timer = setTimeout(() => {
+      draggingPlanRef.current = plan;
       setDraggingPlan(plan);
       setTouchDragging(true);
       createDragGhost(plan, touch.clientX, touch.clientY);
@@ -569,17 +578,23 @@ export default function PlannerPage() {
         dragGhostRef.current.style.top = `${touch.clientY}px`;
       }
 
-      setDragOverSlot(findSlotUnderTouch(touch.clientX, touch.clientY));
+      const slot = findSlotUnderTouch(touch.clientX, touch.clientY);
+      dragOverSlotRef.current = slot;
+      setDragOverSlot(slot);
     };
 
-    const onEnd = async () => {
+    const onEnd = async (e: TouchEvent) => {
       const plan = draggingPlanRef.current;
-      const targetSlot = dragOverSlotRef.current;
+      const touch = e.changedTouches[0];
+      const targetFromTouch =
+        touch && findSlotUnderTouch(touch.clientX, touch.clientY);
+      const targetSlot = targetFromTouch ?? dragOverSlotRef.current;
 
       removeDragGhost();
       setTouchDragging(false);
       setDragOverSlot(null);
       setDraggingPlan(null);
+      draggingPlanRef.current = null;
       touchStartPos.current = null;
 
       if (!plan || !targetSlot) return;
@@ -587,15 +602,15 @@ export default function PlannerPage() {
     };
 
     document.addEventListener("touchmove", onMove, { passive: false });
-    document.addEventListener("touchend", onEnd);
-    document.addEventListener("touchcancel", onEnd);
+    document.addEventListener("touchend", onEnd, { capture: true });
+    document.addEventListener("touchcancel", onEnd, { capture: true });
 
     return () => {
       document.removeEventListener("touchmove", onMove);
-      document.removeEventListener("touchend", onEnd);
-      document.removeEventListener("touchcancel", onEnd);
+      document.removeEventListener("touchend", onEnd, { capture: true });
+      document.removeEventListener("touchcancel", onEnd, { capture: true });
     };
-  }, [touchDragging, loadData]);
+  }, [touchDragging]);
 
   const filteredRecipes = recipes.filter((recipe) => {
     const matchesSearch = recipeTextMatchesQuery(
