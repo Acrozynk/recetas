@@ -112,9 +112,9 @@ export default function PlannerPage() {
   const [draggingPlan, setDraggingPlan] = useState<MealPlan | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<{ date: string; mealType: MealType } | null>(null);
   
-  // Touch drag state for mobile
-  const [touchDragging, setTouchDragging] = useState(false);
-  const touchStartPos = useRef<{ x: number; y: number } | null>(null);
+  // Touch / pen drag uses Pointer Events + setPointerCapture (reliable on mobile).
+  // HTML5 draggable conflicts with touch on many browsers; disable when pointer is not "fine".
+  const [finePointer, setFinePointer] = useState(true);
   const dragGhostRef = useRef<HTMLDivElement | null>(null);
   const draggingPlanRef = useRef<MealPlan | null>(null);
   const dragOverSlotRef = useRef<{ date: string; mealType: MealType } | null>(null);
@@ -160,6 +160,14 @@ export default function PlannerPage() {
 
   const loadDataRef = useRef(loadData);
   loadDataRef.current = loadData;
+
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: fine)");
+    const apply = () => setFinePointer(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -537,80 +545,124 @@ export default function PlannerPage() {
     setDraggingPlan(null);
   };
 
-  const handleTouchStart = (e: React.TouchEvent, plan: MealPlan) => {
+  /** Touch / pen: long-press then drag with pointer capture (works on iOS/Android). */
+  const handlePlanPointerDown = (e: React.PointerEvent, plan: MealPlan) => {
+    if (e.pointerType === "mouse") return;
+    if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest("[data-plan-action]")) return;
 
-    const touch = e.touches[0];
-    touchStartPos.current = { x: touch.clientX, y: touch.clientY };
+    const el = e.currentTarget as HTMLElement;
+    const pointerId = e.pointerId;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let lastX = startX;
+    let lastY = startY;
+    let cancelled = false;
+    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const timer = setTimeout(() => {
+    const removeEarlyListeners = () => {
+      el.removeEventListener("pointermove", trackMoveWhileWaiting);
+      el.removeEventListener("pointerup", cancelWait);
+      el.removeEventListener("pointercancel", cancelWait);
+    };
+
+    const cancelWait = () => {
+      if (cancelled) return;
+      cancelled = true;
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+      removeEarlyListeners();
+    };
+
+    const trackMoveWhileWaiting = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      lastX = ev.clientX;
+      lastY = ev.clientY;
+      if (Math.hypot(lastX - startX, lastY - startY) > 16) {
+        cancelWait();
+      }
+    };
+
+    const startDrag = () => {
+      if (cancelled) return;
+      cancelled = true;
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+      removeEarlyListeners();
+
       draggingPlanRef.current = plan;
       setDraggingPlan(plan);
-      setTouchDragging(true);
-      createDragGhost(plan, touch.clientX, touch.clientY);
+      createDragGhost(plan, lastX, lastY);
+
       if (navigator.vibrate) {
         navigator.vibrate(50);
       }
-    }, 200);
 
-    (e.currentTarget as HTMLElement).dataset.touchTimer = String(timer);
-  };
-
-  const handleTouchEndCleanup = (e: React.TouchEvent) => {
-    const el = e.currentTarget as HTMLElement;
-    const timer = el.dataset.touchTimer;
-    if (timer) {
-      clearTimeout(Number(timer));
-      delete el.dataset.touchTimer;
-    }
-  };
-
-  useEffect(() => {
-    if (!touchDragging) return;
-
-    const onMove = (e: TouchEvent) => {
-      e.preventDefault();
-      const touch = e.touches[0];
-      if (!touch) return;
-
-      if (dragGhostRef.current) {
-        dragGhostRef.current.style.left = `${touch.clientX}px`;
-        dragGhostRef.current.style.top = `${touch.clientY}px`;
+      try {
+        el.setPointerCapture(pointerId);
+      } catch {
+        /* pointer may no longer be active */
       }
 
-      const slot = findSlotUnderTouch(touch.clientX, touch.clientY);
-      dragOverSlotRef.current = slot;
-      setDragOverSlot(slot);
+      const onMoveDrag = (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId) return;
+        ev.preventDefault();
+        lastX = ev.clientX;
+        lastY = ev.clientY;
+        if (dragGhostRef.current) {
+          dragGhostRef.current.style.left = `${lastX}px`;
+          dragGhostRef.current.style.top = `${lastY}px`;
+        }
+        const slot = findSlotUnderTouch(lastX, lastY);
+        dragOverSlotRef.current = slot;
+        setDragOverSlot(slot);
+      };
+
+      const endDrag = async (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId) return;
+        ev.preventDefault();
+
+        try {
+          if (el.hasPointerCapture(pointerId)) {
+            el.releasePointerCapture(pointerId);
+          }
+        } catch {
+          /* */
+        }
+        el.removeEventListener("pointermove", onMoveDrag);
+        el.removeEventListener("pointerup", endDrag);
+        el.removeEventListener("pointercancel", endDrag);
+
+        const planLocal = draggingPlanRef.current;
+        const slot =
+          findSlotUnderTouch(ev.clientX, ev.clientY) ?? dragOverSlotRef.current;
+
+        removeDragGhost();
+        setDraggingPlan(null);
+        draggingPlanRef.current = null;
+        dragOverSlotRef.current = null;
+        setDragOverSlot(null);
+
+        if (planLocal && slot) {
+          await movePlanToSlot(planLocal, slot.date, slot.mealType);
+        }
+      };
+
+      el.addEventListener("pointermove", onMoveDrag, { passive: false });
+      el.addEventListener("pointerup", endDrag);
+      el.addEventListener("pointercancel", endDrag);
     };
 
-    const onEnd = async (e: TouchEvent) => {
-      const plan = draggingPlanRef.current;
-      const touch = e.changedTouches[0];
-      const targetFromTouch =
-        touch && findSlotUnderTouch(touch.clientX, touch.clientY);
-      const targetSlot = targetFromTouch ?? dragOverSlotRef.current;
+    longPressTimer = setTimeout(startDrag, 220);
 
-      removeDragGhost();
-      setTouchDragging(false);
-      setDragOverSlot(null);
-      setDraggingPlan(null);
-      draggingPlanRef.current = null;
-      touchStartPos.current = null;
-
-      if (!plan || !targetSlot) return;
-      await movePlanToSlot(plan, targetSlot.date, targetSlot.mealType);
-    };
-
-    document.addEventListener("touchmove", onMove, { passive: false });
-    document.addEventListener("touchend", onEnd, { capture: true });
-    document.addEventListener("touchcancel", onEnd, { capture: true });
-
-    return () => {
-      document.removeEventListener("touchmove", onMove);
-      document.removeEventListener("touchend", onEnd, { capture: true });
-      document.removeEventListener("touchcancel", onEnd, { capture: true });
-    };
-  }, [touchDragging]);
+    el.addEventListener("pointermove", trackMoveWhileWaiting);
+    el.addEventListener("pointerup", cancelWait);
+    el.addEventListener("pointercancel", cancelWait);
+  };
 
   const filteredRecipes = recipes.filter((recipe) => {
     const matchesSearch = recipeTextMatchesQuery(
@@ -738,6 +790,7 @@ export default function PlannerPage() {
                   key={slotKey}
                   ref={(el) => {
                     if (el) slotRefs.current.set(slotKey, el);
+                    else slotRefs.current.delete(slotKey);
                   }}
                   className={`min-h-[100px] rounded-lg border-2 p-2 transition-all flex flex-col gap-1.5 ${
                     slotItems.length > 0
@@ -797,11 +850,10 @@ export default function PlannerPage() {
                               className={`relative group/plan rounded-md bg-amber-100 border border-amber-300 p-1.5 ${
                                 isThisDragging ? "opacity-50" : ""
                               } cursor-grab active:cursor-grabbing touch-none select-none`}
-                              draggable
+                              draggable={finePointer}
                               onDragStart={(e) => handleDragStart(e, plan)}
                               onDragEnd={handleDragEnd}
-                              onTouchStart={(e) => handleTouchStart(e, plan)}
-                              onTouchEnd={handleTouchEndCleanup}
+                              onPointerDown={(e) => handlePlanPointerDown(e, plan)}
                             >
                               <button
                                 type="button"
@@ -850,11 +902,10 @@ export default function PlannerPage() {
                             className={`relative group/plan cursor-grab active:cursor-grabbing touch-none rounded-md ${
                               compact ? "bg-white/40" : ""
                             } ${isThisDragging ? "opacity-50" : ""}`}
-                            draggable
+                            draggable={finePointer}
                             onDragStart={(e) => handleDragStart(e, plan)}
                             onDragEnd={handleDragEnd}
-                            onTouchStart={(e) => handleTouchStart(e, plan)}
-                            onTouchEnd={handleTouchEndCleanup}
+                            onPointerDown={(e) => handlePlanPointerDown(e, plan)}
                           >
                             <button
                               type="button"
