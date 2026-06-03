@@ -284,7 +284,7 @@ export default function ImportPage() {
 
   if (checkingSession) {
     return (
-      <div className="min-h-screen pb-20">
+      <div className="min-h-screen pb-bottom-nav">
         <Header title="Importar Recetas" showBack />
         <main className="max-w-7xl mx-auto p-4 lg:px-8 flex justify-center pt-20">
           <div className="inline-block w-8 h-8 border-4 border-[var(--color-purple)] border-t-transparent rounded-full animate-spin" />
@@ -295,7 +295,7 @@ export default function ImportPage() {
   }
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-bottom-nav">
       <Header title="Importar Recetas" showBack />
 
       <main className="max-w-7xl mx-auto p-4 lg:px-8">

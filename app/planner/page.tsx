@@ -1021,7 +1021,7 @@ export default function PlannerPage() {
   );
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-bottom-nav">
       <Header
         title="Menús"
         rightAction={

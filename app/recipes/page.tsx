@@ -444,7 +444,7 @@ function HomePageContent() {
   }, [selectedRecipes, recipes]);
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-bottom-nav">
       <Header title="Recetas" showAdd showMascot />
 
       <main className="max-w-7xl mx-auto p-4 lg:px-8">
@@ -1140,7 +1140,7 @@ function HomePageContent() {
 // Loading fallback for Suspense
 function HomePageLoading() {
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-bottom-nav">
       <Header title="Recetas" showAdd showMascot />
       <main className="max-w-7xl mx-auto p-4 lg:px-8">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">

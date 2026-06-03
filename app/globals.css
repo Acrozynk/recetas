@@ -45,8 +45,8 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
-  min-height: 100dvh;
-  padding-bottom: env(safe-area-inset-bottom);
+  /* svh avoids mobile browser UI (URL bar) resizing clipping fixed bottom nav */
+  min-height: 100svh;
 }
 
 /* Typography utilities */
@@ -75,7 +75,12 @@ body {
 
 /* Bottom navigation safe area */
 .pb-safe {
-  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+}
+
+/* Main pages with fixed BottomNav: h-16 row + same inset as the nav (see BottomNav) */
+.pb-bottom-nav {
+  padding-bottom: calc(4rem + max(1rem, env(safe-area-inset-bottom, 0px)));
 }
 
 /* Card styles */

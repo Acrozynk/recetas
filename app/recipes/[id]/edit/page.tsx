@@ -39,7 +39,7 @@ export default function EditRecipePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen pb-20">
+      <div className="min-h-screen pb-bottom-nav">
         <Header title="Editar Receta" showBack backHref={recipeBackHref} />
         <div className="max-w-7xl mx-auto p-4 lg:px-8">
           <div className="animate-pulse space-y-4">
@@ -55,7 +55,7 @@ export default function EditRecipePage() {
 
   if (!recipe) {
     return (
-      <div className="min-h-screen pb-20">
+      <div className="min-h-screen pb-bottom-nav">
         <Header title="Receta No Encontrada" showBack />
         <div className="text-center py-12">
           <p className="text-[var(--color-slate-light)]">
@@ -68,7 +68,7 @@ export default function EditRecipePage() {
   }
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-bottom-nav">
       <Header title="Editar Receta" showBack backHref={recipeBackHref} />
 
       <main className="max-w-7xl mx-auto p-4 lg:px-8">

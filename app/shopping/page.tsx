@@ -2546,7 +2546,7 @@ export default function ShoppingPage() {
   const [showClearMenu, setShowClearMenu] = useState(false);
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-bottom-nav">
       <Header
         title="Lista de Compras"
         rightAction={

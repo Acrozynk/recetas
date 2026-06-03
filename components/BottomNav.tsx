@@ -72,7 +72,7 @@ export default function BottomNav() {
   const pathname = usePathname() ?? "";
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--border-color)] pb-safe z-50">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-[var(--border-color)] pb-[max(1rem,env(safe-area-inset-bottom,0px))]">
       <div className="flex justify-around items-center h-16 max-w-lg mx-auto">
         {navItems.map((item) => {
           // Exact match or descendant route (e.g. /recipes/123 → Recetas).

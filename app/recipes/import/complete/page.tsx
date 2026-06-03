@@ -54,7 +54,7 @@ export default function ImportCompletePage() {
   const imported = (stats?.accepted || 0) + (stats?.edited || 0);
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-bottom-nav">
       <Header title="Importación Completa" />
 
       <main className="max-w-md mx-auto p-4 pt-8">

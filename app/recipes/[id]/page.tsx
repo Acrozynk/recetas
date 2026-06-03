@@ -1287,7 +1287,7 @@ export default function RecipeDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen pb-20">
+      <div className="min-h-screen pb-bottom-nav">
         <Header title="Cargando..." showBack />
         <div className="animate-pulse p-4 max-w-7xl mx-auto lg:px-8">
           <div className="flex gap-4 sm:gap-6 items-start mb-6">
@@ -1317,7 +1317,7 @@ export default function RecipeDetailPage() {
 
   if (!recipe) {
     return (
-      <div className="min-h-screen pb-20">
+      <div className="min-h-screen pb-bottom-nav">
         <Header title="Receta No Encontrada" showBack />
         <div className="text-center py-12">
           <p className="text-[var(--color-slate-light)]">
@@ -1336,7 +1336,7 @@ export default function RecipeDetailPage() {
     (recipe.prep_time_minutes || 0) + (recipe.cook_time_minutes || 0);
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen pb-bottom-nav">
       <Header
         title=""
         showBack

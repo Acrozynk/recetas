@@ -578,7 +578,7 @@ export default function ImportReviewPage() {
 
   if (error && !session) {
     return (
-      <div className="min-h-screen pb-20">
+      <div className="min-h-screen pb-bottom-nav">
         <Header title="Revisar Importación" showBack backHref="/recipes/import" />
         <main className="max-w-7xl mx-auto p-4 lg:px-8">
           <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
@@ -676,7 +676,7 @@ export default function ImportReviewPage() {
               hideNavButtons={true}
             />
             {/* Bottom action buttons for edit mode */}
-            <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-[var(--border-color)] p-4 safe-area-bottom">
+            <div className="fixed bottom-[calc(4rem+max(1rem,env(safe-area-inset-bottom,0px)))] left-0 right-0 bg-white border-t border-[var(--border-color)] p-4">
               <div className="max-w-7xl mx-auto px-4 lg:px-8 flex gap-2">
                 <button
                   onClick={handleCancelEdit}
@@ -1309,7 +1309,7 @@ export default function ImportReviewPage() {
 
       {/* Fixed Bottom Actions - Hide when RecipeForm is active (it has its own buttons) */}
       {!(isEditing && editedRecipe) && (
-        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-[var(--border-color)] p-4 safe-area-bottom">
+        <div className="fixed bottom-[calc(4rem+max(1rem,env(safe-area-inset-bottom,0px)))] left-0 right-0 bg-white border-t border-[var(--border-color)] p-4">
           <div className="max-w-7xl mx-auto px-4 lg:px-8">
             {currentRecipe?.status === "pending" ? (
               <div className="space-y-2">
