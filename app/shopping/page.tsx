@@ -959,7 +959,40 @@ interface PreviewIngredient {
   quantity: string;
   category: string;
   selected: boolean;
-  recipes: string[]; // Recipe names that use this ingredient
+  /** Source recipe for this row (one entry per recipe–ingredient; quantities merge on confirm). */
+  recipes: string[];
+}
+
+/** Merge selected preview lines by ingredient name for DB insert/update (combine qty + recipe_sources). */
+function mergeSelectedPreviewIngredients(
+  selected: PreviewIngredient[]
+): PreviewIngredient[] {
+  const byName = new Map<string, PreviewIngredient>();
+  for (const ing of selected) {
+    const key = ing.name.toLowerCase().trim();
+    const existing = byName.get(key);
+    if (!existing) {
+      byName.set(key, {
+        ...ing,
+        id: `merged-${key}`,
+        recipes: [...ing.recipes],
+      });
+    } else {
+      const combinedQuantity =
+        existing.quantity && ing.quantity
+          ? combineQuantities(existing.quantity, ing.quantity, ing.name)
+          : ing.quantity || existing.quantity || "";
+      const mergedRecipes = [
+        ...new Set([...existing.recipes, ...ing.recipes]),
+      ];
+      byName.set(key, {
+        ...existing,
+        quantity: combinedQuantity,
+        recipes: mergedRecipes,
+      });
+    }
+  }
+  return Array.from(byName.values());
 }
 
 /**
@@ -998,16 +1031,9 @@ function IngredientPreviewModal({
   const [localIngredients, setLocalIngredients] = useState<PreviewIngredient[]>([]);
   const [saving, setSaving] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupByMode>("recipe");
-  // Track which recipes the user has deselected at the recipe level.
-  // We can't infer "active" recipes from selected ingredients alone because shared
-  // ingredients would keep multiple recipes looking "active" even after deselection.
-  const [deselectedRecipes, setDeselectedRecipes] = useState<Set<string>>(
-    new Set()
-  );
 
   useEffect(() => {
     setLocalIngredients([...ingredients]);
-    setDeselectedRecipes(new Set());
   }, [ingredients, isOpen]);
 
   const toggleIngredient = (id: string) => {
@@ -1022,17 +1048,6 @@ function IngredientPreviewModal({
     setLocalIngredients(prev =>
       prev.map(ing => ({ ...ing, selected }))
     );
-    if (selected) {
-      setDeselectedRecipes(new Set());
-    } else {
-      setDeselectedRecipes(() => {
-        const all = new Set<string>();
-        for (const ing of localIngredients) {
-          for (const r of ing.recipes) all.add(r);
-        }
-        return all;
-      });
-    }
   };
 
   const toggleCategory = (category: string, selected: boolean) => {
@@ -1044,44 +1059,11 @@ function IngredientPreviewModal({
   };
 
   const toggleRecipe = (recipeName: string, selected: boolean) => {
-    if (selected) {
-      // Activating a recipe: remove it from the deselected set and mark all
-      // its ingredients as selected (overriding any prior manual deselection).
-      setDeselectedRecipes(prev => {
-        const next = new Set(prev);
-        next.delete(recipeName);
-        return next;
-      });
-      setLocalIngredients(prev =>
-        prev.map(ing =>
-          ing.recipes.includes(recipeName) ? { ...ing, selected: true } : ing
-        )
-      );
-      return;
-    }
-
-    // Deactivating a recipe: add it to the deselected set and deselect each of
-    // its ingredients UNLESS another currently-active (= not deselected) recipe
-    // also uses that ingredient.
-    setDeselectedRecipes(prev => {
-      const nextDeselected = new Set(prev);
-      nextDeselected.add(recipeName);
-
-      setLocalIngredients(prevIngs =>
-        prevIngs.map(ing => {
-          if (!ing.recipes.includes(recipeName)) return ing;
-
-          const stillNeededByActiveRecipe = ing.recipes.some(
-            r => r !== recipeName && !nextDeselected.has(r)
-          );
-
-          if (stillNeededByActiveRecipe) return ing;
-          return { ...ing, selected: false };
-        })
-      );
-
-      return nextDeselected;
-    });
+    setLocalIngredients(prev =>
+      prev.map(ing =>
+        ing.recipes.includes(recipeName) ? { ...ing, selected } : ing
+      )
+    );
   };
 
   const handleConfirm = async () => {
@@ -1105,14 +1087,13 @@ function IngredientPreviewModal({
     {} as Record<string, PreviewIngredient[]>
   );
 
-  // Group ingredients by recipe
+  // Group ingredients by recipe (each preview row belongs to a single source recipe)
   const groupedByRecipe = localIngredients.reduce(
     (acc, ing) => {
-      // An ingredient can belong to multiple recipes
-      for (const recipe of ing.recipes) {
-        if (!acc[recipe]) acc[recipe] = [];
-        acc[recipe].push(ing);
-      }
+      const recipe = ing.recipes[0];
+      if (!recipe) return acc;
+      if (!acc[recipe]) acc[recipe] = [];
+      acc[recipe].push(ing);
       return acc;
     },
     {} as Record<string, PreviewIngredient[]>
@@ -1795,14 +1776,16 @@ export default function ShoppingPage() {
         ? `${mealPlans.length} comidas para el ${formatDate(firstDate)}`
         : `${mealPlans.length} comidas del ${formatDate(firstDate)} al ${formatDate(lastDate)}`;
 
-      // Collect and combine ingredients intelligently
+      // One preview row per (recipe, ingredient name). Quantities for the same
+      // recipe across several plan days are combined here; merging across
+      // different recipes happens only when confirming (add to list).
       const ingredientMap = new Map<
         string,
-        { 
-          name: string; 
-          quantity: string; 
-          category: string; 
-          recipes: Set<string>;
+        {
+          name: string;
+          quantity: string;
+          category: string;
+          recipeTitle: string;
         }
       >();
 
@@ -1901,8 +1884,8 @@ export default function ShoppingPage() {
               }
             }
 
-            const key = itemNameLower;
-            const existing = ingredientMap.get(key);
+            const mapKey = `${recipeTitle}|||${itemNameLower}`;
+            const existing = ingredientMap.get(mapKey);
             const newQuantity = adjustedAmount
               ? `${adjustedAmount} ${item.unit}`.trim()
               : "";
@@ -1917,13 +1900,12 @@ export default function ShoppingPage() {
               } else if (newQuantity) {
                 existing.quantity = newQuantity;
               }
-              existing.recipes.add(plan.recipe.title);
             } else {
-              ingredientMap.set(key, {
+              ingredientMap.set(mapKey, {
                 name: item.name,
                 quantity: newQuantity,
                 category: categorizeIngredient(item.name),
-                recipes: new Set([plan.recipe.title]),
+                recipeTitle,
               });
             }
           }
@@ -1932,13 +1914,13 @@ export default function ShoppingPage() {
 
       // Convert to preview ingredients array
       const preview: PreviewIngredient[] = Array.from(ingredientMap.entries()).map(
-        ([key, value], index) => ({
-          id: `preview-${index}-${key}`,
+        ([compoundKey, value], index) => ({
+          id: `preview-${index}-${compoundKey.replace(/[^a-zA-Z0-9]/g, "-")}`,
           name: value.name,
           quantity: value.quantity,
           category: value.category,
-          selected: true, // All selected by default
-          recipes: Array.from(value.recipes),
+          selected: true,
+          recipes: [value.recipeTitle],
         })
       );
 
@@ -1997,6 +1979,9 @@ export default function ShoppingPage() {
 
   const confirmAddIngredients = async (selectedIngredients: PreviewIngredient[]) => {
     try {
+      const mergedSelected =
+        mergeSelectedPreviewIngredients(selectedIngredients);
+
       // Get existing items to combine with
       const existingItems = items.filter(item => !item.checked);
       
@@ -2018,7 +2003,7 @@ export default function ShoppingPage() {
         supermarket: SupermarketName;
       }[] = [];
 
-      for (const ing of selectedIngredients) {
+      for (const ing of mergedSelected) {
         const key = ing.name.toLowerCase().trim();
         const existingItem = existingMap.get(key);
 
