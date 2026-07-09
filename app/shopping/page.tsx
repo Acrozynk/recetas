@@ -370,7 +370,7 @@ function GrocerySearchModal({
     import("@/lib/spanish-groceries").then(mod => {
       if (cancelled) return;
       setGroceryModule(mod);
-      setAllProducts(mod.searchGroceries("", 500));
+      setAllProducts(mod.getAllGroceries());
     });
     return () => {
       cancelled = true;
@@ -382,7 +382,7 @@ function GrocerySearchModal({
     if (searchQuery.trim().length >= 2) {
       setIsSearching(true);
       // Búsqueda asíncrona que incluye productos personalizados del usuario
-      groceryModule.searchAllProducts(searchQuery, 30).then(results => {
+      groceryModule.searchAllProducts(searchQuery, 50).then(results => {
         setSearchResults(results);
         setSelectedCategory(null);
         setIsSearching(false);

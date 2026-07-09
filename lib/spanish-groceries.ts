@@ -1,6 +1,8 @@
 // Comprehensive Spanish grocery database
 // Organized by supermarket sections
 
+import { spanishGroceriesExtra } from "./spanish-groceries-extra";
+
 export interface GroceryProduct {
   name: string;
   category: string;
@@ -12,7 +14,23 @@ export interface GroceryProduct {
 // category list can import it without pulling in the full ~70KB catalog.
 export { GROCERY_CATEGORIES } from "./grocery-categories";
 
-export const spanishGroceries: GroceryProduct[] = [
+function dedupeGroceriesByName(products: GroceryProduct[]): GroceryProduct[] {
+  const seen = new Set<string>();
+  const result: GroceryProduct[] = [];
+  for (const product of products) {
+    const key = product.name
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push(product);
+  }
+  return result;
+}
+
+const _spanishGroceriesRaw: GroceryProduct[] = [
   // ============================================
   // FRUTAS Y VERDURAS
   // ============================================
@@ -910,7 +928,11 @@ export const spanishGroceries: GroceryProduct[] = [
   { name: "Potitos", category: "Otros", subcategory: "Bebés" },
   { name: "Leche de fórmula", category: "Otros", subcategory: "Bebés" },
   { name: "Papilla de cereales", category: "Otros", subcategory: "Bebés" },
+  ...spanishGroceriesExtra,
 ];
+
+export const spanishGroceries: GroceryProduct[] =
+  dedupeGroceriesByName(_spanishGroceriesRaw);
 
 // Helper function to normalize text (remove accents and convert to lowercase)
 export function normalizeText(text: string): string {
@@ -922,31 +944,73 @@ export function normalizeText(text: string): string {
 }
 
 // Helper function to search products (static database only)
+function wordMatchesProduct(
+  word: string,
+  normalizedName: string,
+  searchText: string
+): { matched: boolean; score: number } {
+  const nameWords = normalizedName.split(/\s+/);
+
+  if (normalizedName === word) return { matched: true, score: 100 };
+  if (normalizedName.startsWith(word)) return { matched: true, score: 50 };
+
+  for (const nw of nameWords) {
+    if (nw === word) return { matched: true, score: 45 };
+    if (nw.startsWith(word)) return { matched: true, score: 35 };
+    if (word.length >= 3 && nw.startsWith(word.slice(0, -1)))
+      return { matched: true, score: 28 };
+    if (word.length >= 4 && word.startsWith(nw) && nw.length >= 3)
+      return { matched: true, score: 25 };
+  }
+
+  if (normalizedName.includes(word)) return { matched: true, score: 20 };
+  if (searchText.includes(word)) return { matched: true, score: 10 };
+
+  return { matched: false, score: 0 };
+}
+
 export function searchGroceries(query: string, limit: number = 20): GroceryProduct[] {
   const normalizedQuery = normalizeText(query);
-  
+
   if (!normalizedQuery) return [];
-  
-  // Split query into words for better matching
-  const queryWords = normalizedQuery.split(/\s+/);
-  
-  return spanishGroceries
-    .filter((product) => {
+
+  const queryWords = normalizedQuery.split(/\s+/).filter((w) => w.length > 0);
+
+  const scored = spanishGroceries
+    .map((product) => {
       const normalizedName = normalizeText(product.name);
       const normalizedCategory = normalizeText(product.category);
       const normalizedSubcategory = normalizeText(product.subcategory || "");
       const normalizedBrand = normalizeText(product.brand || "");
-      
-      // Check if all query words are found in the product name, category, subcategory or brand
-      return queryWords.every(
-        (word) =>
-          normalizedName.includes(word) ||
-          normalizedCategory.includes(word) ||
-          normalizedSubcategory.includes(word) ||
-          normalizedBrand.includes(word)
-      );
+      const searchText = `${normalizedName} ${normalizedCategory} ${normalizedSubcategory} ${normalizedBrand}`;
+
+      let totalScore = 0;
+      for (const word of queryWords) {
+        const { matched, score } = wordMatchesProduct(
+          word,
+          normalizedName,
+          searchText
+        );
+        if (!matched) return null;
+        totalScore += score;
+      }
+
+      return { product, score: totalScore };
     })
-    .slice(0, limit);
+    .filter(
+      (entry): entry is { product: GroceryProduct; score: number } =>
+        entry !== null
+    )
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((entry) => entry.product);
+
+  return scored;
+}
+
+/** Return the full static product catalog (for category browsing). */
+export function getAllGroceries(): GroceryProduct[] {
+  return spanishGroceries;
 }
 
 // Combined search: static products + custom user products
