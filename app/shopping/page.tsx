@@ -97,6 +97,19 @@ function categorizeIngredient(name: string): string {
   return "Otros";
 }
 
+/** Ensure every default category appears; append any missing ones at the end. */
+function mergeCategoryOrderWithDefaults(fromDb: string[]): string[] {
+  const merged = [...fromDb];
+  const seen = new Set(fromDb);
+  for (const cat of DEFAULT_CATEGORIES) {
+    if (!seen.has(cat)) {
+      merged.push(cat);
+      seen.add(cat);
+    }
+  }
+  return merged;
+}
+
 // Category Order Editor Modal
 function CategoryOrderModal({
   isOpen,
@@ -109,7 +122,7 @@ function CategoryOrderModal({
   onClose: () => void;
   supermarket: SupermarketName;
   categoryOrder: string[];
-  onSave: (newOrder: string[]) => void;
+  onSave: (newOrder: string[]) => Promise<boolean>;
 }) {
   const [categories, setCategories] = useState<string[]>([]);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
@@ -158,9 +171,9 @@ function CategoryOrderModal({
 
   const handleSave = async () => {
     setSaving(true);
-    await onSave(categories);
+    const ok = await onSave(categories);
     setSaving(false);
-    onClose();
+    if (ok) onClose();
   };
 
   if (!isOpen) return null;
@@ -243,7 +256,11 @@ function CategoryOrderModal({
                 {/* Up/Down Buttons */}
                 <div className="flex gap-1">
                   <button
-                    onClick={() => moveCategory(index, "up")}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveCategory(index, "up");
+                    }}
                     disabled={index === 0}
                     className="p-1.5 rounded-lg hover:bg-[var(--color-purple-bg)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
@@ -252,7 +269,11 @@ function CategoryOrderModal({
                     </svg>
                   </button>
                   <button
-                    onClick={() => moveCategory(index, "down")}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      moveCategory(index, "down");
+                    }}
                     disabled={index === categories.length - 1}
                     className="p-1.5 rounded-lg hover:bg-[var(--color-purple-bg)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                   >
@@ -1578,11 +1599,10 @@ export default function ShoppingPage() {
       if (response.ok) {
         const data: SupermarketCategoryOrder[] = await response.json();
         if (data && data.length > 0) {
-          // Sort by sort_order and extract category names
           const sortedCategories = data
             .sort((a, b) => a.sort_order - b.sort_order)
             .map((item) => item.category);
-          setCategoryOrder(sortedCategories);
+          setCategoryOrder(mergeCategoryOrderWithDefaults(sortedCategories));
         } else {
           // Use default order if no custom order exists
           setCategoryOrder([...DEFAULT_CATEGORIES]);
@@ -1600,7 +1620,7 @@ export default function ShoppingPage() {
     loadCategoryOrder();
   }, [loadCategoryOrder]);
 
-  const saveCategoryOrder = async (newOrder: string[]) => {
+  const saveCategoryOrder = async (newOrder: string[]): Promise<boolean> => {
     try {
       const response = await fetch("/api/category-order", {
         method: "PUT",
@@ -1611,11 +1631,30 @@ export default function ShoppingPage() {
         }),
       });
 
-      if (response.ok) {
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        const msg =
+          typeof body.error === "string"
+            ? body.error
+            : "Error al guardar el orden de categorías";
+        alert(msg);
+        return false;
+      }
+
+      const data: SupermarketCategoryOrder[] = await response.json();
+      if (data?.length) {
+        const sortedCategories = data
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((item) => item.category);
+        setCategoryOrder(mergeCategoryOrderWithDefaults(sortedCategories));
+      } else {
         setCategoryOrder(newOrder);
       }
+      return true;
     } catch (error) {
       console.error("Error saving category order:", error);
+      alert("Error al guardar el orden de categorías. Inténtalo de nuevo.");
+      return false;
     }
   };
 
