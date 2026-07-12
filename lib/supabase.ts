@@ -176,6 +176,9 @@ export interface ShoppingItem {
   quantity: string | null;
   category: string | null;
   checked: boolean;
+  /** Set when checked=true; used to sort "En el carrito" with newest on top. */
+  checked_at?: string | null;
+  created_at?: string;
   /** When true, shown in the fixed "Fijados" section at the top of the list. */
   pinned?: boolean;
   recipe_id: string | null;

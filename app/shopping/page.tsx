@@ -1412,6 +1412,13 @@ function isItemPinned(item: ShoppingItem): boolean {
   return !!item.pinned;
 }
 
+function sortCheckedItemsRecentFirst(a: ShoppingItem, b: ShoppingItem): number {
+  const aTime = a.checked_at ? new Date(a.checked_at).getTime() : 0;
+  const bTime = b.checked_at ? new Date(b.checked_at).getTime() : 0;
+  if (bTime !== aTime) return bTime - aTime;
+  return a.name.localeCompare(b.name, "es");
+}
+
 function ShoppingListItemRow({
   item,
   selectedItems,
@@ -2107,17 +2114,30 @@ export default function ShoppingPage() {
   };
 
   const toggleItem = async (item: ShoppingItem) => {
+    const newChecked = !item.checked;
+    const checkedAt = newChecked ? new Date().toISOString() : null;
+
     try {
-      const { error } = await supabase
+      let { error } = await supabase
         .from("shopping_items")
-        .update({ checked: !item.checked })
+        .update({ checked: newChecked, checked_at: checkedAt })
         .eq("id", item.id);
+
+      if (error && /column .*checked_at/i.test(error.message || "")) {
+        const fallback = await supabase
+          .from("shopping_items")
+          .update({ checked: newChecked })
+          .eq("id", item.id);
+        error = fallback.error;
+      }
 
       if (error) throw error;
 
       setItems(
         items.map((i) =>
-          i.id === item.id ? { ...i, checked: !i.checked } : i
+          i.id === item.id
+            ? { ...i, checked: newChecked, checked_at: checkedAt }
+            : i
         )
       );
     } catch (error) {
@@ -2249,7 +2269,7 @@ export default function ShoppingPage() {
     try {
       const { error } = await supabase
         .from("shopping_items")
-        .update({ deleted_at: null, checked: false })
+        .update({ deleted_at: null, checked: false, checked_at: null })
         .eq("id", id);
 
       if (error) throw error;
@@ -2342,17 +2362,31 @@ export default function ShoppingPage() {
       
       if (uncheckedIds.length === 0) return;
 
-      const { error } = await supabase
+      const checkedAt = new Date().toISOString();
+      let { error } = await supabase
         .from("shopping_items")
-        .update({ checked: true })
+        .update({ checked: true, checked_at: checkedAt })
         .eq("supermarket", selectedSupermarket)
         .is("deleted_at", null)
         .eq("checked", false);
 
+      if (error && /column .*checked_at/i.test(error.message || "")) {
+        const fallback = await supabase
+          .from("shopping_items")
+          .update({ checked: true })
+          .eq("supermarket", selectedSupermarket)
+          .is("deleted_at", null)
+          .eq("checked", false);
+        error = fallback.error;
+      }
+
       if (error) throw error;
 
-      // Update local state
-      setItems(items.map(item => ({ ...item, checked: true })));
+      setItems(
+        items.map((item) =>
+          item.checked ? item : { ...item, checked: true, checked_at: checkedAt }
+        )
+      );
       
       // Save for undo
       setLastMarkedItems(uncheckedIds);
@@ -2365,17 +2399,28 @@ export default function ShoppingPage() {
     if (lastMarkedItems.length === 0) return;
     
     try {
-      const { error } = await supabase
+      let { error } = await supabase
         .from("shopping_items")
-        .update({ checked: false })
+        .update({ checked: false, checked_at: null })
         .in("id", lastMarkedItems);
+
+      if (error && /column .*checked_at/i.test(error.message || "")) {
+        const fallback = await supabase
+          .from("shopping_items")
+          .update({ checked: false })
+          .in("id", lastMarkedItems);
+        error = fallback.error;
+      }
 
       if (error) throw error;
 
-      // Update local state
-      setItems(items.map(item => 
-        lastMarkedItems.includes(item.id) ? { ...item, checked: false } : item
-      ));
+      setItems(
+        items.map((item) =>
+          lastMarkedItems.includes(item.id)
+            ? { ...item, checked: false, checked_at: null }
+            : item
+        )
+      );
       
       // Clear undo state
       setLastMarkedItems([]);
@@ -2539,7 +2584,9 @@ export default function ShoppingPage() {
 
   // Separate checked and unchecked items
   const uncheckedItems = items.filter((item) => !item.checked);
-  const checkedItems = items.filter((item) => item.checked);
+  const checkedItems = items
+    .filter((item) => item.checked)
+    .sort(sortCheckedItemsRecentFirst);
 
   const sortByName = (a: ShoppingItem, b: ShoppingItem) =>
     a.name.localeCompare(b.name, "es");
