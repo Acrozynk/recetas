@@ -1419,6 +1419,45 @@ function sortCheckedItemsRecentFirst(a: ShoppingItem, b: ShoppingItem): number {
   return a.name.localeCompare(b.name, "es");
 }
 
+/** PostgREST may not expose checked_at yet (missing column or stale schema cache). */
+function isCheckedAtUnavailable(error: unknown): boolean {
+  const msg =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message: unknown }).message)
+      : String(error ?? "");
+  const lower = msg.toLowerCase();
+  return lower.includes("checked_at") || lower.includes("pgrst204");
+}
+
+async function syncCheckedAt(
+  itemId: string,
+  checkedAt: string | null
+): Promise<void> {
+  const { error } = await supabase
+    .from("shopping_items")
+    .update({ checked_at: checkedAt })
+    .eq("id", itemId);
+
+  if (error && !isCheckedAtUnavailable(error)) {
+    console.warn("Could not update checked_at:", error);
+  }
+}
+
+async function syncCheckedAtForIds(
+  ids: string[],
+  checkedAt: string | null
+): Promise<void> {
+  if (ids.length === 0) return;
+  const { error } = await supabase
+    .from("shopping_items")
+    .update({ checked_at: checkedAt })
+    .in("id", ids);
+
+  if (error && !isCheckedAtUnavailable(error)) {
+    console.warn("Could not update checked_at:", error);
+  }
+}
+
 function ShoppingListItemRow({
   item,
   selectedItems,
@@ -2116,32 +2155,28 @@ export default function ShoppingPage() {
   const toggleItem = async (item: ShoppingItem) => {
     const newChecked = !item.checked;
     const checkedAt = newChecked ? new Date().toISOString() : null;
+    const previousItems = items;
+
+    setItems(
+      items.map((i) =>
+        i.id === item.id
+          ? { ...i, checked: newChecked, checked_at: checkedAt }
+          : i
+      )
+    );
 
     try {
-      let { error } = await supabase
+      const { error } = await supabase
         .from("shopping_items")
-        .update({ checked: newChecked, checked_at: checkedAt })
+        .update({ checked: newChecked })
         .eq("id", item.id);
-
-      if (error && /column .*checked_at/i.test(error.message || "")) {
-        const fallback = await supabase
-          .from("shopping_items")
-          .update({ checked: newChecked })
-          .eq("id", item.id);
-        error = fallback.error;
-      }
 
       if (error) throw error;
 
-      setItems(
-        items.map((i) =>
-          i.id === item.id
-            ? { ...i, checked: newChecked, checked_at: checkedAt }
-            : i
-        )
-      );
+      await syncCheckedAt(item.id, checkedAt);
     } catch (error) {
       console.error("Error toggling item:", error);
+      setItems(previousItems);
     }
   };
 
@@ -2269,10 +2304,12 @@ export default function ShoppingPage() {
     try {
       const { error } = await supabase
         .from("shopping_items")
-        .update({ deleted_at: null, checked: false, checked_at: null })
+        .update({ deleted_at: null, checked: false })
         .eq("id", id);
 
       if (error) throw error;
+
+      await syncCheckedAt(id, null);
 
       setTrashItems(trashItems.filter((i) => i.id !== id));
       loadItems();
@@ -2327,6 +2364,9 @@ export default function ShoppingPage() {
 
       if (error) throw error;
 
+      const restoredIds = trashItems.map((i) => i.id);
+      await syncCheckedAtForIds(restoredIds, null);
+
       setTrashItems([]);
       loadItems();
     } catch (error) {
@@ -2363,24 +2403,16 @@ export default function ShoppingPage() {
       if (uncheckedIds.length === 0) return;
 
       const checkedAt = new Date().toISOString();
-      let { error } = await supabase
+      const { error } = await supabase
         .from("shopping_items")
-        .update({ checked: true, checked_at: checkedAt })
+        .update({ checked: true })
         .eq("supermarket", selectedSupermarket)
         .is("deleted_at", null)
         .eq("checked", false);
 
-      if (error && /column .*checked_at/i.test(error.message || "")) {
-        const fallback = await supabase
-          .from("shopping_items")
-          .update({ checked: true })
-          .eq("supermarket", selectedSupermarket)
-          .is("deleted_at", null)
-          .eq("checked", false);
-        error = fallback.error;
-      }
-
       if (error) throw error;
+
+      await syncCheckedAtForIds(uncheckedIds, checkedAt);
 
       setItems(
         items.map((item) =>
@@ -2399,20 +2431,14 @@ export default function ShoppingPage() {
     if (lastMarkedItems.length === 0) return;
     
     try {
-      let { error } = await supabase
+      const { error } = await supabase
         .from("shopping_items")
-        .update({ checked: false, checked_at: null })
+        .update({ checked: false })
         .in("id", lastMarkedItems);
 
-      if (error && /column .*checked_at/i.test(error.message || "")) {
-        const fallback = await supabase
-          .from("shopping_items")
-          .update({ checked: false })
-          .in("id", lastMarkedItems);
-        error = fallback.error;
-      }
-
       if (error) throw error;
+
+      await syncCheckedAtForIds(lastMarkedItems, null);
 
       setItems(
         items.map((item) =>
