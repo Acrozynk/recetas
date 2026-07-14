@@ -1613,6 +1613,11 @@ export default function ShoppingPage() {
   
   // Supermarket state
   const [selectedSupermarket, setSelectedSupermarket] = useState<SupermarketName>("Mercadona");
+  const [pendingCounts, setPendingCounts] = useState<Record<SupermarketName, number>>({
+    DIA: 0,
+    Consum: 0,
+    Mercadona: 0,
+  });
   const [categoryOrder, setCategoryOrder] = useState<string[]>([...DEFAULT_CATEGORIES]);
   const [loadingCategoryOrder, setLoadingCategoryOrder] = useState(true);
 
@@ -1704,6 +1709,31 @@ export default function ShoppingPage() {
     }
   };
 
+  const loadPendingCounts = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("shopping_items")
+        .select("supermarket")
+        .is("deleted_at", null)
+        .eq("checked", false);
+
+      if (error) throw error;
+
+      const counts: Record<SupermarketName, number> = {
+        DIA: 0,
+        Consum: 0,
+        Mercadona: 0,
+      };
+      for (const row of data || []) {
+        const market = row.supermarket as SupermarketName;
+        if (market in counts) counts[market]++;
+      }
+      setPendingCounts(counts);
+    } catch (error) {
+      console.error("Error loading pending counts:", error);
+    }
+  }, []);
+
   const loadItems = useCallback(async () => {
     try {
       const baseQuery = supabase
@@ -1733,8 +1763,9 @@ export default function ShoppingPage() {
       console.error("Error loading shopping items:", error);
     } finally {
       setLoading(false);
+      void loadPendingCounts();
     }
-  }, [selectedSupermarket]);
+  }, [selectedSupermarket, loadPendingCounts]);
 
   // Load trash items for selected supermarket
   const loadTrashItems = useCallback(async () => {
@@ -2174,6 +2205,7 @@ export default function ShoppingPage() {
       if (error) throw error;
 
       await syncCheckedAt(item.id, checkedAt);
+      void loadPendingCounts();
     } catch (error) {
       console.error("Error toggling item:", error);
       setItems(previousItems);
@@ -2751,13 +2783,25 @@ export default function ShoppingPage() {
                 <button
                   key={market}
                   onClick={() => changeSupermarket(market)}
-                  className={`flex-1 py-2.5 px-4 rounded-xl font-medium text-sm transition-all border-2 ${
+                  className={`flex-1 py-2.5 px-4 rounded-xl font-medium text-sm transition-all border-2 flex items-center justify-center gap-2 ${
                     isSelected
                       ? `${colors.bg} ${colors.text} ${colors.border} shadow-sm`
                       : "bg-white border-[var(--border-color)] text-[var(--color-slate)] hover:border-[var(--color-purple-light)]"
                   }`}
                 >
-                  {market}
+                  <span>{market}</span>
+                  {pendingCounts[market] > 0 && (
+                    <span
+                      className={`inline-flex min-w-[1.375rem] h-5 px-1.5 items-center justify-center rounded-full text-xs font-bold tabular-nums ${
+                        isSelected
+                          ? "bg-white/90 text-[var(--foreground)] shadow-sm"
+                          : "bg-[var(--color-purple)] text-white"
+                      }`}
+                      aria-label={`${pendingCounts[market]} por comprar`}
+                    >
+                      {pendingCounts[market]}
+                    </span>
+                  )}
                 </button>
               );
             })}
