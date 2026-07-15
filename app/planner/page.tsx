@@ -113,11 +113,13 @@ export default function PlannerPage() {
   const [dragOverSlot, setDragOverSlot] = useState<{ date: string; mealType: MealType } | null>(null);
   
   // Touch / pen drag uses Pointer Events + setPointerCapture (reliable on mobile).
-  // HTML5 draggable conflicts with touch on many browsers; disable when pointer is not "fine".
+  // HTML5 draggable conflicts with touch on many browsers; disable on touch-primary devices.
   const [finePointer, setFinePointer] = useState(true);
+  const [touchPrimary, setTouchPrimary] = useState(false);
   const dragGhostRef = useRef<HTMLDivElement | null>(null);
   const draggingPlanRef = useRef<MealPlan | null>(null);
   const dragOverSlotRef = useRef<{ date: string; mealType: MealType } | null>(null);
+  const suppressPlanClickRef = useRef(false);
   const slotRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   // Horizontal-scroll container for the *current* week's grid. Used to snap
   // today's column into view on narrow screens (the grid has a 640px min-width
@@ -162,11 +164,26 @@ export default function PlannerPage() {
   loadDataRef.current = loadData;
 
   useEffect(() => {
-    const mq = window.matchMedia("(pointer: fine)");
-    const apply = () => setFinePointer(mq.matches);
+    const fineMq = window.matchMedia("(pointer: fine)");
+    const coarseMq = window.matchMedia("(pointer: coarse)");
+    const hoverNoneMq = window.matchMedia("(hover: none)");
+    const apply = () => {
+      setFinePointer(fineMq.matches);
+      setTouchPrimary(
+        hoverNoneMq.matches ||
+          coarseMq.matches ||
+          navigator.maxTouchPoints > 0
+      );
+    };
     apply();
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
+    fineMq.addEventListener("change", apply);
+    coarseMq.addEventListener("change", apply);
+    hoverNoneMq.addEventListener("change", apply);
+    return () => {
+      fineMq.removeEventListener("change", apply);
+      coarseMq.removeEventListener("change", apply);
+      hoverNoneMq.removeEventListener("change", apply);
+    };
   }, []);
 
   useEffect(() => {
@@ -444,14 +461,14 @@ export default function PlannerPage() {
   const getSlotKey = (date: string, mealType: MealType) => `${date}-${mealType}`;
 
   const findSlotUnderTouch = (x: number, y: number): { date: string; mealType: MealType } | null => {
-    for (const [key, element] of slotRefs.current.entries()) {
-      const rect = element.getBoundingClientRect();
-      if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
-        const [date, mealType] = key.split(/-(?=[^-]+$)/);
-        return { date, mealType: mealType as MealType };
-      }
-    }
-    return null;
+    const hit = document.elementFromPoint(x, y);
+    if (!hit) return null;
+    const slotEl = hit.closest<HTMLElement>("[data-meal-slot]");
+    if (!slotEl) return null;
+    const date = slotEl.dataset.date;
+    const mealType = slotEl.dataset.mealType as MealType | undefined;
+    if (!date || !mealType) return null;
+    return { date, mealType };
   };
 
   const removeDragGhost = () => {
@@ -545,9 +562,9 @@ export default function PlannerPage() {
     setDraggingPlan(null);
   };
 
-  /** Touch / pen: long-press then drag with pointer capture (works on iOS/Android). */
+  /** Touch / pen: long-press then drag (works on iOS/Android). */
   const handlePlanPointerDown = (e: React.PointerEvent, plan: MealPlan) => {
-    if (e.pointerType === "mouse") return;
+    if (finePointer && e.pointerType === "mouse") return;
     if (e.button !== 0) return;
     if ((e.target as HTMLElement).closest("[data-plan-action]")) return;
 
@@ -558,41 +575,52 @@ export default function PlannerPage() {
     let lastX = startX;
     let lastY = startY;
     let cancelled = false;
+    let dragActive = false;
     let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
     const removeEarlyListeners = () => {
       el.removeEventListener("pointermove", trackMoveWhileWaiting);
       el.removeEventListener("pointerup", cancelWait);
       el.removeEventListener("pointercancel", cancelWait);
+      el.removeEventListener("lostpointercapture", cancelWait);
+    };
+
+    const removeDragListeners = () => {
+      document.removeEventListener("pointermove", onMoveDrag);
+      document.removeEventListener("pointerup", endDrag);
+      document.removeEventListener("pointercancel", endDrag);
     };
 
     const cancelWait = () => {
-      if (cancelled) return;
+      if (cancelled || dragActive) return;
       cancelled = true;
       if (longPressTimer) {
         clearTimeout(longPressTimer);
         longPressTimer = null;
       }
       removeEarlyListeners();
+      el.classList.remove("ring-2", "ring-[var(--color-purple)]");
     };
 
     const trackMoveWhileWaiting = (ev: PointerEvent) => {
       if (ev.pointerId !== pointerId) return;
       lastX = ev.clientX;
       lastY = ev.clientY;
-      if (Math.hypot(lastX - startX, lastY - startY) > 16) {
+      if (Math.hypot(lastX - startX, lastY - startY) > 28) {
         cancelWait();
       }
     };
 
     const startDrag = () => {
-      if (cancelled) return;
+      if (cancelled || dragActive) return;
+      dragActive = true;
       cancelled = true;
       if (longPressTimer) {
         clearTimeout(longPressTimer);
         longPressTimer = null;
       }
       removeEarlyListeners();
+      el.classList.remove("ring-2", "ring-[var(--color-purple)]");
 
       draggingPlanRef.current = plan;
       setDraggingPlan(plan);
@@ -633,13 +661,17 @@ export default function PlannerPage() {
         } catch {
           /* */
         }
-        el.removeEventListener("pointermove", onMoveDrag);
-        el.removeEventListener("pointerup", endDrag);
-        el.removeEventListener("pointercancel", endDrag);
+        removeDragListeners();
 
         const planLocal = draggingPlanRef.current;
         const slot =
           findSlotUnderTouch(ev.clientX, ev.clientY) ?? dragOverSlotRef.current;
+        const moved =
+          Math.hypot(ev.clientX - startX, ev.clientY - startY) > 8 ||
+          (planLocal &&
+            slot &&
+            (planLocal.plan_date !== slot.date ||
+              planLocal.meal_type !== slot.mealType));
 
         removeDragGhost();
         setDraggingPlan(null);
@@ -647,21 +679,34 @@ export default function PlannerPage() {
         dragOverSlotRef.current = null;
         setDragOverSlot(null);
 
-        if (planLocal && slot) {
+        if (planLocal && slot && moved) {
+          suppressPlanClickRef.current = true;
+          window.setTimeout(() => {
+            suppressPlanClickRef.current = false;
+          }, 500);
           await movePlanToSlot(planLocal, slot.date, slot.mealType);
         }
       };
 
-      el.addEventListener("pointermove", onMoveDrag, { passive: false });
-      el.addEventListener("pointerup", endDrag);
-      el.addEventListener("pointercancel", endDrag);
+      document.addEventListener("pointermove", onMoveDrag, { passive: false });
+      document.addEventListener("pointerup", endDrag);
+      document.addEventListener("pointercancel", endDrag);
     };
 
-    longPressTimer = setTimeout(startDrag, 220);
+    el.classList.add("ring-2", "ring-[var(--color-purple)]");
+    longPressTimer = setTimeout(startDrag, 320);
 
     el.addEventListener("pointermove", trackMoveWhileWaiting);
     el.addEventListener("pointerup", cancelWait);
     el.addEventListener("pointercancel", cancelWait);
+    el.addEventListener("lostpointercapture", cancelWait);
+  };
+
+  const handlePlanLinkClick = (e: React.MouseEvent) => {
+    if (suppressPlanClickRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
   };
 
   const filteredRecipes = recipes.filter((recipe) => {
@@ -748,8 +793,11 @@ export default function PlannerPage() {
   const renderWeekGrid = (
     dates: Date[],
     scrollRef?: React.RefObject<HTMLDivElement | null>
-  ) => (
-    <div ref={scrollRef} className="overflow-x-auto -mx-4 px-4">
+  ) => {
+    const useHtml5Drag = finePointer && !touchPrimary;
+
+    return (
+    <div ref={scrollRef} className="overflow-x-auto touch-pan-x -mx-4 px-4">
       <div className="grid grid-cols-7 gap-2 min-w-[640px]">
         {/* Day Headers */}
         {dates.map((date) => (
@@ -788,6 +836,9 @@ export default function PlannerPage() {
               return (
                 <div
                   key={slotKey}
+                  data-meal-slot
+                  data-date={dateKey}
+                  data-meal-type={mealType}
                   ref={(el) => {
                     if (el) slotRefs.current.set(slotKey, el);
                     else slotRefs.current.delete(slotKey);
@@ -849,8 +900,8 @@ export default function PlannerPage() {
                               key={plan.id}
                               className={`relative group/plan rounded-md bg-amber-100 border border-amber-300 p-1.5 ${
                                 isThisDragging ? "opacity-50" : ""
-                              } cursor-grab active:cursor-grabbing touch-none select-none`}
-                              draggable={finePointer}
+                              } cursor-grab active:cursor-grabbing touch-none select-none [touch-callout:none]`}
+                              draggable={useHtml5Drag}
                               onDragStart={(e) => handleDragStart(e, plan)}
                               onDragEnd={handleDragEnd}
                               onPointerDown={(e) => handlePlanPointerDown(e, plan)}
@@ -899,10 +950,10 @@ export default function PlannerPage() {
                         return (
                           <div
                             key={plan.id}
-                            className={`relative group/plan cursor-grab active:cursor-grabbing touch-none rounded-md ${
+                            className={`relative group/plan cursor-grab active:cursor-grabbing touch-none select-none [touch-callout:none] rounded-md ${
                               compact ? "bg-white/40" : ""
                             } ${isThisDragging ? "opacity-50" : ""}`}
-                            draggable={finePointer}
+                            draggable={useHtml5Drag}
                             onDragStart={(e) => handleDragStart(e, plan)}
                             onDragEnd={handleDragEnd}
                             onPointerDown={(e) => handlePlanPointerDown(e, plan)}
@@ -936,7 +987,8 @@ export default function PlannerPage() {
                             {compact ? (
                               <Link
                                 href={`/recipes/${plan.recipe!.id}`}
-                                className="flex items-center gap-2 p-1"
+                                onClick={handlePlanLinkClick}
+                                className="flex items-center gap-2 p-1 touch-none pointer-events-auto"
                               >
                                 {plan.recipe!.image_url ? (
                                   <div className="w-10 h-10 rounded overflow-hidden flex-shrink-0 bg-white/40">
@@ -959,7 +1011,8 @@ export default function PlannerPage() {
                             ) : (
                               <Link
                                 href={`/recipes/${plan.recipe!.id}`}
-                                className="w-full h-full text-left flex flex-col"
+                                onClick={handlePlanLinkClick}
+                                className="w-full h-full text-left flex flex-col touch-none pointer-events-auto"
                               >
                                 {plan.recipe!.image_url && (
                                   <div className="w-full aspect-[4/3] rounded-md overflow-hidden mb-1.5 flex-shrink-0">
@@ -1018,7 +1071,8 @@ export default function PlannerPage() {
         ))}
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="min-h-screen pb-bottom-nav">
