@@ -585,10 +585,13 @@ export default function PlannerPage() {
       el.removeEventListener("lostpointercapture", cancelWait);
     };
 
-    const removeDragListeners = () => {
-      document.removeEventListener("pointermove", onMoveDrag);
-      document.removeEventListener("pointerup", endDrag);
-      document.removeEventListener("pointercancel", endDrag);
+    const removeDragListeners = (
+      onMove: (ev: PointerEvent) => void,
+      onEnd: (ev: PointerEvent) => void
+    ) => {
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onEnd);
+      document.removeEventListener("pointercancel", onEnd);
     };
 
     const cancelWait = () => {
@@ -661,7 +664,7 @@ export default function PlannerPage() {
         } catch {
           /* */
         }
-        removeDragListeners();
+        removeDragListeners(onMoveDrag, endDrag);
 
         const planLocal = draggingPlanRef.current;
         const slot =
@@ -1149,6 +1152,11 @@ export default function PlannerPage() {
           </div>
         ) : (
           <>
+            {touchPrimary && (
+              <p className="text-xs text-center text-[var(--color-slate)] mb-3 lg:hidden">
+                Mantén pulsada una receta ~½ s y arrástrala a otro día
+              </p>
+            )}
             {renderWeekGrid(weekDates, currentWeekScrollRef)}
 
             {/* Next week below on wider screens */}
