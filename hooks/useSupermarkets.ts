@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   DEFAULT_SUPERMARKETS,
   getEnabledSupermarkets,
@@ -15,11 +15,11 @@ export function useSupermarkets() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (background = false) => {
+    if (!background) setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/supermarkets");
+      const response = await fetch("/api/supermarkets", { cache: "no-store" });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
         throw new Error(
@@ -33,12 +33,12 @@ export function useSupermarkets() {
       setError(err instanceof Error ? err.message : "Error loading supermarkets");
       setSupermarkets(DEFAULT_SUPERMARKETS.map((s) => ({ ...s })));
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void load();
+    void load(false);
   }, [load]);
 
   const saveSupermarkets = useCallback(async (next: SupermarketConfig[]) => {
@@ -60,14 +60,17 @@ export function useSupermarkets() {
     return saved;
   }, []);
 
-  const enabledSupermarkets = getEnabledSupermarkets(supermarkets);
+  const enabledSupermarkets = useMemo(
+    () => getEnabledSupermarkets(supermarkets),
+    [supermarkets]
+  );
 
   return {
     supermarkets,
     enabledSupermarkets,
     loading,
     error,
-    reload: load,
+    reload: () => load(true),
     saveSupermarkets,
   };
 }

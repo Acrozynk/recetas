@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { usePathname } from "next/navigation";
 import {
   supabase,
   type ShoppingItem,
@@ -21,6 +22,7 @@ import {
   supermarketHeaderStyle,
   pickInitialSupermarketId,
   SELECTED_SUPERMARKET_STORAGE_KEY,
+  DEFAULT_SUPERMARKETS,
 } from "@/lib/supermarkets";
 import { useSupermarkets } from "@/hooks/useSupermarkets";
 import Header from "@/components/Header";
@@ -1630,8 +1632,15 @@ function ShoppingListItemRow({
 }
 
 export default function ShoppingPage() {
-  const { supermarkets, enabledSupermarkets, loading: loadingSupermarkets } =
-    useSupermarkets();
+  const {
+    supermarkets,
+    enabledSupermarkets,
+    loading: loadingSupermarkets,
+    reload: reloadSupermarkets,
+  } = useSupermarkets();
+
+  const pathname = usePathname();
+  const supermarketInitRef = useRef(false);
 
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1662,18 +1671,42 @@ export default function ShoppingPage() {
   useEffect(() => {
     if (loadingSupermarkets || enabledSupermarkets.length === 0) return;
 
-    const stored = localStorage.getItem(SELECTED_SUPERMARKET_STORAGE_KEY);
-    setSelectedSupermarketId(pickInitialSupermarketId(enabledSupermarkets, stored));
-  }, [loadingSupermarkets, enabledSupermarkets]);
+    if (!supermarketInitRef.current) {
+      supermarketInitRef.current = true;
+      const stored = localStorage.getItem(SELECTED_SUPERMARKET_STORAGE_KEY);
+      setSelectedSupermarketId(
+        pickInitialSupermarketId(enabledSupermarkets, stored)
+      );
+      return;
+    }
 
-  useEffect(() => {
-    if (loadingSupermarkets) return;
     if (!enabledSupermarkets.some((s) => s.id === selectedSupermarketId)) {
       const next = pickInitialSupermarketId(enabledSupermarkets, null);
       setSelectedSupermarketId(next);
       localStorage.setItem(SELECTED_SUPERMARKET_STORAGE_KEY, next);
     }
   }, [loadingSupermarkets, enabledSupermarkets, selectedSupermarketId]);
+
+  // Pick up new/disabled stores after saving in Settings
+  useEffect(() => {
+    if (pathname === "/shopping") {
+      reloadSupermarkets();
+    }
+  }, [pathname, reloadSupermarkets]);
+
+  // Also refresh when the browser tab regains focus
+  useEffect(() => {
+    const refreshStores = () => reloadSupermarkets();
+    window.addEventListener("focus", refreshStores);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") refreshStores();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", refreshStores);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [reloadSupermarkets]);
 
   const selectedSupermarketConfig =
     getSupermarketById(supermarkets, selectedSupermarketId) ??
@@ -1794,6 +1827,7 @@ export default function ShoppingPage() {
   }, [enabledSupermarkets]);
 
   const loadItems = useCallback(async () => {
+    setLoading(true);
     try {
       const baseQuery = supabase
         .from("shopping_items")
@@ -2735,13 +2769,10 @@ export default function ShoppingPage() {
 
   const [showClearMenu, setShowClearMenu] = useState(false);
 
-  if (loadingSupermarkets) {
-    return (
-      <div className="min-h-screen pb-bottom-nav flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[var(--color-purple)] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
+  const displaySupermarkets =
+    enabledSupermarkets.length > 0
+      ? enabledSupermarkets
+      : DEFAULT_SUPERMARKETS.filter((s) => s.enabled);
 
   return (
     <div className="min-h-screen pb-bottom-nav">
@@ -2845,7 +2876,7 @@ export default function ShoppingPage() {
             </button>
           </div>
           <div className="flex gap-2 flex-wrap">
-            {enabledSupermarkets.map((market) => {
+            {displaySupermarkets.map((market) => {
               const isSelected = selectedSupermarketId === market.id;
               const pending = pendingCounts[market.id] ?? 0;
               return (
@@ -3409,7 +3440,7 @@ export default function ShoppingPage() {
         }}
         items={itemsToMove}
         currentSupermarket={selectedSupermarketConfig!}
-        enabledSupermarkets={enabledSupermarkets}
+        enabledSupermarkets={displaySupermarkets}
         onMove={moveItemsToSupermarket}
         onCopy={copyItemsToSupermarket}
       />
