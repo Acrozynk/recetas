@@ -62,7 +62,7 @@ INSERT INTO app_settings (key, value) VALUES (
   '[
     {"id":"DIA","name":"DIA","enabled":true,"color":"#b91c1c","sortOrder":0,"builtin":true},
     {"id":"Consum","name":"Consum","enabled":true,"color":"#c2410c","sortOrder":1,"builtin":true},
-    {"id":"Mercadona","name":"Mercadona","enabled":true,"color":"#15803d","sortOrder":2,"builtin":true}
+    {"id":"Mercadona","name":"Mercadona","enabled":true,"color":"#15803d","sortOrder":2,"isDefault":true,"builtin":true}
   ]'::jsonb
 )
 ON CONFLICT (key) DO NOTHING;

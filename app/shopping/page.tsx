@@ -20,7 +20,6 @@ import {
   supermarketBadgeStyle,
   supermarketHeaderStyle,
   pickInitialSupermarketId,
-  SELECTED_SUPERMARKET_STORAGE_KEY,
   DEFAULT_SUPERMARKETS,
 } from "@/lib/supermarkets";
 import { useSupermarkets } from "@/hooks/useSupermarkets";
@@ -1640,6 +1639,7 @@ export default function ShoppingPage() {
 
   const supermarketInitRef = useRef(false);
   const itemsInitialLoadRef = useRef(false);
+  const pendingStoreRefreshRef = useRef(false);
   const enabledSupermarketsRef = useRef(enabledSupermarkets);
   enabledSupermarketsRef.current = enabledSupermarkets;
 
@@ -1662,9 +1662,9 @@ export default function ShoppingPage() {
     Record<string, RecipeCookInfo>
   >({});
   
-  // Supermarket state
+  // Supermarket state — null until config loads (avoids Mercadona→Consum flash)
   const [selectedSupermarketId, setSelectedSupermarketId] =
-    useState<SupermarketName>("Mercadona");
+    useState<SupermarketName | null>(null);
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
   const [categoryOrder, setCategoryOrder] = useState<string[]>([...DEFAULT_CATEGORIES]);
 
@@ -1678,33 +1678,51 @@ export default function ShoppingPage() {
 
     if (!supermarketInitRef.current) {
       supermarketInitRef.current = true;
-      const stored = localStorage.getItem(SELECTED_SUPERMARKET_STORAGE_KEY);
       setSelectedSupermarketId(
-        pickInitialSupermarketId(enabledSupermarkets, stored)
+        pickInitialSupermarketId(enabledSupermarkets, supermarkets)
       );
       return;
     }
 
-    if (!enabledSupermarkets.some((s) => s.id === selectedSupermarketId)) {
-      const next = pickInitialSupermarketId(enabledSupermarkets, null);
-      setSelectedSupermarketId(next);
-      localStorage.setItem(SELECTED_SUPERMARKET_STORAGE_KEY, next);
+    if (
+      selectedSupermarketId &&
+      !enabledSupermarkets.some((s) => s.id === selectedSupermarketId)
+    ) {
+      setSelectedSupermarketId(
+        pickInitialSupermarketId(enabledSupermarkets, supermarkets)
+      );
     }
-  }, [loadingSupermarkets, enabledSupermarkets, selectedSupermarketId]);
+  }, [
+    loadingSupermarkets,
+    enabledSupermarkets,
+    supermarkets,
+    selectedSupermarketId,
+  ]);
 
-  // Reload after saving stores in Settings (flag set there)
   useEffect(() => {
     if (sessionStorage.getItem("recetas-supermarkets-changed")) {
       sessionStorage.removeItem("recetas-supermarkets-changed");
+      pendingStoreRefreshRef.current = true;
       reloadSupermarkets();
     }
   }, [reloadSupermarkets]);
 
+  useEffect(() => {
+    if (!pendingStoreRefreshRef.current || loadingSupermarkets) return;
+    pendingStoreRefreshRef.current = false;
+    setSelectedSupermarketId(
+      pickInitialSupermarketId(enabledSupermarkets, supermarkets)
+    );
+  }, [loadingSupermarkets, enabledSupermarkets, supermarkets]);
+
   const selectedSupermarketConfig =
-    getSupermarketById(supermarkets, selectedSupermarketId) ??
-    enabledSupermarkets[0];
+    selectedSupermarketId != null
+      ? getSupermarketById(supermarkets, selectedSupermarketId) ??
+        enabledSupermarkets[0]
+      : enabledSupermarkets[0];
   const selectedSupermarketColor = selectedSupermarketConfig?.color ?? "#15803d";
-  const selectedSupermarketName = selectedSupermarketConfig?.name ?? selectedSupermarketId;
+  const selectedSupermarketName =
+    selectedSupermarketConfig?.name ?? selectedSupermarketId ?? "";
 
   // Suggestions state
   const [suggestions, setSuggestions] = useState<ItemSupermarketHistory[]>([]);
@@ -1729,6 +1747,7 @@ export default function ShoppingPage() {
 
   // Load category order for selected supermarket
   const loadCategoryOrder = useCallback(async () => {
+    if (!selectedSupermarketId) return;
     try {
       const response = await fetch(`/api/category-order?supermarket=${selectedSupermarketId}`);
       if (response.ok) {
@@ -1754,6 +1773,7 @@ export default function ShoppingPage() {
   }, [loadCategoryOrder]);
 
   const saveCategoryOrder = async (newOrder: string[]): Promise<boolean> => {
+    if (!selectedSupermarketId) return false;
     try {
       const response = await fetch("/api/category-order", {
         method: "PUT",
@@ -1816,6 +1836,7 @@ export default function ShoppingPage() {
   }, []);
 
   const loadItems = useCallback(async () => {
+    if (!selectedSupermarketId) return;
     if (!itemsInitialLoadRef.current) setLoading(true);
     try {
       const baseQuery = supabase
@@ -1852,6 +1873,7 @@ export default function ShoppingPage() {
 
   // Load trash items for selected supermarket
   const loadTrashItems = useCallback(async () => {
+    if (!selectedSupermarketId) return;
     setLoadingTrash(true);
     try {
       // Clean up items older than 30 days first
@@ -1896,6 +1918,7 @@ export default function ShoppingPage() {
 
   // Load suggestions for the selected supermarket
   const loadSuggestions = useCallback(async () => {
+    if (!selectedSupermarketId) return;
     setLoadingSuggestions(true);
     try {
       const response = await fetch(`/api/shopping-lists/suggestions?supermarket=${selectedSupermarketId}&limit=30`);
@@ -1928,6 +1951,7 @@ export default function ShoppingPage() {
   }, [loadSuggestions, showSuggestions]);
 
   const addSuggestionToList = async (suggestion: ItemSupermarketHistory) => {
+    if (!selectedSupermarketId) return;
     try {
       const category = categorizeIngredient(suggestion.item_name);
       const { error } = await supabase.from("shopping_items").insert([
@@ -2183,6 +2207,7 @@ export default function ShoppingPage() {
   };
 
   const confirmAddIngredients = async (selectedIngredients: PreviewIngredient[]) => {
+    if (!selectedSupermarketId) return;
     try {
       const mergedSelected =
         mergeSelectedPreviewIngredients(selectedIngredients);
@@ -2329,7 +2354,7 @@ export default function ShoppingPage() {
   };
 
   const addManualItem = async (name: string, quantity: string, category: string) => {
-    if (!name.trim()) return;
+    if (!name.trim() || !selectedSupermarketId) return;
 
     try {
       const { error } = await supabase.from("shopping_items").insert([
@@ -2381,6 +2406,7 @@ export default function ShoppingPage() {
   };
 
   const addProductFromDatabase = async (product: GroceryProduct) => {
+    if (!selectedSupermarketId) return;
     try {
       const { error } = await supabase.from("shopping_items").insert([
         {
@@ -2458,6 +2484,7 @@ export default function ShoppingPage() {
 
   // Empty entire trash for current supermarket
   const emptyTrash = async () => {
+    if (!selectedSupermarketId) return;
     if (!confirm("¿Seguro que quieres vaciar la papelera? Esta acción es permanente.")) return;
     
     try {
@@ -2477,6 +2504,7 @@ export default function ShoppingPage() {
 
   // Restore all items from trash
   const restoreAllTrash = async () => {
+    if (!selectedSupermarketId) return;
     try {
       const { error } = await supabase
         .from("shopping_items")
@@ -2497,6 +2525,7 @@ export default function ShoppingPage() {
   };
 
   const clearChecked = async () => {
+    if (!selectedSupermarketId) return;
     try {
       // Soft delete: move to trash instead of deleting
       const { error } = await supabase
@@ -2518,6 +2547,7 @@ export default function ShoppingPage() {
   };
 
   const markAllAsChecked = async () => {
+    if (!selectedSupermarketId) return;
     try {
       // Save the IDs of unchecked items for undo
       const uncheckedIds = items.filter(item => !item.checked).map(item => item.id);
@@ -2580,6 +2610,7 @@ export default function ShoppingPage() {
   };
 
   const clearAll = async () => {
+    if (!selectedSupermarketId) return;
     if (!confirm("¿Seguro que quieres vaciar toda la lista? Los productos irán a la papelera.")) return;
     
     try {
@@ -2636,7 +2667,6 @@ export default function ShoppingPage() {
   // Change supermarket and clear selection
   const changeSupermarket = (market: SupermarketName) => {
     setSelectedSupermarketId(market);
-    localStorage.setItem(SELECTED_SUPERMARKET_STORAGE_KEY, market);
     setSelectedItems(new Set());
     setSelectionMode(false);
     setHideUnpinned(false);
@@ -2769,6 +2799,14 @@ export default function ShoppingPage() {
     enabledSupermarkets.length > 0
       ? enabledSupermarkets
       : DEFAULT_SUPERMARKETS.filter((s) => s.enabled);
+
+  if (selectedSupermarketId == null) {
+    return (
+      <div className="min-h-screen pb-bottom-nav flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[var(--color-purple)] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pb-bottom-nav">

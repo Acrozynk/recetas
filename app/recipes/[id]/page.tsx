@@ -18,7 +18,6 @@ import {
 import {
   supermarketTabStyle,
   pickInitialSupermarketId,
-  SELECTED_SUPERMARKET_STORAGE_KEY,
 } from "@/lib/supermarkets";
 import { useSupermarkets } from "@/hooks/useSupermarkets";
 import Header from "@/components/Header";
@@ -268,7 +267,7 @@ function AddToShoppingListModal({
   recipeName: string;
   scaleAmount: (amount: string) => string;
 }) {
-  const { enabledSupermarkets, loading: loadingSupermarkets } = useSupermarkets();
+  const { enabledSupermarkets, supermarkets, loading: loadingSupermarkets } = useSupermarkets();
   const [localIngredients, setLocalIngredients] = useState<ShoppingIngredient[]>([]);
   const [selectedSupermarket, setSelectedSupermarket] = useState<SupermarketName>("Mercadona");
   const [saving, setSaving] = useState(false);
@@ -300,11 +299,12 @@ function AddToShoppingListModal({
       setSuccess(false);
 
       if (!loadingSupermarkets && enabledSupermarkets.length > 0) {
-        const stored = localStorage.getItem(SELECTED_SUPERMARKET_STORAGE_KEY);
-        setSelectedSupermarket(pickInitialSupermarketId(enabledSupermarkets, stored));
+        setSelectedSupermarket(
+          pickInitialSupermarketId(enabledSupermarkets, supermarkets)
+        );
       }
     }
-  }, [isOpen, ingredients, scaleAmount, loadingSupermarkets, enabledSupermarkets]);
+  }, [isOpen, ingredients, scaleAmount, loadingSupermarkets, enabledSupermarkets, supermarkets]);
 
   const toggleIngredient = (id: string) => {
     setLocalIngredients(prev =>

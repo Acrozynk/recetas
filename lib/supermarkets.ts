@@ -10,6 +10,8 @@ export interface SupermarketConfig {
   /** Hex color, e.g. #15803d */
   color: string;
   sortOrder: number;
+  /** Opens Compras on this store when the page loads. */
+  isDefault?: boolean;
   builtin?: boolean;
 }
 
@@ -38,9 +40,24 @@ export const DEFAULT_SUPERMARKETS: SupermarketConfig[] = [
     enabled: true,
     color: "#15803d",
     sortOrder: 2,
+    isDefault: true,
     builtin: true,
   },
 ];
+
+function ensureSingleDefault(stores: SupermarketConfig[]): SupermarketConfig[] {
+  if (stores.length === 0) return stores;
+
+  const enabled = stores.filter((s) => s.enabled);
+  let defaultId = stores.find((s) => s.isDefault)?.id;
+
+  if (!defaultId || !enabled.some((s) => s.id === defaultId)) {
+    const mercadona = enabled.find((s) => s.id === "Mercadona");
+    defaultId = mercadona?.id ?? enabled[0]?.id ?? stores[0].id;
+  }
+
+  return stores.map((s) => ({ ...s, isDefault: s.id === defaultId }));
+}
 
 export function normalizeSupermarkets(raw: unknown): SupermarketConfig[] {
   if (!Array.isArray(raw) || raw.length === 0) {
@@ -65,6 +82,7 @@ export function normalizeSupermarkets(raw: unknown): SupermarketConfig[] {
       enabled: row.enabled !== false,
       color: sanitizeHexColor(row.color) ?? "#6366f1",
       sortOrder: typeof row.sortOrder === "number" ? row.sortOrder : parsed.length,
+      isDefault: !!row.isDefault,
       builtin: !!row.builtin,
     });
   }
@@ -73,7 +91,9 @@ export function normalizeSupermarkets(raw: unknown): SupermarketConfig[] {
     return DEFAULT_SUPERMARKETS.map((s) => ({ ...s }));
   }
 
-  return parsed.sort((a, b) => a.sortOrder - b.sortOrder);
+  return ensureSingleDefault(
+    parsed.sort((a, b) => a.sortOrder - b.sortOrder)
+  );
 }
 
 export function sanitizeHexColor(value: unknown): string | null {
@@ -154,14 +174,23 @@ export function supermarketHeaderStyle(color: string): CSSProperties {
   };
 }
 
-export const SELECTED_SUPERMARKET_STORAGE_KEY = "recetas-selected-supermarket";
+/** Which store opens first in Compras (from settings). */
+export function getDefaultSupermarketId(all: SupermarketConfig[]): SupermarketId {
+  const enabled = getEnabledSupermarkets(all);
+  const marked = all.find((s) => s.isDefault && s.enabled);
+  if (marked) return marked.id;
+  const mercadona = enabled.find((s) => s.id === "Mercadona");
+  if (mercadona) return mercadona.id;
+  return enabled[0]?.id ?? "Mercadona";
+}
 
 export function pickInitialSupermarketId(
   enabled: SupermarketConfig[],
-  storedId: string | null
+  all: SupermarketConfig[]
 ): SupermarketId {
-  if (storedId && enabled.some((s) => s.id === storedId)) return storedId;
-  return enabled[0]?.id ?? DEFAULT_SUPERMARKETS[0].id;
+  const defaultId = getDefaultSupermarketId(all);
+  if (enabled.some((s) => s.id === defaultId)) return defaultId;
+  return enabled[0]?.id ?? defaultId;
 }
 
 export type SupermarketName = SupermarketId;

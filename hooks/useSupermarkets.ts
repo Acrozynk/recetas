@@ -9,9 +9,7 @@ import {
 } from "@/lib/supermarkets";
 
 export function useSupermarkets() {
-  const [supermarkets, setSupermarkets] = useState<SupermarketConfig[]>(
-    DEFAULT_SUPERMARKETS
-  );
+  const [supermarkets, setSupermarkets] = useState<SupermarketConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

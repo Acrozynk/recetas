@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import UnitConverter from "@/components/UnitConverter";
@@ -16,6 +16,7 @@ import {
   type SupermarketConfig,
   uniqueSupermarketId,
   sanitizeHexColor,
+  normalizeSupermarkets,
 } from "@/lib/supermarkets";
 
 type ExportFormat = "json" | "csv" | "markdown" | "html" | "all";
@@ -139,11 +140,52 @@ export default function SettingsPage() {
   const [draftSupermarkets, setDraftSupermarkets] = useState<SupermarketConfig[]>([]);
   const [newSupermarketName, setNewSupermarketName] = useState("");
   const [newSupermarketColor, setNewSupermarketColor] = useState("#6366f1");
-  const [savingSupermarkets, setSavingSupermarkets] = useState(false);
+  const [supermarketsSaveState, setSupermarketsSaveState] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle");
+  const skipSupermarketsAutoSaveRef = useRef(true);
 
   useEffect(() => {
     setDraftSupermarkets(supermarkets.map((s) => ({ ...s })));
+    skipSupermarketsAutoSaveRef.current = true;
+    const t = window.setTimeout(() => {
+      skipSupermarketsAutoSaveRef.current = false;
+    }, 0);
+    return () => window.clearTimeout(t);
   }, [supermarkets]);
+
+  useEffect(() => {
+    if (skipSupermarketsAutoSaveRef.current) return;
+    if (draftSupermarkets.length === 0) return;
+
+    const normalized = normalizeSupermarkets(draftSupermarkets);
+    if (JSON.stringify(normalized) === JSON.stringify(supermarkets)) {
+      return;
+    }
+
+    if (normalized.filter((s) => s.enabled).length === 0) {
+      setSupermarketsSaveState("error");
+      return;
+    }
+
+    setSupermarketsSaveState("saving");
+    const timer = window.setTimeout(async () => {
+      try {
+        await saveSupermarkets(normalized);
+        sessionStorage.setItem("recetas-supermarkets-changed", "1");
+        setSupermarketsSaveState("saved");
+        window.setTimeout(() => setSupermarketsSaveState("idle"), 2000);
+      } catch (err) {
+        console.error("Error auto-saving supermarkets:", err);
+        setSupermarketsSaveState("error");
+        alert(
+          err instanceof Error ? err.message : "Error al guardar supermercados"
+        );
+      }
+    }, 500);
+
+    return () => window.clearTimeout(timer);
+  }, [draftSupermarkets, supermarkets, saveSupermarkets]);
 
   useEffect(() => {
     loadRecipes();
@@ -479,7 +521,7 @@ export default function SettingsPage() {
       const target = direction === "up" ? index - 1 : index + 1;
       if (target < 0 || target >= next.length) return prev;
       [next[index], next[target]] = [next[target], next[index]];
-      return next.map((s, i) => ({ ...s, sortOrder: i }));
+      return normalizeSupermarkets(next.map((s, i) => ({ ...s, sortOrder: i })));
     });
   };
 
@@ -487,8 +529,33 @@ export default function SettingsPage() {
     id: string,
     patch: Partial<Pick<SupermarketConfig, "name" | "enabled" | "color">>
   ) => {
+    setDraftSupermarkets((prev) => {
+      let next = prev.map((s) => (s.id === id ? { ...s, ...patch } : s));
+      if (patch.enabled === false) {
+        const disabled = next.find((s) => s.id === id);
+        if (disabled?.isDefault) {
+          const replacement = next.find((s) => s.enabled);
+          if (replacement) {
+            next = next.map((s) => ({
+              ...s,
+              isDefault: s.id === replacement.id,
+            }));
+          }
+        }
+      }
+      return normalizeSupermarkets(next);
+    });
+  };
+
+  const setDefaultSupermarket = (id: string) => {
     setDraftSupermarkets((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, ...patch } : s))
+      normalizeSupermarkets(
+        prev.map((s) => ({
+          ...s,
+          isDefault: s.id === id,
+          enabled: s.id === id ? true : s.enabled,
+        }))
+      )
     );
   };
 
@@ -500,55 +567,42 @@ export default function SettingsPage() {
       name,
       draftSupermarkets.map((s) => s.id)
     );
-    setDraftSupermarkets((prev) => [
-      ...prev,
-      {
-        id,
-        name,
-        enabled: true,
-        color,
-        sortOrder: prev.length,
-      },
-    ]);
+    setDraftSupermarkets((prev) =>
+      normalizeSupermarkets([
+        ...prev,
+        {
+          id,
+          name,
+          enabled: true,
+          color,
+          sortOrder: prev.length,
+        },
+      ])
+    );
     setNewSupermarketName("");
     setNewSupermarketColor("#6366f1");
   };
 
-  const handleRemoveCustomSupermarket = (id: string) => {
+  const handleRemoveSupermarket = (id: string) => {
     const store = draftSupermarkets.find((s) => s.id === id);
-    if (!store || store.builtin) return;
+    if (!store) return;
+    if (draftSupermarkets.length <= 1) {
+      alert("Debe quedar al menos un supermercado en la lista.");
+      return;
+    }
     if (
       !window.confirm(
-        `¿Quitar "${store.name}" de la lista? Tus artículos e historial se conservan y volverán a aparecer si lo añades de nuevo con el mismo nombre.`
+        `¿Eliminar "${store.name}" de la lista? Tus artículos e historial se conservan y volverán a aparecer si lo añades de nuevo con el mismo nombre.`
       )
     ) {
       return;
     }
     setDraftSupermarkets((prev) =>
-      prev.filter((s) => s.id !== id).map((s, i) => ({ ...s, sortOrder: i }))
+      normalizeSupermarkets(
+        prev.filter((s) => s.id !== id).map((s, i) => ({ ...s, sortOrder: i }))
+      )
     );
   };
-
-  const handleSaveSupermarkets = async () => {
-    if (draftSupermarkets.filter((s) => s.enabled).length === 0) {
-      alert("Debe haber al menos un supermercado activo.");
-      return;
-    }
-    setSavingSupermarkets(true);
-    try {
-      await saveSupermarkets(draftSupermarkets);
-      sessionStorage.setItem("recetas-supermarkets-changed", "1");
-    } catch (err) {
-      alert(
-        err instanceof Error ? err.message : "Error al guardar supermercados"
-      );
-    } finally {
-      setSavingSupermarkets(false);
-    }
-  };
-
-  const supermarketsDirty =
-    JSON.stringify(draftSupermarkets) !== JSON.stringify(supermarkets);
 
   return (
     <div className="min-h-screen pb-bottom-nav">
@@ -808,9 +862,9 @@ export default function SettingsPage() {
 
         {/* Supermarkets Section — just below Export for easy discovery */}
         <section className="bg-white rounded-xl border border-[var(--border-color)] overflow-hidden">
-          <div className="p-4 border-b border-[var(--border-color)]">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600">
+          <div className="p-4 border-b border-[var(--border-color)] flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600 flex-shrink-0">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
@@ -820,9 +874,24 @@ export default function SettingsPage() {
                   Supermercados
                 </h2>
                 <p className="text-sm text-[var(--color-slate)]">
-                  Activa, desactiva o añade listas de la compra
+                  Activa, desactiva, elimina o elige cuál se abre por defecto
                 </p>
               </div>
+            </div>
+            <div className="flex-shrink-0 text-right min-w-[5rem]">
+              {supermarketsSaveState === "saving" && (
+                <span className="text-xs text-[var(--color-slate)]">
+                  Guardando…
+                </span>
+              )}
+              {supermarketsSaveState === "saved" && (
+                <span className="text-xs text-emerald-600">Guardado</span>
+              )}
+              {supermarketsSaveState === "error" && (
+                <span className="text-xs text-red-600">
+                  Activa al menos uno
+                </span>
+              )}
             </div>
           </div>
 
@@ -867,12 +936,27 @@ export default function SettingsPage() {
                           type="checkbox"
                           checked={store.enabled}
                           onChange={(e) =>
-                            updateDraftSupermarket(store.id, { enabled: e.target.checked })
+                            updateDraftSupermarket(store.id, {
+                              enabled: e.target.checked,
+                            })
                           }
                           className="checkbox"
                         />
                         Activo
                       </label>
+                      <button
+                        type="button"
+                        onClick={() => setDefaultSupermarket(store.id)}
+                        disabled={!store.enabled}
+                        className={`px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
+                          store.isDefault
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-white text-[var(--color-slate-light)] hover:bg-amber-50 disabled:opacity-40"
+                        }`}
+                        title="Abrir Compras en este supermercado"
+                      >
+                        {store.isDefault ? "★ Por defecto" : "Por defecto"}
+                      </button>
                       <div className="flex items-center gap-1 ml-auto">
                         <button
                           type="button"
@@ -896,18 +980,16 @@ export default function SettingsPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                           </svg>
                         </button>
-                        {!store.builtin && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveCustomSupermarket(store.id)}
-                            className="p-1.5 text-[var(--color-slate-light)] hover:text-red-600 hover:bg-red-50 rounded"
-                            title="Quitar de la lista"
-                          >
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSupermarket(store.id)}
+                          className="p-1.5 text-[var(--color-slate-light)] hover:text-red-600 hover:bg-red-50 rounded"
+                          title="Eliminar de la lista"
+                        >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                           </button>
-                        )}
                       </div>
                     </div>
                   ))}
@@ -940,19 +1022,9 @@ export default function SettingsPage() {
                 </div>
 
                 <p className="text-xs text-[var(--color-slate-light)]">
-                  Desactivar un supermercado lo oculta de la lista de la compra, pero
-                  conserva artículos, sugerencias e historial. Al volver a activarlo,
-                  todo reaparece como estaba.
+                  Los cambios se guardan solos. Desactivar o eliminar un supermercado
+                  solo lo oculta; al volver a añadirlo, conserva artículos e historial.
                 </p>
-
-                <button
-                  type="button"
-                  onClick={handleSaveSupermarkets}
-                  disabled={savingSupermarkets || !supermarketsDirty}
-                  className="w-full btn-primary disabled:opacity-50"
-                >
-                  {savingSupermarkets ? "Guardando…" : "Guardar supermercados"}
-                </button>
               </>
             )}
           </div>
