@@ -27,11 +27,17 @@ export function useSupermarkets() {
         );
       }
       const data = await response.json();
-      setSupermarkets(normalizeSupermarkets(data));
+      const next = normalizeSupermarkets(data);
+      setSupermarkets((prev) =>
+        JSON.stringify(prev) === JSON.stringify(next) ? prev : next
+      );
     } catch (err) {
       console.error("Error loading supermarkets:", err);
       setError(err instanceof Error ? err.message : "Error loading supermarkets");
-      setSupermarkets(DEFAULT_SUPERMARKETS.map((s) => ({ ...s })));
+      setSupermarkets((prev) => {
+        const fallback = DEFAULT_SUPERMARKETS.map((s) => ({ ...s }));
+        return JSON.stringify(prev) === JSON.stringify(fallback) ? prev : fallback;
+      });
     } finally {
       if (!background) setLoading(false);
     }
@@ -65,12 +71,16 @@ export function useSupermarkets() {
     [supermarkets]
   );
 
+  const reload = useCallback(() => {
+    void load(true);
+  }, [load]);
+
   return {
     supermarkets,
     enabledSupermarkets,
     loading,
     error,
-    reload: () => load(true),
+    reload,
     saveSupermarkets,
   };
 }

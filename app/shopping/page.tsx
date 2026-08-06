@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
-import { usePathname } from "next/navigation";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import {
   supabase,
   type ShoppingItem,
@@ -1639,8 +1638,10 @@ export default function ShoppingPage() {
     reload: reloadSupermarkets,
   } = useSupermarkets();
 
-  const pathname = usePathname();
   const supermarketInitRef = useRef(false);
+  const itemsInitialLoadRef = useRef(false);
+  const enabledSupermarketsRef = useRef(enabledSupermarkets);
+  enabledSupermarketsRef.current = enabledSupermarkets;
 
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1666,7 +1667,11 @@ export default function ShoppingPage() {
     useState<SupermarketName>("Mercadona");
   const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
   const [categoryOrder, setCategoryOrder] = useState<string[]>([...DEFAULT_CATEGORIES]);
-  const [loadingCategoryOrder, setLoadingCategoryOrder] = useState(true);
+
+  const enabledSupermarketIds = useMemo(
+    () => enabledSupermarkets.map((s) => s.id).join("\0"),
+    [enabledSupermarkets]
+  );
 
   useEffect(() => {
     if (loadingSupermarkets || enabledSupermarkets.length === 0) return;
@@ -1687,25 +1692,12 @@ export default function ShoppingPage() {
     }
   }, [loadingSupermarkets, enabledSupermarkets, selectedSupermarketId]);
 
-  // Pick up new/disabled stores after saving in Settings
+  // Reload after saving stores in Settings (flag set there)
   useEffect(() => {
-    if (pathname === "/shopping") {
+    if (sessionStorage.getItem("recetas-supermarkets-changed")) {
+      sessionStorage.removeItem("recetas-supermarkets-changed");
       reloadSupermarkets();
     }
-  }, [pathname, reloadSupermarkets]);
-
-  // Also refresh when the browser tab regains focus
-  useEffect(() => {
-    const refreshStores = () => reloadSupermarkets();
-    window.addEventListener("focus", refreshStores);
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") refreshStores();
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      window.removeEventListener("focus", refreshStores);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
   }, [reloadSupermarkets]);
 
   const selectedSupermarketConfig =
@@ -1737,7 +1729,6 @@ export default function ShoppingPage() {
 
   // Load category order for selected supermarket
   const loadCategoryOrder = useCallback(async () => {
-    setLoadingCategoryOrder(true);
     try {
       const response = await fetch(`/api/category-order?supermarket=${selectedSupermarketId}`);
       if (response.ok) {
@@ -1755,8 +1746,6 @@ export default function ShoppingPage() {
     } catch (error) {
       console.error("Error loading category order:", error);
       setCategoryOrder([...DEFAULT_CATEGORIES]);
-    } finally {
-      setLoadingCategoryOrder(false);
     }
   }, [selectedSupermarketId]);
 
@@ -1813,7 +1802,7 @@ export default function ShoppingPage() {
       if (error) throw error;
 
       const counts: Record<string, number> = {};
-      for (const store of enabledSupermarkets) {
+      for (const store of enabledSupermarketsRef.current) {
         counts[store.id] = 0;
       }
       for (const row of data || []) {
@@ -1824,10 +1813,10 @@ export default function ShoppingPage() {
     } catch (error) {
       console.error("Error loading pending counts:", error);
     }
-  }, [enabledSupermarkets]);
+  }, []);
 
   const loadItems = useCallback(async () => {
-    setLoading(true);
+    if (!itemsInitialLoadRef.current) setLoading(true);
     try {
       const baseQuery = supabase
         .from("shopping_items")
@@ -1852,6 +1841,7 @@ export default function ShoppingPage() {
 
       if (error) throw error;
       setItems(data || []);
+      itemsInitialLoadRef.current = true;
     } catch (error) {
       console.error("Error loading shopping items:", error);
     } finally {
@@ -1893,10 +1883,16 @@ export default function ShoppingPage() {
   }, [selectedSupermarketId]);
 
   useEffect(() => {
-    loadItems();
-    // Also load trash count on initial load
-    loadTrashItems();
-  }, [loadItems, loadTrashItems]);
+    void loadItems();
+  }, [loadItems]);
+
+  useEffect(() => {
+    void loadTrashItems();
+  }, [loadTrashItems]);
+
+  useEffect(() => {
+    void loadPendingCounts();
+  }, [enabledSupermarketIds, loadPendingCounts]);
 
   // Load suggestions for the selected supermarket
   const loadSuggestions = useCallback(async () => {
@@ -3170,7 +3166,7 @@ export default function ShoppingPage() {
           </div>
         )}
 
-        {loading || loadingCategoryOrder ? (
+        {loading && items.length === 0 ? (
           <div className="space-y-4">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="animate-pulse">
