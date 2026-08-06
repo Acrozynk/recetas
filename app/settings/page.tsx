@@ -537,6 +537,7 @@ export default function SettingsPage() {
     setSavingSupermarkets(true);
     try {
       await saveSupermarkets(draftSupermarkets);
+      sessionStorage.setItem("recetas-supermarkets-changed", "1");
     } catch (err) {
       alert(
         err instanceof Error ? err.message : "Error al guardar supermercados"
