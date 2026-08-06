@@ -9,12 +9,20 @@ import {
   type SupermarketName,
   type SupermarketCategoryOrder,
   type ItemSupermarketHistory,
-  SUPERMARKETS,
-  SUPERMARKET_COLORS,
   DEFAULT_CATEGORIES,
   RECIPE_SHOPPING_SELECT,
   getAlternativeIngredients,
 } from "@/lib/supabase";
+import {
+  type SupermarketConfig,
+  getSupermarketById,
+  supermarketTabStyle,
+  supermarketBadgeStyle,
+  supermarketHeaderStyle,
+  pickInitialSupermarketId,
+  SELECTED_SUPERMARKET_STORAGE_KEY,
+} from "@/lib/supermarkets";
+import { useSupermarkets } from "@/hooks/useSupermarkets";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import type { GroceryProduct } from "@/lib/spanish-groceries";
@@ -114,13 +122,15 @@ function mergeCategoryOrderWithDefaults(fromDb: string[]): string[] {
 function CategoryOrderModal({
   isOpen,
   onClose,
-  supermarket,
+  supermarketName,
+  supermarketColor,
   categoryOrder,
   onSave,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  supermarket: SupermarketName;
+  supermarketName: string;
+  supermarketColor: string;
   categoryOrder: string[];
   onSave: (newOrder: string[]) => Promise<boolean>;
 }) {
@@ -178,7 +188,7 @@ function CategoryOrderModal({
 
   if (!isOpen) return null;
 
-  const supermarketColor = SUPERMARKET_COLORS[supermarket];
+  const headerStyle = supermarketHeaderStyle(supermarketColor);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -191,14 +201,14 @@ function CategoryOrderModal({
       {/* Modal */}
       <div className="relative bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[85vh] flex flex-col shadow-2xl animate-fade-in">
         {/* Header */}
-        <div className={`p-4 border-b border-[var(--border-color)] ${supermarketColor.bg}`}>
+        <div className="p-4 border-b border-[var(--border-color)]" style={headerStyle}>
           <div className="flex items-center justify-between">
             <div>
               <h2 className="font-display text-xl font-semibold text-[var(--foreground)]">
                 Orden de Categorías
               </h2>
-              <p className={`text-sm ${supermarketColor.text} font-medium mt-1`}>
-                {supermarket}
+              <p className="text-sm font-medium mt-1" style={{ color: supermarketColor }}>
+                {supermarketName}
               </p>
             </div>
             <button
@@ -215,7 +225,7 @@ function CategoryOrderModal({
         {/* Instructions */}
         <div className="px-4 py-3 bg-[var(--color-purple-bg)] border-b border-[var(--border-color)]">
           <p className="text-sm text-[var(--color-slate)]">
-            📍 Arrastra las categorías para ordenarlas según aparecen en <strong>{supermarket}</strong>
+            📍 Arrastra las categorías para ordenarlas según aparecen en <strong>{supermarketName}</strong>
           </p>
         </div>
 
@@ -243,7 +253,10 @@ function CategoryOrderModal({
                 </div>
 
                 {/* Order Number */}
-                <span className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-bold ${supermarketColor.bg} ${supermarketColor.text}`}>
+                <span
+                  className="w-7 h-7 flex items-center justify-center rounded-full text-sm font-bold"
+                  style={supermarketHeaderStyle(supermarketColor)}
+                >
                   {index + 1}
                 </span>
 
@@ -600,13 +613,15 @@ function MoveItemsModal({
   onClose,
   items,
   currentSupermarket,
+  enabledSupermarkets,
   onMove,
   onCopy,
 }: {
   isOpen: boolean;
   onClose: () => void;
   items: ShoppingItem[];
-  currentSupermarket: SupermarketName;
+  currentSupermarket: SupermarketConfig;
+  enabledSupermarkets: SupermarketConfig[];
   onMove: (items: ShoppingItem[], targetSupermarket: SupermarketName) => Promise<void>;
   onCopy: (items: ShoppingItem[], targetSupermarket: SupermarketName) => Promise<void>;
 }) {
@@ -622,7 +637,12 @@ function MoveItemsModal({
     }
   }, [isOpen]);
 
-  const availableSupermarkets = SUPERMARKETS.filter(s => s !== currentSupermarket);
+  const availableSupermarkets = enabledSupermarkets.filter(
+    (s) => s.id !== currentSupermarket.id
+  );
+  const targetSupermarketName =
+    availableSupermarkets.find((s) => s.id === targetSupermarket)?.name ??
+    targetSupermarket;
 
   const handleConfirm = async () => {
     if (!targetSupermarket) return;
@@ -659,7 +679,7 @@ function MoveItemsModal({
                 {items.length === 1 ? "Mover o Copiar Artículo" : `Mover o Copiar ${items.length} Artículos`}
               </h2>
               <p className="text-sm text-[var(--color-slate)] mt-1">
-                Desde <strong>{currentSupermarket}</strong>
+                Desde <strong>{currentSupermarket.name}</strong>
               </p>
             </div>
             <button
@@ -713,7 +733,7 @@ function MoveItemsModal({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                 </svg>
                 <span className="font-medium text-sm">Mover</span>
-                <span className="text-xs text-[var(--color-slate-light)]">Se quita de {currentSupermarket}</span>
+                <span className="text-xs text-[var(--color-slate-light)]">Se quita de {currentSupermarket.name}</span>
               </button>
               <button
                 onClick={() => setAction("copy")}
@@ -727,7 +747,7 @@ function MoveItemsModal({
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
                 <span className="font-medium text-sm">Copiar</span>
-                <span className="text-xs text-[var(--color-slate-light)]">Se mantiene en {currentSupermarket}</span>
+                <span className="text-xs text-[var(--color-slate-light)]">Se mantiene en {currentSupermarket.name}</span>
               </button>
             </div>
           </div>
@@ -738,27 +758,45 @@ function MoveItemsModal({
               Supermercado destino
             </label>
             <div className="space-y-2">
-              {availableSupermarkets.map(market => {
-                const colors = SUPERMARKET_COLORS[market];
-                const isSelected = targetSupermarket === market;
+              {availableSupermarkets.map((market) => {
+                const isSelected = targetSupermarket === market.id;
                 return (
                   <button
-                    key={market}
-                    onClick={() => setTargetSupermarket(market)}
-                    className={`w-full p-3 rounded-xl border-2 transition-all flex items-center gap-3 ${
+                    key={market.id}
+                    onClick={() => setTargetSupermarket(market.id)}
+                    className="w-full p-3 rounded-xl border-2 transition-all flex items-center gap-3 border-[var(--border-color)] hover:border-[var(--color-purple-light)]"
+                    style={
                       isSelected
-                        ? `${colors.bg} ${colors.border}`
-                        : "border-[var(--border-color)] hover:border-[var(--color-purple-light)]"
-                    }`}
+                        ? {
+                            ...supermarketTabStyle(market.color, true),
+                            borderWidth: 2,
+                            borderStyle: "solid",
+                          }
+                        : undefined
+                    }
                   >
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${colors.bg}`}>
-                      <span className={`font-bold ${colors.text}`}>{market.charAt(0)}</span>
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center"
+                      style={supermarketHeaderStyle(market.color)}
+                    >
+                      <span className="font-bold" style={{ color: market.color }}>
+                        {market.name.charAt(0)}
+                      </span>
                     </div>
-                    <span className={`font-medium ${isSelected ? colors.text : "text-[var(--foreground)]"}`}>
-                      {market}
+                    <span
+                      className="font-medium"
+                      style={isSelected ? { color: market.color } : undefined}
+                    >
+                      {market.name}
                     </span>
                     {isSelected && (
-                      <svg className={`w-5 h-5 ml-auto ${colors.text}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg
+                        className="w-5 h-5 ml-auto"
+                        style={{ color: market.color }}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                       </svg>
                     )}
@@ -798,7 +836,7 @@ function MoveItemsModal({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
                 )}
-                {action === "move" ? "Mover" : "Copiar"} a {targetSupermarket}
+                {action === "move" ? "Mover" : "Copiar"} a {targetSupermarketName}
               </>
             )}
           </button>
@@ -1592,6 +1630,9 @@ function ShoppingListItemRow({
 }
 
 export default function ShoppingPage() {
+  const { supermarkets, enabledSupermarkets, loading: loadingSupermarkets } =
+    useSupermarkets();
+
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -1612,14 +1653,33 @@ export default function ShoppingPage() {
   >({});
   
   // Supermarket state
-  const [selectedSupermarket, setSelectedSupermarket] = useState<SupermarketName>("Mercadona");
-  const [pendingCounts, setPendingCounts] = useState<Record<SupermarketName, number>>({
-    DIA: 0,
-    Consum: 0,
-    Mercadona: 0,
-  });
+  const [selectedSupermarketId, setSelectedSupermarketId] =
+    useState<SupermarketName>("Mercadona");
+  const [pendingCounts, setPendingCounts] = useState<Record<string, number>>({});
   const [categoryOrder, setCategoryOrder] = useState<string[]>([...DEFAULT_CATEGORIES]);
   const [loadingCategoryOrder, setLoadingCategoryOrder] = useState(true);
+
+  useEffect(() => {
+    if (loadingSupermarkets || enabledSupermarkets.length === 0) return;
+
+    const stored = localStorage.getItem(SELECTED_SUPERMARKET_STORAGE_KEY);
+    setSelectedSupermarketId(pickInitialSupermarketId(enabledSupermarkets, stored));
+  }, [loadingSupermarkets, enabledSupermarkets]);
+
+  useEffect(() => {
+    if (loadingSupermarkets) return;
+    if (!enabledSupermarkets.some((s) => s.id === selectedSupermarketId)) {
+      const next = pickInitialSupermarketId(enabledSupermarkets, null);
+      setSelectedSupermarketId(next);
+      localStorage.setItem(SELECTED_SUPERMARKET_STORAGE_KEY, next);
+    }
+  }, [loadingSupermarkets, enabledSupermarkets, selectedSupermarketId]);
+
+  const selectedSupermarketConfig =
+    getSupermarketById(supermarkets, selectedSupermarketId) ??
+    enabledSupermarkets[0];
+  const selectedSupermarketColor = selectedSupermarketConfig?.color ?? "#15803d";
+  const selectedSupermarketName = selectedSupermarketConfig?.name ?? selectedSupermarketId;
 
   // Suggestions state
   const [suggestions, setSuggestions] = useState<ItemSupermarketHistory[]>([]);
@@ -1646,7 +1706,7 @@ export default function ShoppingPage() {
   const loadCategoryOrder = useCallback(async () => {
     setLoadingCategoryOrder(true);
     try {
-      const response = await fetch(`/api/category-order?supermarket=${selectedSupermarket}`);
+      const response = await fetch(`/api/category-order?supermarket=${selectedSupermarketId}`);
       if (response.ok) {
         const data: SupermarketCategoryOrder[] = await response.json();
         if (data && data.length > 0) {
@@ -1665,7 +1725,7 @@ export default function ShoppingPage() {
     } finally {
       setLoadingCategoryOrder(false);
     }
-  }, [selectedSupermarket]);
+  }, [selectedSupermarketId]);
 
   useEffect(() => {
     loadCategoryOrder();
@@ -1677,7 +1737,7 @@ export default function ShoppingPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          supermarket: selectedSupermarket,
+          supermarket: selectedSupermarketId,
           categories: newOrder,
         }),
       });
@@ -1719,27 +1779,26 @@ export default function ShoppingPage() {
 
       if (error) throw error;
 
-      const counts: Record<SupermarketName, number> = {
-        DIA: 0,
-        Consum: 0,
-        Mercadona: 0,
-      };
+      const counts: Record<string, number> = {};
+      for (const store of enabledSupermarkets) {
+        counts[store.id] = 0;
+      }
       for (const row of data || []) {
-        const market = row.supermarket as SupermarketName;
-        if (market in counts) counts[market]++;
+        const market = row.supermarket as string;
+        counts[market] = (counts[market] ?? 0) + 1;
       }
       setPendingCounts(counts);
     } catch (error) {
       console.error("Error loading pending counts:", error);
     }
-  }, []);
+  }, [enabledSupermarkets]);
 
   const loadItems = useCallback(async () => {
     try {
       const baseQuery = supabase
         .from("shopping_items")
         .select("*")
-        .eq("supermarket", selectedSupermarket)
+        .eq("supermarket", selectedSupermarketId)
         .is("deleted_at", null);
 
       let { data, error } = await baseQuery
@@ -1765,7 +1824,7 @@ export default function ShoppingPage() {
       setLoading(false);
       void loadPendingCounts();
     }
-  }, [selectedSupermarket, loadPendingCounts]);
+  }, [selectedSupermarketId, loadPendingCounts]);
 
   // Load trash items for selected supermarket
   const loadTrashItems = useCallback(async () => {
@@ -1778,7 +1837,7 @@ export default function ShoppingPage() {
       await supabase
         .from("shopping_items")
         .delete()
-        .eq("supermarket", selectedSupermarket)
+        .eq("supermarket", selectedSupermarketId)
         .not("deleted_at", "is", null)
         .lt("deleted_at", thirtyDaysAgo.toISOString());
 
@@ -1786,7 +1845,7 @@ export default function ShoppingPage() {
       const { data, error } = await supabase
         .from("shopping_items")
         .select("*")
-        .eq("supermarket", selectedSupermarket)
+        .eq("supermarket", selectedSupermarketId)
         .not("deleted_at", "is", null)
         .order("deleted_at", { ascending: false });
 
@@ -1797,7 +1856,7 @@ export default function ShoppingPage() {
     } finally {
       setLoadingTrash(false);
     }
-  }, [selectedSupermarket]);
+  }, [selectedSupermarketId]);
 
   useEffect(() => {
     loadItems();
@@ -1809,7 +1868,7 @@ export default function ShoppingPage() {
   const loadSuggestions = useCallback(async () => {
     setLoadingSuggestions(true);
     try {
-      const response = await fetch(`/api/shopping-lists/suggestions?supermarket=${selectedSupermarket}&limit=30`);
+      const response = await fetch(`/api/shopping-lists/suggestions?supermarket=${selectedSupermarketId}&limit=30`);
       if (response.ok) {
         const data: ItemSupermarketHistory[] = await response.json();
         // Filter out items that are NOT checked (still pending to buy)
@@ -1829,7 +1888,7 @@ export default function ShoppingPage() {
     } finally {
       setLoadingSuggestions(false);
     }
-  }, [selectedSupermarket, items]);
+  }, [selectedSupermarketId, items]);
 
   // Load suggestions when supermarket changes or items change
   useEffect(() => {
@@ -1848,7 +1907,7 @@ export default function ShoppingPage() {
           category: category,
           checked: false,
           recipe_id: null,
-          supermarket: selectedSupermarket,
+          supermarket: selectedSupermarketId,
         },
       ]);
 
@@ -2148,7 +2207,7 @@ export default function ShoppingPage() {
             checked: false,
             recipe_id: null,
             recipe_sources: ing.recipes || [],
-            supermarket: selectedSupermarket,
+            supermarket: selectedSupermarketId,
           });
         }
       }
@@ -2250,7 +2309,7 @@ export default function ShoppingPage() {
           category: category,
           checked: false,
           recipe_id: null,
-          supermarket: selectedSupermarket,
+          supermarket: selectedSupermarketId,
         },
       ]);
 
@@ -2299,7 +2358,7 @@ export default function ShoppingPage() {
           category: product.category,
           checked: false,
           recipe_id: null,
-          supermarket: selectedSupermarket,
+          supermarket: selectedSupermarketId,
         },
       ]);
 
@@ -2322,6 +2381,7 @@ export default function ShoppingPage() {
       if (error) throw error;
 
       setItems(items.filter((i) => i.id !== id));
+      void loadPendingCounts();
       // Refresh trash if it's open
       if (showTrash) {
         loadTrashItems();
@@ -2374,7 +2434,7 @@ export default function ShoppingPage() {
       const { error } = await supabase
         .from("shopping_items")
         .delete()
-        .eq("supermarket", selectedSupermarket)
+        .eq("supermarket", selectedSupermarketId)
         .not("deleted_at", "is", null);
 
       if (error) throw error;
@@ -2391,7 +2451,7 @@ export default function ShoppingPage() {
       const { error } = await supabase
         .from("shopping_items")
         .update({ deleted_at: null, checked: false })
-        .eq("supermarket", selectedSupermarket)
+        .eq("supermarket", selectedSupermarketId)
         .not("deleted_at", "is", null);
 
       if (error) throw error;
@@ -2412,7 +2472,7 @@ export default function ShoppingPage() {
       const { error } = await supabase
         .from("shopping_items")
         .update({ deleted_at: new Date().toISOString() })
-        .eq("supermarket", selectedSupermarket)
+        .eq("supermarket", selectedSupermarketId)
         .is("deleted_at", null)
         .eq("checked", true);
 
@@ -2438,7 +2498,7 @@ export default function ShoppingPage() {
       const { error } = await supabase
         .from("shopping_items")
         .update({ checked: true })
-        .eq("supermarket", selectedSupermarket)
+        .eq("supermarket", selectedSupermarketId)
         .is("deleted_at", null)
         .eq("checked", false);
 
@@ -2454,6 +2514,7 @@ export default function ShoppingPage() {
       
       // Save for undo
       setLastMarkedItems(uncheckedIds);
+      void loadPendingCounts();
     } catch (error) {
       console.error("Error marking all items as checked:", error);
     }
@@ -2482,6 +2543,7 @@ export default function ShoppingPage() {
       
       // Clear undo state
       setLastMarkedItems([]);
+      void loadPendingCounts();
     } catch (error) {
       console.error("Error undoing mark all:", error);
     }
@@ -2495,7 +2557,7 @@ export default function ShoppingPage() {
       const { error } = await supabase
         .from("shopping_items")
         .update({ deleted_at: new Date().toISOString() })
-        .eq("supermarket", selectedSupermarket)
+        .eq("supermarket", selectedSupermarketId)
         .is("deleted_at", null);
 
       if (error) throw error;
@@ -2543,7 +2605,8 @@ export default function ShoppingPage() {
 
   // Change supermarket and clear selection
   const changeSupermarket = (market: SupermarketName) => {
-    setSelectedSupermarket(market);
+    setSelectedSupermarketId(market);
+    localStorage.setItem(SELECTED_SUPERMARKET_STORAGE_KEY, market);
     setSelectedItems(new Set());
     setSelectionMode(false);
     setHideUnpinned(false);
@@ -2670,9 +2733,15 @@ export default function ShoppingPage() {
   const checkedCount = checkedItems.length;
   const totalCount = items.length;
 
-  const supermarketColor = SUPERMARKET_COLORS[selectedSupermarket];
-
   const [showClearMenu, setShowClearMenu] = useState(false);
+
+  if (loadingSupermarkets) {
+    return (
+      <div className="min-h-screen pb-bottom-nav flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[var(--color-purple)] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pb-bottom-nav">
@@ -2775,31 +2844,25 @@ export default function ShoppingPage() {
               Editar orden de categorías
             </button>
           </div>
-          <div className="flex gap-2">
-            {SUPERMARKETS.map((market) => {
-              const colors = SUPERMARKET_COLORS[market];
-              const isSelected = selectedSupermarket === market;
+          <div className="flex gap-2 flex-wrap">
+            {enabledSupermarkets.map((market) => {
+              const isSelected = selectedSupermarketId === market.id;
+              const pending = pendingCounts[market.id] ?? 0;
               return (
                 <button
-                  key={market}
-                  onClick={() => changeSupermarket(market)}
-                  className={`flex-1 py-2.5 px-4 rounded-xl font-medium text-sm transition-all border-2 flex items-center justify-center gap-2 ${
-                    isSelected
-                      ? `${colors.bg} ${colors.text} ${colors.border} shadow-sm`
-                      : "bg-white border-[var(--border-color)] text-[var(--color-slate)] hover:border-[var(--color-purple-light)]"
-                  }`}
+                  key={market.id}
+                  onClick={() => changeSupermarket(market.id)}
+                  className="flex-1 min-w-[5.5rem] py-2.5 px-4 rounded-xl font-medium text-sm transition-all border-2 flex items-center justify-center gap-2"
+                  style={supermarketTabStyle(market.color, isSelected)}
                 >
-                  <span>{market}</span>
-                  {pendingCounts[market] > 0 && (
+                  <span>{market.name}</span>
+                  {pending > 0 && (
                     <span
-                      className={`inline-flex min-w-[1.375rem] h-5 px-1.5 items-center justify-center rounded-full text-xs font-bold tabular-nums ${
-                        isSelected
-                          ? "bg-white/90 text-[var(--foreground)] shadow-sm"
-                          : "bg-[var(--color-purple)] text-white"
-                      }`}
-                      aria-label={`${pendingCounts[market]} por comprar`}
+                      className="inline-flex min-w-[1.375rem] h-5 px-1.5 items-center justify-center rounded-full text-xs font-bold tabular-nums"
+                      style={supermarketBadgeStyle(market.color, isSelected)}
+                      aria-label={`${pending} por comprar`}
                     >
-                      {pendingCounts[market]}
+                      {pending}
                     </span>
                   )}
                 </button>
@@ -2861,7 +2924,7 @@ export default function ShoppingPage() {
                 ¿Te falta algo?
               </span>
               <span className="text-sm text-[var(--color-slate)]">
-                Sugerencias de {selectedSupermarket}
+                Sugerencias de {selectedSupermarketName}
               </span>
             </div>
             <svg
@@ -2921,7 +2984,7 @@ export default function ShoppingPage() {
                 <>
                   <div className="p-3 bg-[var(--color-purple-bg)] border-b border-[var(--border-color)]">
                     <p className="text-sm text-[var(--color-slate)]">
-                      Productos que sueles comprar en <strong>{selectedSupermarket}</strong> y no están en tu lista:
+                      Productos que sueles comprar en <strong>{selectedSupermarketName}</strong> y no están en tu lista:
                     </p>
                   </div>
                   <div className="max-h-64 overflow-y-auto">
@@ -3148,7 +3211,8 @@ export default function ShoppingPage() {
                     )}
                     <h3 className="font-display text-lg font-semibold text-[var(--foreground)] mb-2 flex items-center gap-2">
                       <span
-                        className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold ${supermarketColor.bg} ${supermarketColor.text}`}
+                        className="w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold"
+                        style={supermarketHeaderStyle(selectedSupermarketColor)}
                       >
                         {categoryOrder.indexOf(category) + 1}
                       </span>
@@ -3318,7 +3382,8 @@ export default function ShoppingPage() {
       <CategoryOrderModal
         isOpen={isCategoryOrderModalOpen}
         onClose={() => setIsCategoryOrderModalOpen(false)}
-        supermarket={selectedSupermarket}
+        supermarketName={selectedSupermarketName}
+        supermarketColor={selectedSupermarketColor}
         categoryOrder={categoryOrder}
         onSave={saveCategoryOrder}
       />
@@ -3331,7 +3396,7 @@ export default function ShoppingPage() {
           onSave={updateItem}
           onMoveOrCopy={openMoveModalForItem}
           categoryOrder={categoryOrder}
-          currentSupermarket={selectedSupermarket}
+          currentSupermarket={selectedSupermarketId}
         />
       )}
 
@@ -3343,7 +3408,8 @@ export default function ShoppingPage() {
           setItemsToMove([]);
         }}
         items={itemsToMove}
-        currentSupermarket={selectedSupermarket}
+        currentSupermarket={selectedSupermarketConfig!}
+        enabledSupermarkets={enabledSupermarkets}
         onMove={moveItemsToSupermarket}
         onCopy={copyItemsToSupermarket}
       />

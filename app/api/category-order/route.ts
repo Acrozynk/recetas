@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import type { SupermarketName, SupermarketCategoryOrder } from "@/lib/supabase";
+import type { SupermarketCategoryOrder } from "@/lib/supabase";
 import { DEFAULT_CATEGORIES } from "@/lib/supabase";
+import {
+  getEnabledSupermarkets,
+  normalizeSupermarkets,
+  SUPERMARKETS_SETTINGS_KEY,
+  DEFAULT_SUPERMARKETS,
+} from "@/lib/supermarkets";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,7 +17,7 @@ const supabase = createClient(
 const SETTINGS_KEY = "category_order";
 
 /** Per-supermarket ordered category names stored in app_settings (PostgREST-safe). */
-type CategoryOrderSettings = Partial<Record<SupermarketName, string[]>>;
+type CategoryOrderSettings = Partial<Record<string, string[]>>;
 
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -31,7 +37,7 @@ function isSchemaCacheError(error: unknown): boolean {
 }
 
 function toRows(
-  supermarket: SupermarketName,
+  supermarket: string,
   categories: string[]
 ): SupermarketCategoryOrder[] {
   const now = new Date().toISOString();
@@ -64,9 +70,22 @@ async function saveSettings(settings: CategoryOrderSettings): Promise<void> {
   if (error) throw error;
 }
 
+async function loadSupermarketIds(): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("app_settings")
+    .select("value")
+    .eq("key", SUPERMARKETS_SETTINGS_KEY)
+    .maybeSingle();
+
+  if (error || !data?.value) {
+    return DEFAULT_SUPERMARKETS.map((s) => s.id);
+  }
+  return getEnabledSupermarkets(normalizeSupermarkets(data.value)).map((s) => s.id);
+}
+
 /** Best-effort read from the dedicated table (may fail if PostgREST cache is stale). */
 async function loadFromLegacyTable(
-  supermarket: SupermarketName | null
+  supermarket: string | null
 ): Promise<SupermarketCategoryOrder[] | null> {
   try {
     let query = supabase
@@ -91,7 +110,7 @@ async function loadFromLegacyTable(
 }
 
 async function saveToLegacyTable(
-  supermarket: SupermarketName,
+  supermarket: string,
   categories: string[]
 ): Promise<void> {
   try {
@@ -129,7 +148,7 @@ async function saveToLegacyTable(
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const supermarket = searchParams.get("supermarket") as SupermarketName | null;
+    const supermarket = searchParams.get("supermarket");
 
     const settings = await loadSettings();
 
@@ -148,7 +167,7 @@ export async function GET(request: Request) {
     }
 
     const allRows: SupermarketCategoryOrder[] = [];
-    const markets: SupermarketName[] = ["DIA", "Consum", "Mercadona"];
+    const markets = await loadSupermarketIds();
     for (const market of markets) {
       const stored = settings[market];
       if (stored && stored.length > 0) {
@@ -178,7 +197,7 @@ export async function PUT(request: Request) {
   try {
     const body = await request.json();
     const { supermarket, categories } = body as {
-      supermarket: SupermarketName;
+      supermarket: string;
       categories: string[];
     };
 

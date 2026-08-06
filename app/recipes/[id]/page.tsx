@@ -14,9 +14,13 @@ import {
   normalizeInstructions,
   getAlternativeIngredients,
   type SupermarketName,
-  SUPERMARKETS,
-  SUPERMARKET_COLORS,
 } from "@/lib/supabase";
+import {
+  supermarketTabStyle,
+  pickInitialSupermarketId,
+  SELECTED_SUPERMARKET_STORAGE_KEY,
+} from "@/lib/supermarkets";
+import { useSupermarkets } from "@/hooks/useSupermarkets";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 
@@ -264,10 +268,15 @@ function AddToShoppingListModal({
   recipeName: string;
   scaleAmount: (amount: string) => string;
 }) {
+  const { enabledSupermarkets, loading: loadingSupermarkets } = useSupermarkets();
   const [localIngredients, setLocalIngredients] = useState<ShoppingIngredient[]>([]);
   const [selectedSupermarket, setSelectedSupermarket] = useState<SupermarketName>("Mercadona");
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  const selectedSupermarketName =
+    enabledSupermarkets.find((s) => s.id === selectedSupermarket)?.name ??
+    selectedSupermarket;
 
   // Initialize ingredients when modal opens
   useEffect(() => {
@@ -289,8 +298,13 @@ function AddToShoppingListModal({
         });
       setLocalIngredients(validIngredients);
       setSuccess(false);
+
+      if (!loadingSupermarkets && enabledSupermarkets.length > 0) {
+        const stored = localStorage.getItem(SELECTED_SUPERMARKET_STORAGE_KEY);
+        setSelectedSupermarket(pickInitialSupermarketId(enabledSupermarkets, stored));
+      }
     }
-  }, [isOpen, ingredients, scaleAmount]);
+  }, [isOpen, ingredients, scaleAmount, loadingSupermarkets, enabledSupermarkets]);
 
   const toggleIngredient = (id: string) => {
     setLocalIngredients(prev =>
@@ -427,7 +441,7 @@ function AddToShoppingListModal({
               ¡Añadido!
             </h3>
             <p className="text-[var(--color-slate)]">
-              {selectedCount} ingrediente{selectedCount !== 1 ? 's' : ''} añadido{selectedCount !== 1 ? 's' : ''} a <strong>{selectedSupermarket}</strong>
+              {selectedCount} ingrediente{selectedCount !== 1 ? 's' : ''} añadido{selectedCount !== 1 ? 's' : ''} a <strong>{selectedSupermarketName}</strong>
             </p>
           </div>
         ) : (
@@ -437,26 +451,22 @@ function AddToShoppingListModal({
               <label className="block text-sm font-medium text-[var(--color-slate)] mb-2">
                 Supermercado
               </label>
-              <div className="flex gap-2">
-                {SUPERMARKETS.map(market => {
-                  const colors = SUPERMARKET_COLORS[market];
-                  const isSelected = selectedSupermarket === market;
+              <div className="flex gap-2 flex-wrap">
+                {enabledSupermarkets.map((market) => {
+                  const isSelected = selectedSupermarket === market.id;
                   return (
                     <button
-                      key={market}
-                      onClick={() => setSelectedSupermarket(market)}
-                      className={`flex-1 py-2.5 px-3 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2 ${
-                        isSelected
-                          ? `${colors.bg} ${colors.text} border-2 ${colors.border} shadow-sm`
-                          : "bg-white border-2 border-[var(--border-color)] text-[var(--color-slate)] hover:border-[var(--color-purple-light)]"
-                      }`}
+                      key={market.id}
+                      onClick={() => setSelectedSupermarket(market.id)}
+                      className="flex-1 min-w-[5rem] py-2.5 px-3 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2 border-2"
+                      style={supermarketTabStyle(market.color, isSelected)}
                     >
                       {isSelected && (
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
                       )}
-                      {market}
+                      {market.name}
                     </button>
                   );
                 })}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Header from "@/components/Header";
 import BottomNav from "@/components/BottomNav";
 import UnitConverter from "@/components/UnitConverter";
@@ -11,16 +11,12 @@ import {
   setReminderDays,
 } from "@/components/BackupReminder";
 import { supabase, type Container } from "@/lib/supabase";
+import { useSupermarkets } from "@/hooks/useSupermarkets";
 import {
-  buildLotesMigrationSnapshot,
-  previewLotesMigration,
-  restoreFromSnapshot,
-  runLotesMigration,
-  type LotesMigrationPreview,
-  type LotesMigrationResult,
-  type LotesMigrationSnapshot,
-  type LotesRestoreResult,
-} from "@/lib/lotes-migration";
+  type SupermarketConfig,
+  uniqueSupermarketId,
+  sanitizeHexColor,
+} from "@/lib/supermarkets";
 
 type ExportFormat = "json" | "csv" | "markdown" | "html" | "all";
 
@@ -28,6 +24,7 @@ interface RecipeListItem {
   id: string;
   title: string;
   created_at: string;
+  tags: string[];
 }
 
 interface FormatOption {
@@ -114,6 +111,8 @@ export default function SettingsPage() {
   const [lastBackup, setLastBackup] = useState<Date | null>(null);
   const [reminderDays, setReminderDaysState] = useState(14);
   const [showRecipeSelector, setShowRecipeSelector] = useState(false);
+  const [exportTitleSearch, setExportTitleSearch] = useState("");
+  const [exportTagFilters, setExportTagFilters] = useState<Set<string>>(new Set());
   
   // Container management
   const [containers, setContainers] = useState<Container[]>([]);
@@ -130,150 +129,28 @@ export default function SettingsPage() {
   const [editingTagName, setEditingTagName] = useState("");
   const [savingTag, setSavingTag] = useState<string | null>(null);
   const [deletingTag, setDeletingTag] = useState<string | null>(null);
+  const [showTagsSection, setShowTagsSection] = useState(false);
 
-  // Lotes → 1 lote migration
-  const [lotesPreview, setLotesPreview] = useState<LotesMigrationPreview | null>(
-    null
-  );
-  const [lotesPreviewError, setLotesPreviewError] = useState<string | null>(null);
-  const [lotesMigrating, setLotesMigrating] = useState(false);
-  const [lotesResult, setLotesResult] = useState<LotesMigrationResult | null>(
-    null
-  );
-  const [lotesAutoBackup, setLotesAutoBackup] = useState(true);
-  const [lotesRestoring, setLotesRestoring] = useState(false);
-  const [lotesRestoreResult, setLotesRestoreResult] =
-    useState<LotesRestoreResult | null>(null);
-  const lotesRestoreInputRef = useRef<HTMLInputElement | null>(null);
+  const {
+    supermarkets,
+    saveSupermarkets,
+    loading: loadingSupermarkets,
+  } = useSupermarkets();
+  const [draftSupermarkets, setDraftSupermarkets] = useState<SupermarketConfig[]>([]);
+  const [newSupermarketName, setNewSupermarketName] = useState("");
+  const [newSupermarketColor, setNewSupermarketColor] = useState("#6366f1");
+  const [savingSupermarkets, setSavingSupermarkets] = useState(false);
+
+  useEffect(() => {
+    setDraftSupermarkets(supermarkets.map((s) => ({ ...s })));
+  }, [supermarkets]);
 
   useEffect(() => {
     loadRecipes();
     loadContainers();
     loadTags();
     loadBackupSettings();
-    loadLotesPreview();
   }, []);
-
-  const loadLotesPreview = async () => {
-    try {
-      setLotesPreviewError(null);
-      const preview = await previewLotesMigration();
-      setLotesPreview(preview);
-    } catch (err) {
-      console.error("Error loading lotes migration preview:", err);
-      setLotesPreviewError(
-        err instanceof Error ? err.message : "Error desconocido"
-      );
-    }
-  };
-
-  const downloadLotesSnapshot = (
-    snapshot: LotesMigrationSnapshot
-  ): void => {
-    const blob = new Blob([JSON.stringify(snapshot, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    const stamp = new Date()
-      .toISOString()
-      .replace(/[:.]/g, "-")
-      .slice(0, 19);
-    a.download = `lotes-snapshot-${stamp}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const handleRunLotesMigration = async () => {
-    if (!lotesPreview || lotesPreview.recipesToFix === 0) return;
-    const ok = window.confirm(
-      lotesAutoBackup
-        ? `Se descargará un snapshot con el estado actual y luego se actualizarán ${lotesPreview.recipesToFix} receta(s) y se reescalarán ${lotesPreview.plansToFix} plan(es). Si algo sale mal, podrás restaurar con el archivo descargado. ¿Continuar?`
-        : `Se van a actualizar ${lotesPreview.recipesToFix} receta(s) y reescalar ${lotesPreview.plansToFix} plan(es). NO se descargará ningún snapshot porque has desactivado la copia. ¿Continuar?`
-    );
-    if (!ok) return;
-    setLotesMigrating(true);
-    setLotesRestoreResult(null);
-    try {
-      if (lotesAutoBackup) {
-        const snapshot = await buildLotesMigrationSnapshot();
-        downloadLotesSnapshot(snapshot);
-      }
-      const result = await runLotesMigration();
-      setLotesResult(result);
-      await loadLotesPreview();
-    } catch (err) {
-      console.error("Error running lotes migration:", err);
-      alert(
-        `No se pudo completar la migración: ${
-          err instanceof Error ? err.message : "Error desconocido"
-        }`
-      );
-    } finally {
-      setLotesMigrating(false);
-    }
-  };
-
-  const handleDownloadLotesSnapshot = async () => {
-    try {
-      const snapshot = await buildLotesMigrationSnapshot();
-      if (snapshot.recipes.length === 0 && snapshot.mealPlans.length === 0) {
-        alert(
-          "No hay nada que respaldar: ninguna receta tiene lotes > 1 ahora mismo."
-        );
-        return;
-      }
-      downloadLotesSnapshot(snapshot);
-    } catch (err) {
-      console.error("Error building lotes snapshot:", err);
-      alert(
-        `No se pudo generar el snapshot: ${
-          err instanceof Error ? err.message : "Error desconocido"
-        }`
-      );
-    }
-  };
-
-  const handleLotesRestoreFile = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0];
-    if (file) e.target.value = "";
-    if (!file) return;
-
-    setLotesRestoring(true);
-    setLotesRestoreResult(null);
-    try {
-      const text = await file.text();
-      const parsed = JSON.parse(text) as LotesMigrationSnapshot;
-      const ok = window.confirm(
-        `Vas a restaurar ${parsed.recipes?.length ?? 0} receta(s) y ${
-          parsed.mealPlans?.length ?? 0
-        } plan(es) al estado guardado el ${
-          parsed.createdAt
-            ? new Date(parsed.createdAt).toLocaleString("es-ES")
-            : "(fecha desconocida)"
-        }. Esto SOBRESCRIBIRÁ los valores actuales de esas filas. ¿Continuar?`
-      );
-      if (!ok) return;
-      const result = await restoreFromSnapshot(parsed);
-      setLotesRestoreResult(result);
-      setLotesResult(null);
-      await loadLotesPreview();
-    } catch (err) {
-      console.error("Error restoring lotes snapshot:", err);
-      alert(
-        `No se pudo restaurar el snapshot: ${
-          err instanceof Error ? err.message : "Error desconocido"
-        }`
-      );
-    } finally {
-      setLotesRestoring(false);
-    }
-  };
 
   const loadBackupSettings = async () => {
     const [backupDate, days] = await Promise.all([
@@ -288,13 +165,17 @@ export default function SettingsPage() {
     try {
       const { data, error } = await supabase
         .from("recipes")
-        .select("id, title, created_at")
+        .select("id, title, created_at, tags")
         .order("title", { ascending: true });
 
       if (error) throw error;
-      setRecipes(data || []);
+      const list = (data || []).map((r) => ({
+        ...r,
+        tags: Array.isArray(r.tags) ? r.tags : [],
+      }));
+      setRecipes(list);
       // Select all by default
-      setSelectedRecipes(new Set((data || []).map((r) => r.id)));
+      setSelectedRecipes(new Set(list.map((r) => r.id)));
     } catch (error) {
       console.error("Error loading recipes:", error);
     }
@@ -474,13 +355,52 @@ export default function SettingsPage() {
     }
   };
 
+  const filteredExportRecipes = useMemo(() => {
+    const query = exportTitleSearch.trim().toLowerCase();
+    return recipes.filter((recipe) => {
+      if (query && !recipe.title.toLowerCase().includes(query)) return false;
+      if (exportTagFilters.size > 0) {
+        if (!recipe.tags.some((tag) => exportTagFilters.has(tag))) return false;
+      }
+      return true;
+    });
+  }, [recipes, exportTitleSearch, exportTagFilters]);
+
+  const exportFiltersActive =
+    exportTitleSearch.trim().length > 0 || exportTagFilters.size > 0;
+
+  const toggleExportTagFilter = (tag: string) => {
+    setExportTagFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(tag)) next.delete(tag);
+      else next.add(tag);
+      return next;
+    });
+  };
+
+  const clearExportFilters = () => {
+    setExportTitleSearch("");
+    setExportTagFilters(new Set());
+  };
+
   const handleSelectAll = () => {
     if (selectAll) {
       setSelectedRecipes(new Set());
+      setSelectAll(false);
     } else {
       setSelectedRecipes(new Set(recipes.map((r) => r.id)));
+      setSelectAll(true);
     }
-    setSelectAll(!selectAll);
+  };
+
+  const handleSelectAllFiltered = () => {
+    setSelectedRecipes(new Set(filteredExportRecipes.map((r) => r.id)));
+    setSelectAll(false);
+  };
+
+  const handleSelectNone = () => {
+    setSelectedRecipes(new Set());
+    setSelectAll(false);
   };
 
   const toggleRecipe = (id: string) => {
@@ -552,6 +472,82 @@ export default function SettingsPage() {
       minute: "2-digit",
     });
   };
+
+  const moveSupermarket = (index: number, direction: "up" | "down") => {
+    setDraftSupermarkets((prev) => {
+      const next = [...prev];
+      const target = direction === "up" ? index - 1 : index + 1;
+      if (target < 0 || target >= next.length) return prev;
+      [next[index], next[target]] = [next[target], next[index]];
+      return next.map((s, i) => ({ ...s, sortOrder: i }));
+    });
+  };
+
+  const updateDraftSupermarket = (
+    id: string,
+    patch: Partial<Pick<SupermarketConfig, "name" | "enabled" | "color">>
+  ) => {
+    setDraftSupermarkets((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, ...patch } : s))
+    );
+  };
+
+  const handleAddSupermarket = () => {
+    const name = newSupermarketName.trim();
+    if (!name) return;
+    const color = sanitizeHexColor(newSupermarketColor) ?? "#6366f1";
+    const id = uniqueSupermarketId(
+      name,
+      draftSupermarkets.map((s) => s.id)
+    );
+    setDraftSupermarkets((prev) => [
+      ...prev,
+      {
+        id,
+        name,
+        enabled: true,
+        color,
+        sortOrder: prev.length,
+      },
+    ]);
+    setNewSupermarketName("");
+    setNewSupermarketColor("#6366f1");
+  };
+
+  const handleRemoveCustomSupermarket = (id: string) => {
+    const store = draftSupermarkets.find((s) => s.id === id);
+    if (!store || store.builtin) return;
+    if (
+      !window.confirm(
+        `¿Quitar "${store.name}" de la lista? Tus artículos e historial se conservan y volverán a aparecer si lo añades de nuevo con el mismo nombre.`
+      )
+    ) {
+      return;
+    }
+    setDraftSupermarkets((prev) =>
+      prev.filter((s) => s.id !== id).map((s, i) => ({ ...s, sortOrder: i }))
+    );
+  };
+
+  const handleSaveSupermarkets = async () => {
+    if (draftSupermarkets.filter((s) => s.enabled).length === 0) {
+      alert("Debe haber al menos un supermercado activo.");
+      return;
+    }
+    setSavingSupermarkets(true);
+    try {
+      await saveSupermarkets(draftSupermarkets);
+    } catch (err) {
+      alert(
+        err instanceof Error ? err.message : "Error al guardar supermercados"
+      );
+    } finally {
+      setSavingSupermarkets(false);
+    }
+  };
+
+  const supermarketsDirty =
+    JSON.stringify(draftSupermarkets) !== JSON.stringify(supermarkets);
 
   return (
     <div className="min-h-screen pb-bottom-nav">
@@ -643,7 +639,7 @@ export default function SettingsPage() {
                   <span className="text-sm text-[var(--foreground)]">
                     {selectAll
                       ? "Exportar todas las recetas"
-                      : `${selectedRecipes.size} recetas seleccionadas`}
+                      : `${selectedRecipes.size} de ${recipes.length} seleccionadas`}
                   </span>
                 </div>
                 <svg
@@ -658,7 +654,57 @@ export default function SettingsPage() {
 
               {showRecipeSelector && (
                 <div className="mt-2 border border-[var(--border-color)] rounded-lg overflow-hidden">
-                  <div className="p-2 bg-[var(--color-purple-bg)] border-b border-[var(--border-color)]">
+                  <div className="p-2 border-b border-[var(--border-color)] space-y-2">
+                    <input
+                      type="search"
+                      value={exportTitleSearch}
+                      onChange={(e) => setExportTitleSearch(e.target.value)}
+                      placeholder="Buscar por título…"
+                      className="input w-full py-1.5 text-sm"
+                    />
+                    {tags.length > 0 && (
+                      <div>
+                        <p className="text-xs text-[var(--color-slate)] mb-1.5">
+                          Filtrar por etiqueta
+                        </p>
+                        <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                          {tags.map((tag) => {
+                            const active = exportTagFilters.has(tag);
+                            return (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => toggleExportTagFilter(tag)}
+                                className={`px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                                  active
+                                    ? "bg-[var(--color-purple)] text-white"
+                                    : "bg-[var(--color-purple-bg)] text-[var(--color-slate)] hover:bg-[var(--color-purple-bg-dark)]"
+                                }`}
+                              >
+                                {tag}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    {exportFiltersActive && (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-[var(--color-slate)]">
+                          {filteredExportRecipes.length} de {recipes.length} recetas
+                        </span>
+                        <button
+                          type="button"
+                          onClick={clearExportFilters}
+                          className="text-xs text-[var(--color-purple)] hover:underline"
+                        >
+                          Quitar filtros
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-2 bg-[var(--color-purple-bg)] border-b border-[var(--border-color)] flex flex-wrap items-center gap-x-3 gap-y-1">
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
@@ -666,26 +712,68 @@ export default function SettingsPage() {
                         onChange={handleSelectAll}
                         className="checkbox"
                       />
-                      <span className="text-sm font-medium">Seleccionar todas</span>
+                      <span className="text-sm font-medium">Todas ({recipes.length})</span>
                     </label>
-                  </div>
-                  <div className="max-h-48 overflow-y-auto">
-                    {recipes.map((recipe) => (
-                      <label
-                        key={recipe.id}
-                        className="flex items-center gap-2 p-2 hover:bg-[var(--color-purple-bg)] cursor-pointer border-b border-[var(--border-color)] last:border-b-0"
+                    {exportFiltersActive && filteredExportRecipes.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleSelectAllFiltered}
+                        className="text-sm text-[var(--color-purple-dark)] hover:underline"
                       >
-                        <input
-                          type="checkbox"
-                          checked={selectedRecipes.has(recipe.id)}
-                          onChange={() => toggleRecipe(recipe.id)}
-                          className="checkbox"
-                        />
-                        <span className="text-sm text-[var(--foreground)] truncate">
-                          {recipe.title}
-                        </span>
-                      </label>
-                    ))}
+                        Visibles ({filteredExportRecipes.length})
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleSelectNone}
+                      className="text-sm text-[var(--color-slate)] hover:underline ml-auto"
+                    >
+                      Ninguna
+                    </button>
+                  </div>
+
+                  <div className="max-h-56 overflow-y-auto">
+                    {filteredExportRecipes.length === 0 ? (
+                      <p className="text-sm text-[var(--color-slate-light)] text-center py-6 px-3">
+                        No hay recetas que coincidan con la búsqueda.
+                      </p>
+                    ) : (
+                      filteredExportRecipes.map((recipe) => (
+                        <label
+                          key={recipe.id}
+                          className="flex items-start gap-2 p-2 hover:bg-[var(--color-purple-bg)] cursor-pointer border-b border-[var(--border-color)] last:border-b-0"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedRecipes.has(recipe.id)}
+                            onChange={() => toggleRecipe(recipe.id)}
+                            className="checkbox mt-0.5"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="text-sm text-[var(--foreground)] block truncate">
+                              {recipe.title}
+                            </span>
+                            {recipe.tags.length > 0 && (
+                              <span className="flex flex-wrap gap-1 mt-0.5">
+                                {recipe.tags.slice(0, 4).map((tag) => (
+                                  <span
+                                    key={tag}
+                                    className="text-[10px] px-1.5 py-0.5 rounded bg-white/80 text-[var(--color-slate)] border border-[var(--border-color)]"
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                                {recipe.tags.length > 4 && (
+                                  <span className="text-[10px] text-[var(--color-slate-light)]">
+                                    +{recipe.tags.length - 4}
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                      ))
+                    )}
                   </div>
                 </div>
               )}
@@ -714,6 +802,158 @@ export default function SettingsPage() {
                 </>
               )}
             </button>
+          </div>
+        </section>
+
+        {/* Supermarkets Section — just below Export for easy discovery */}
+        <section className="bg-white rounded-xl border border-[var(--border-color)] overflow-hidden">
+          <div className="p-4 border-b border-[var(--border-color)]">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="font-display text-lg font-semibold text-[var(--foreground)]">
+                  Supermercados
+                </h2>
+                <p className="text-sm text-[var(--color-slate)]">
+                  Activa, desactiva o añade listas de la compra
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 space-y-4">
+            {loadingSupermarkets ? (
+              <p className="text-sm text-[var(--color-slate-light)] text-center py-4">
+                Cargando supermercados…
+              </p>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  {draftSupermarkets.map((store, index) => (
+                    <div
+                      key={store.id}
+                      className={`flex flex-wrap items-center gap-2 p-3 rounded-lg border ${
+                        store.enabled
+                          ? "bg-[var(--color-purple-bg)] border-[var(--border-color)]"
+                          : "bg-gray-50 border-gray-200 opacity-75"
+                      }`}
+                    >
+                      <input
+                        type="color"
+                        value={store.color}
+                        onChange={(e) =>
+                          updateDraftSupermarket(store.id, {
+                            color: sanitizeHexColor(e.target.value) ?? store.color,
+                          })
+                        }
+                        className="w-10 h-10 rounded-lg border border-[var(--border-color)] cursor-pointer p-0.5 bg-white flex-shrink-0"
+                        title="Color"
+                      />
+                      <input
+                        type="text"
+                        value={store.name}
+                        onChange={(e) =>
+                          updateDraftSupermarket(store.id, { name: e.target.value })
+                        }
+                        className="input flex-1 min-w-[8rem] py-1.5 text-sm"
+                      />
+                      <label className="flex items-center gap-2 text-sm text-[var(--color-slate)] cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={store.enabled}
+                          onChange={(e) =>
+                            updateDraftSupermarket(store.id, { enabled: e.target.checked })
+                          }
+                          className="checkbox"
+                        />
+                        Activo
+                      </label>
+                      <div className="flex items-center gap-1 ml-auto">
+                        <button
+                          type="button"
+                          onClick={() => moveSupermarket(index, "up")}
+                          disabled={index === 0}
+                          className="p-1.5 text-[var(--color-slate-light)] hover:bg-white rounded disabled:opacity-30"
+                          title="Subir"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                          </svg>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveSupermarket(index, "down")}
+                          disabled={index === draftSupermarkets.length - 1}
+                          className="p-1.5 text-[var(--color-slate-light)] hover:bg-white rounded disabled:opacity-30"
+                          title="Bajar"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                        {!store.builtin && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCustomSupermarket(store.id)}
+                            className="p-1.5 text-[var(--color-slate-light)] hover:text-red-600 hover:bg-red-50 rounded"
+                            title="Quitar de la lista"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-2 border-t border-[var(--border-color)]">
+                  <input
+                    type="text"
+                    value={newSupermarketName}
+                    onChange={(e) => setNewSupermarketName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleAddSupermarket()}
+                    placeholder="Nuevo supermercado (ej: Carrefour)"
+                    className="input flex-1 min-w-[10rem]"
+                  />
+                  <input
+                    type="color"
+                    value={newSupermarketColor}
+                    onChange={(e) => setNewSupermarketColor(e.target.value)}
+                    className="w-12 h-11 rounded-lg border border-[var(--border-color)] cursor-pointer p-0.5 bg-white"
+                    title="Color"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddSupermarket}
+                    disabled={!newSupermarketName.trim()}
+                    className="px-4 py-2 bg-emerald-100 text-emerald-700 rounded-lg hover:bg-emerald-200 transition-colors disabled:opacity-50 font-medium"
+                  >
+                    + Añadir
+                  </button>
+                </div>
+
+                <p className="text-xs text-[var(--color-slate-light)]">
+                  Desactivar un supermercado lo oculta de la lista de la compra, pero
+                  conserva artículos, sugerencias e historial. Al volver a activarlo,
+                  todo reaparece como estaba.
+                </p>
+
+                <button
+                  type="button"
+                  onClick={handleSaveSupermarkets}
+                  disabled={savingSupermarkets || !supermarketsDirty}
+                  className="w-full btn-primary disabled:opacity-50"
+                >
+                  {savingSupermarkets ? "Guardando…" : "Guardar supermercados"}
+                </button>
+              </>
+            )}
           </div>
         </section>
 
@@ -885,7 +1125,11 @@ export default function SettingsPage() {
 
         {/* Tags Section */}
         <section className="bg-white rounded-xl border border-[var(--border-color)] overflow-hidden">
-          <div className="p-4 border-b border-[var(--border-color)]">
+          <button
+            type="button"
+            onClick={() => setShowTagsSection(!showTagsSection)}
+            className="w-full p-4 flex items-center justify-between hover:bg-[var(--color-purple-bg)]/40 transition-colors text-left"
+          >
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -897,112 +1141,124 @@ export default function SettingsPage() {
                   Etiquetas
                 </h2>
                 <p className="text-sm text-[var(--color-slate)]">
-                  Edita las etiquetas de tus recetas
+                  {tags.length === 0
+                    ? "Edita las etiquetas de tus recetas"
+                    : `${tags.length} etiqueta${tags.length === 1 ? "" : "s"}`}
                 </p>
               </div>
             </div>
-          </div>
+            <svg
+              className={`w-5 h-5 text-[var(--color-slate)] flex-shrink-0 transition-transform ${showTagsSection ? "rotate-180" : ""}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
 
-          <div className="p-4 space-y-4">
-            {/* Tag List */}
-            <div className="space-y-2">
+          {showTagsSection && (
+            <div className="p-4 pt-0 space-y-3 border-t border-[var(--border-color)]">
               {tags.length === 0 ? (
                 <p className="text-sm text-[var(--color-slate-light)] text-center py-4">
                   No hay etiquetas aún. Añade etiquetas a tus recetas.
                 </p>
               ) : (
-                tags.map((tag) => (
-                  <div
-                    key={tag}
-                    className="flex items-center justify-between p-3 bg-[var(--color-purple-bg)] rounded-lg"
-                  >
-                    {editingTag === tag ? (
-                      <div className="flex items-center gap-2 flex-1 mr-2">
-                        <input
-                          type="text"
-                          value={editingTagName}
-                          onChange={(e) => setEditingTagName(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") handleSaveTag(tag);
-                            if (e.key === "Escape") handleCancelEditTag();
-                          }}
-                          className="input flex-1 py-1 text-sm"
-                          autoFocus
-                          disabled={savingTag === tag}
-                        />
-                        <button
-                          onClick={() => handleSaveTag(tag)}
-                          disabled={savingTag === tag || !editingTagName.trim()}
-                          className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50"
-                          title="Guardar"
-                        >
-                          {savingTag === tag ? (
-                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                            </svg>
-                          ) : (
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
-                        </button>
-                        <button
-                          onClick={handleCancelEditTag}
-                          disabled={savingTag === tag}
-                          className="p-1.5 text-[var(--color-slate-light)] hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Cancelar"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <span className="text-sm font-medium text-[var(--foreground)]">
-                          {tag}
-                        </span>
-                        <div className="flex items-center gap-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-80 overflow-y-auto pt-4">
+                  {tags.map((tag) => (
+                    <div
+                      key={tag}
+                      className={`flex items-center justify-between gap-1 p-2 bg-[var(--color-purple-bg)] rounded-lg min-w-0 ${
+                        editingTag === tag ? "sm:col-span-2" : ""
+                      }`}
+                    >
+                      {editingTag === tag ? (
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <input
+                            type="text"
+                            value={editingTagName}
+                            onChange={(e) => setEditingTagName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSaveTag(tag);
+                              if (e.key === "Escape") handleCancelEditTag();
+                            }}
+                            className="input flex-1 py-1 text-sm min-w-0"
+                            autoFocus
+                            disabled={savingTag === tag}
+                          />
                           <button
-                            onClick={() => handleEditTag(tag)}
-                            className="p-1.5 text-[var(--color-slate-light)] hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                            title="Editar etiqueta"
+                            onClick={() => handleSaveTag(tag)}
+                            disabled={savingTag === tag || !editingTagName.trim()}
+                            className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors disabled:opacity-50 flex-shrink-0"
+                            title="Guardar"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDeleteTag(tag)}
-                            disabled={deletingTag === tag}
-                            className="p-1.5 text-[var(--color-slate-light)] hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                            title="Eliminar etiqueta"
-                          >
-                            {deletingTag === tag ? (
+                            {savingTag === tag ? (
                               <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                               </svg>
                             ) : (
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                               </svg>
                             )}
                           </button>
+                          <button
+                            onClick={handleCancelEditTag}
+                            disabled={savingTag === tag}
+                            className="p-1.5 text-[var(--color-slate-light)] hover:text-red-600 hover:bg-red-50 rounded transition-colors flex-shrink-0"
+                            title="Cancelar"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
                         </div>
-                      </>
-                    )}
-                  </div>
-                ))
+                      ) : (
+                        <>
+                          <span className="text-sm font-medium text-[var(--foreground)] truncate">
+                            {tag}
+                          </span>
+                          <div className="flex items-center gap-0.5 flex-shrink-0">
+                            <button
+                              onClick={() => handleEditTag(tag)}
+                              className="p-1 text-[var(--color-slate-light)] hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                              title="Editar etiqueta"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTag(tag)}
+                              disabled={deletingTag === tag}
+                              className="p-1 text-[var(--color-slate-light)] hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
+                              title="Eliminar etiqueta"
+                            >
+                              {deletingTag === tag ? (
+                                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                </svg>
+                              ) : (
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              )}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
-            </div>
 
-            {/* Info */}
-            <p className="text-xs text-[var(--color-slate-light)]">
-              Al editar una etiqueta, se actualizará en todas las recetas que la usen.
-            </p>
-          </div>
+              <p className="text-xs text-[var(--color-slate-light)]">
+                Al editar una etiqueta, se actualizará en todas las recetas que la usen.
+              </p>
+            </div>
+          )}
         </section>
 
         {/* Backup Reminder Section */}
@@ -1051,207 +1307,6 @@ export default function SettingsPage() {
                 ))}
               </select>
             </div>
-          </div>
-        </section>
-
-        {/* Info Section */}
-        <section className="p-4 bg-[var(--color-purple-bg)] rounded-xl border border-[var(--border-color)]">
-          <div className="flex gap-3">
-            <div className="flex-shrink-0 mt-0.5">
-              <svg className="w-5 h-5 text-[var(--color-orange)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className="text-sm text-[var(--color-slate)]">
-              <p className="font-medium text-[var(--foreground)] mb-1">Consejo de seguridad</p>
-              <p>
-                Guarda tus backups en diferentes lugares: tu ordenador, un disco externo,
-                o servicios como Google Drive o Dropbox. Así nunca perderás tus recetas favoritas.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* Lotes Migration Section */}
-        <section className="bg-white rounded-xl border border-[var(--border-color)] overflow-hidden">
-          <div className="p-4 border-b border-[var(--border-color)]">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[var(--color-purple-bg)] rounded-lg flex items-center justify-center text-[var(--color-orange)]">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </div>
-              <div>
-                <h2 className="font-display text-lg font-semibold text-[var(--foreground)]">
-                  Migrar lotes a 1 lote
-                </h2>
-                <p className="text-sm text-[var(--color-slate)]">
-                  Elimina el concepto de lotes manteniendo lo que tienes planeado.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 space-y-3">
-            <div className="text-sm text-[var(--color-slate)] space-y-2">
-              <p>
-                Las recetas guardadas con varios lotes se reescriben para representar
-                un solo lote: sus ingredientes se dividen entre el número de lotes que
-                tenían (por ejemplo, una receta con 3 lotes pasa a tener un tercio de
-                cada ingrediente).
-              </p>
-              <p>
-                Para que la lista de la compra y los menús que ya tienes planeados
-                sigan dando lo mismo, los planes existentes se reescalan automáticamente
-                (su multiplicador se multiplica por los lotes antiguos).
-              </p>
-            </div>
-
-            {lotesPreviewError && (
-              <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
-                No se pudo comprobar el estado: {lotesPreviewError}
-              </div>
-            )}
-
-            {lotesPreview && lotesPreview.recipesToFix === 0 && !lotesResult && (
-              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800">
-                No hay recetas con lotes &gt; 1. La migración ya está aplicada o no
-                hace falta.
-              </div>
-            )}
-
-            {lotesPreview && lotesPreview.recipesToFix > 0 && (
-              <div className="p-3 rounded-lg bg-[var(--color-purple-bg)] border border-[var(--border-color)] text-sm text-[var(--foreground)] space-y-2">
-                <p>
-                  <strong>{lotesPreview.recipesToFix}</strong> receta(s) con lotes &gt; 1.{" "}
-                  <strong>{lotesPreview.plansToFix}</strong> plan(es) de comida apuntan
-                  a esas recetas y se reescalarán.
-                </p>
-                {lotesPreview.sampleRecipes.length > 0 && (
-                  <ul className="list-disc list-inside text-xs text-[var(--color-slate)]">
-                    {lotesPreview.sampleRecipes.map((r) => (
-                      <li key={r.id}>
-                        {r.title} ({r.batchCount} lotes)
-                      </li>
-                    ))}
-                    {lotesPreview.recipesToFix > lotesPreview.sampleRecipes.length && (
-                      <li>
-                        …y {lotesPreview.recipesToFix - lotesPreview.sampleRecipes.length}{" "}
-                        más.
-                      </li>
-                    )}
-                  </ul>
-                )}
-              </div>
-            )}
-
-            {lotesResult && (
-              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 space-y-2">
-                <p>
-                  <strong>{lotesResult.recipesUpdated}</strong> receta(s) actualizada(s) y{" "}
-                  <strong>{lotesResult.plansUpdated}</strong> plan(es) reescalado(s).
-                </p>
-                {lotesResult.skippedRecipes.length > 0 && (
-                  <div>
-                    <p className="font-medium">Recetas omitidas:</p>
-                    <ul className="list-disc list-inside text-xs">
-                      {lotesResult.skippedRecipes.map((r) => (
-                        <li key={r.id}>
-                          {r.title}: {r.reason}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {lotesRestoreResult && (
-              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 space-y-2">
-                <p>
-                  Restauradas <strong>{lotesRestoreResult.recipesRestored}</strong>{" "}
-                  receta(s) y <strong>{lotesRestoreResult.plansRestored}</strong>{" "}
-                  plan(es) desde el snapshot.
-                </p>
-                {lotesRestoreResult.errors.length > 0 && (
-                  <div>
-                    <p className="font-medium">Errores:</p>
-                    <ul className="list-disc list-inside text-xs">
-                      {lotesRestoreResult.errors.map((e, i) => (
-                        <li key={i}>{e}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {lotesPreview && lotesPreview.recipesToFix > 0 && (
-              <label className="flex items-start gap-2 p-2 rounded-lg cursor-pointer hover:bg-[var(--color-purple-bg)]/40 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={lotesAutoBackup}
-                  onChange={(e) => setLotesAutoBackup(e.target.checked)}
-                  className="checkbox mt-0.5"
-                />
-                <span className="text-sm text-[var(--foreground)]">
-                  Descargar un snapshot del estado actual antes de migrar (recomendado).
-                  <span className="block text-xs text-[var(--color-slate)]">
-                    Si algo se calcula mal, podrás restaurar con ese archivo desde el
-                    botón de abajo.
-                  </span>
-                </span>
-              </label>
-            )}
-
-            <button
-              onClick={handleRunLotesMigration}
-              disabled={
-                lotesMigrating ||
-                lotesRestoring ||
-                !lotesPreview ||
-                lotesPreview.recipesToFix === 0
-              }
-              className="w-full px-4 py-2.5 rounded-lg bg-[var(--color-orange)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {lotesMigrating
-                ? "Migrando…"
-                : lotesPreview && lotesPreview.recipesToFix > 0
-                  ? `Migrar ${lotesPreview.recipesToFix} receta(s)`
-                  : "Nada que migrar"}
-            </button>
-
-            <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-[var(--border-color)]">
-              <button
-                type="button"
-                onClick={handleDownloadLotesSnapshot}
-                disabled={lotesMigrating || lotesRestoring}
-                className="flex-1 px-3 py-2 rounded-lg border border-[var(--border-color)] text-sm font-medium text-[var(--foreground)] hover:bg-[var(--color-purple-bg)] transition-colors disabled:opacity-50"
-              >
-                Descargar snapshot ahora
-              </button>
-              <button
-                type="button"
-                onClick={() => lotesRestoreInputRef.current?.click()}
-                disabled={lotesMigrating || lotesRestoring}
-                className="flex-1 px-3 py-2 rounded-lg border border-[var(--border-color)] text-sm font-medium text-[var(--foreground)] hover:bg-[var(--color-purple-bg)] transition-colors disabled:opacity-50"
-              >
-                {lotesRestoring ? "Restaurando…" : "Restaurar desde snapshot…"}
-              </button>
-              <input
-                ref={lotesRestoreInputRef}
-                type="file"
-                accept="application/json,.json"
-                className="hidden"
-                onChange={handleLotesRestoreFile}
-              />
-            </div>
-
-            <p className="text-xs text-[var(--color-slate-light)]">
-              Si quieres una red más amplia, antes haz también una{" "}
-              <strong>Copia de Seguridad Completa</strong> en la sección de arriba:
-              te guarda toda la base de datos.
-            </p>
           </div>
         </section>
 

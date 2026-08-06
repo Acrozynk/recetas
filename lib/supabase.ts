@@ -1,4 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
+import type { SupermarketId as SupermarketName } from "@/lib/supermarkets";
+
+export type { SupermarketName };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -186,17 +189,6 @@ export interface ShoppingItem {
   recipe_sources: string[]; // Recipe titles that contributed to this item
   supermarket: SupermarketName; // Which supermarket this item belongs to
 }
-
-// Supermarket types
-export type SupermarketName = 'DIA' | 'Consum' | 'Mercadona';
-
-export const SUPERMARKETS: SupermarketName[] = ['DIA', 'Consum', 'Mercadona'];
-
-export const SUPERMARKET_COLORS: Record<SupermarketName, { bg: string; text: string; border: string }> = {
-  'DIA': { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-200' },
-  'Consum': { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200' },
-  'Mercadona': { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200' },
-};
 
 export interface ShoppingList {
   id: string;

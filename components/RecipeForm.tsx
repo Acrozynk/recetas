@@ -54,8 +54,7 @@ function getInitialPersonasFromRecipe(r: Recipe | undefined): {
     r.personas_children_per_batch != null
   ) {
     // Collapse legacy `personas_batch_count > 1` into the adults/children
-    // counts so the form shows the recipe's full size and lets the migration
-    // tool (Settings → Migrar lotes) take care of fixing the stored data.
+    // counts so the form shows the recipe's full size.
     const batches = Math.max(1, r.personas_batch_count ?? 1);
     return {
       adultsPerBatch: Math.max(0, batches * r.personas_adults_per_batch),
