@@ -281,6 +281,10 @@ const _spanishGroceriesRaw: GroceryProduct[] = [
   { name: "Tocino", category: "Carnes y Mariscos", subcategory: "Cerdo" },
   { name: "Bacon", category: "Carnes y Mariscos", subcategory: "Cerdo" },
   { name: "Bacon ahumado", category: "Carnes y Mariscos", subcategory: "Cerdo" },
+
+  // Vísceras
+  { name: "Hígado", category: "Carnes y Mariscos", subcategory: "Vísceras" },
+
   { name: "Jamón serrano", category: "Carnes y Mariscos", subcategory: "Embutidos" },
   { name: "Jamón ibérico", category: "Carnes y Mariscos", subcategory: "Embutidos" },
   { name: "Jamón cocido", category: "Carnes y Mariscos", subcategory: "Embutidos" },
