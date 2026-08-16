@@ -30,6 +30,11 @@ import { GROCERY_CATEGORIES } from "@/lib/grocery-categories";
 import { addCustomProduct } from "@/lib/supabase";
 import { combineQuantities, parseQuantity, formatQuantity } from "@/lib/unit-conversion";
 import { addCalendarDays } from "@/lib/meal-plan-portions";
+import {
+  categorizeIngredient,
+  improveCategoryIfOtros,
+  preferShoppingCategory,
+} from "@/lib/categorize-ingredient";
 
 // Category icons mapping
 const CATEGORY_ICONS: Record<string, string> = {
@@ -48,61 +53,6 @@ const CATEGORY_ICONS: Record<string, string> = {
 // Trash item interface (items with deleted_at set)
 interface TrashItem extends ShoppingItem {
   deleted_at: string;
-}
-
-function categorizeIngredient(name: string): string {
-  const lowerName = name.toLowerCase();
-
-  // Carnes y Mariscos (check first - meat products may contain vegetable names like "morcilla de cebolla")
-  if (
-    /\b(chicken|beef|pork|lamb|turkey|fish|salmon|shrimp|bacon|sausage|meat|steak|ground|pollo|res|cerdo|cordero|pavo|pescado|salmón|camarón|tocino|salchicha|carne|bistec|molida|panceta|jamón|chorizo|lomo|solomillo|chuleta|costilla|ternera|gambas?|langostinos?|mejillones?|almejas?|calamares?|pulpo|sepia|lonchas?|morcillas?|butifarras?|sobrasada|fuet|salchichón)\b/.test(
-      lowerName
-    )
-  ) {
-    return "Carnes y Mariscos";
-  }
-
-  // Frutas y Verduras
-  if (
-    /\b(lettuce|tomato|onion|garlic|pepper|carrot|celery|potato|broccoli|spinach|kale|cucumber|zucchini|squash|mushroom|avocado|lemon|lime|orange|apple|banana|berry|fruit|vegetable|herb|cilantro|parsley|basil|mint|thyme|rosemary|lechuga|tomate|cebolla|ajos?|pimiento|zanahoria|apio|patatas?|papa|brócoli|espinaca|pepino|calabacín|champiñón|aguacate|limón|naranja|manzana|plátanos?|fruta|verdura|hierba|perejil|albahaca|menta|romero|puerro|berenjena|calabaza|judías verdes|guisantes|habas|remolacha|rábano|nabo|jengibre|dátiles?)\b/.test(
-      lowerName
-    )
-  ) {
-    return "Frutas y Verduras";
-  }
-
-  // Lácteos
-  if (
-    /\b(milk|cheese|butter|cream|yogurt|sour cream|egg|eggs|leche|queso|mantequilla|nata|crema|yogur|huevo|huevos)\b/.test(lowerName)
-  ) {
-    return "Lácteos";
-  }
-
-  // Panadería
-  if (/\b(bread|roll|bun|bagel|tortilla|pita|croissant|pan|bollo|bolillo)\b/.test(lowerName)) {
-    return "Panadería";
-  }
-
-  // Congelados
-  if (/\b(frozen|ice cream|congelado|helado)\b/.test(lowerName)) {
-    return "Congelados";
-  }
-
-  // Bebidas
-  if (/\b(juice|soda|water|wine|beer|coffee|tea|jugo|refresco|agua|vino|cerveza|café|té)\b/.test(lowerName)) {
-    return "Bebidas";
-  }
-
-  // Despensa (dry goods, canned items, spices, legumes, etc.)
-  if (
-    /\b(flour|sugar|salt|oil|vinegar|sauce|pasta|rice|bean|can|stock|broth|spice|seasoning|harina|azúcar|sal|aceite|vinagre|salsa|arroz|frijol|lata|caldo|especia|condimento|azafrán|canela|pimentón|orégano|tomillo|laurel|comino|cúrcuma|curry|nuez moscada|clavo|pimienta|garbanzos?|lentejas?|alubias?|conserva|cocidos?|bicarbonato|vainilla)\b/.test(
-      lowerName
-    )
-  ) {
-    return "Despensa";
-  }
-
-  return "Otros";
 }
 
 /** Ensure every default category appears; append any missing ones at the end. */
@@ -1653,6 +1603,7 @@ export default function ShoppingPage() {
   const [isCategoryOrderModalOpen, setIsCategoryOrderModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
   const [hideUnpinned, setHideUnpinned] = useState(false);
+  const [recategorizingOtros, setRecategorizingOtros] = useState(false);
   
   // Preview modal state
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -2222,7 +2173,12 @@ export default function ShoppingPage() {
       }
 
       // Separate items to update and items to insert
-      const itemsToUpdate: { id: string; quantity: string; recipe_sources: string[] }[] = [];
+      const itemsToUpdate: {
+        id: string;
+        quantity: string;
+        recipe_sources: string[];
+        category?: string;
+      }[] = [];
       const itemsToInsert: { 
         name: string; 
         quantity: string | null; 
@@ -2247,11 +2203,18 @@ export default function ShoppingPage() {
           const existingSources = existingItem.recipe_sources || [];
           const newSources = ing.recipes || [];
           const mergedSources = [...new Set([...existingSources, ...newSources])];
-          
+          const mergedCategory = preferShoppingCategory(
+            existingItem.category || "Otros",
+            ing.category
+          );
+
           itemsToUpdate.push({
             id: existingItem.id,
             quantity: combinedQuantity,
             recipe_sources: mergedSources,
+            ...(mergedCategory !== (existingItem.category || "Otros")
+              ? { category: mergedCategory }
+              : {}),
           });
         } else {
           // New item to insert
@@ -2269,10 +2232,11 @@ export default function ShoppingPage() {
 
       // Update existing items with combined quantities and merged recipe sources
       for (const update of itemsToUpdate) {
+        const { id, ...fields } = update;
         const { error: updateError } = await supabase
           .from("shopping_items")
-          .update({ quantity: update.quantity, recipe_sources: update.recipe_sources })
-          .eq("id", update.id);
+          .update(fields)
+          .eq("id", id);
         
         if (updateError) throw updateError;
       }
@@ -2356,19 +2320,50 @@ export default function ShoppingPage() {
   const addManualItem = async (name: string, quantity: string, category: string) => {
     if (!name.trim() || !selectedSupermarketId) return;
 
-    try {
-      const { error } = await supabase.from("shopping_items").insert([
-        {
-          name: name.trim(),
-          quantity: quantity.trim() || null,
-          category: category,
-          checked: false,
-          recipe_id: null,
-          supermarket: selectedSupermarketId,
-        },
-      ]);
+    const trimmedName = name.trim();
+    const resolvedCategory =
+      category === "Otros"
+        ? categorizeIngredient(trimmedName)
+        : category;
+    const key = trimmedName.toLowerCase();
+    const existing = items.find(
+      (item) => !item.checked && item.name.toLowerCase().trim() === key
+    );
 
-      if (error) throw error;
+    try {
+      if (existing) {
+        const mergedCategory = preferShoppingCategory(
+          existing.category || "Otros",
+          resolvedCategory
+        );
+        const combinedQuantity =
+          existing.quantity && quantity.trim()
+            ? combineQuantities(existing.quantity, quantity.trim(), trimmedName)
+            : quantity.trim() || existing.quantity || "";
+
+        const { error } = await supabase
+          .from("shopping_items")
+          .update({
+            quantity: combinedQuantity || null,
+            category: mergedCategory,
+          })
+          .eq("id", existing.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("shopping_items").insert([
+          {
+            name: trimmedName,
+            quantity: quantity.trim() || null,
+            category: resolvedCategory,
+            checked: false,
+            recipe_id: null,
+            supermarket: selectedSupermarketId,
+          },
+        ]);
+
+        if (error) throw error;
+      }
 
       loadItems();
     } catch (error) {
@@ -2407,18 +2402,36 @@ export default function ShoppingPage() {
 
   const addProductFromDatabase = async (product: GroceryProduct) => {
     if (!selectedSupermarketId) return;
-    try {
-      const { error } = await supabase.from("shopping_items").insert([
-        {
-          name: product.name,
-          category: product.category,
-          checked: false,
-          recipe_id: null,
-          supermarket: selectedSupermarketId,
-        },
-      ]);
+    const key = product.name.toLowerCase().trim();
+    const existing = items.find(
+      (item) => !item.checked && item.name.toLowerCase().trim() === key
+    );
 
-      if (error) throw error;
+    try {
+      if (existing) {
+        const mergedCategory = preferShoppingCategory(
+          existing.category || "Otros",
+          product.category
+        );
+        const { error } = await supabase
+          .from("shopping_items")
+          .update({ category: mergedCategory })
+          .eq("id", existing.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("shopping_items").insert([
+          {
+            name: product.name,
+            category: product.category,
+            checked: false,
+            recipe_id: null,
+            supermarket: selectedSupermarketId,
+          },
+        ]);
+
+        if (error) throw error;
+      }
 
       loadItems();
     } catch (error) {
@@ -2632,6 +2645,36 @@ export default function ShoppingPage() {
     }
   };
 
+  const recategorizeOtrosItems = async () => {
+    if (!selectedSupermarketId) return;
+
+    const toFix = items.filter((item) => {
+      if (item.checked || (item.category || "Otros") !== "Otros") return false;
+      return improveCategoryIfOtros(item.name, item.category) != null;
+    });
+
+    if (toFix.length === 0) return;
+
+    setRecategorizingOtros(true);
+    try {
+      for (const item of toFix) {
+        const category = improveCategoryIfOtros(item.name, item.category);
+        if (!category) continue;
+        const { error } = await supabase
+          .from("shopping_items")
+          .update({ category })
+          .eq("id", item.id);
+        if (error) throw error;
+      }
+      loadItems();
+    } catch (error) {
+      console.error("Error recategorizing items:", error);
+      alert("No se pudieron corregir las categorías. Inténtalo de nuevo.");
+    } finally {
+      setRecategorizingOtros(false);
+    }
+  };
+
   // Selection mode handlers
   const toggleItemSelection = (itemId: string) => {
     setSelectedItems(prev => {
@@ -2789,6 +2832,12 @@ export default function ShoppingPage() {
   );
 
   Object.values(groupedItems).forEach((list) => list.sort(sortByName));
+
+  const otrosFixableCount = uncheckedItems.filter(
+    (item) =>
+      (item.category || "Otros") === "Otros" &&
+      improveCategoryIfOtros(item.name, item.category) != null
+  ).length;
 
   const checkedCount = checkedItems.length;
   const totalCount = items.length;
@@ -3274,7 +3323,7 @@ export default function ShoppingPage() {
                         Resto de la lista
                       </p>
                     )}
-                    <h3 className="font-display text-lg font-semibold text-[var(--foreground)] mb-2 flex items-center gap-2">
+                    <h3 className="font-display text-lg font-semibold text-[var(--foreground)] mb-2 flex items-center gap-2 flex-wrap">
                       <span
                         className="w-6 h-6 flex items-center justify-center rounded-full text-xs font-bold"
                         style={supermarketHeaderStyle(selectedSupermarketColor)}
@@ -3283,6 +3332,18 @@ export default function ShoppingPage() {
                       </span>
                       <span className="text-xl">{CATEGORY_ICONS[category] || "📦"}</span>
                       {category}
+                      {category === "Otros" && otrosFixableCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={recategorizeOtrosItems}
+                          disabled={recategorizingOtros}
+                          className="ml-auto text-xs font-normal text-[var(--color-purple)] hover:underline disabled:opacity-50"
+                        >
+                          {recategorizingOtros
+                            ? "Corrigiendo…"
+                            : `Corregir categorías (${otrosFixableCount})`}
+                        </button>
+                      )}
                     </h3>
                     <div className="bg-white rounded-xl border border-[var(--border-color)] divide-y divide-[var(--border-color)]">
                       {groupedItems[category].map((item) => (

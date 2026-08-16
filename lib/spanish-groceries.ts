@@ -943,6 +943,17 @@ export function normalizeText(text: string): string {
     .trim();
 }
 
+const groceryCategoryByName = new Map<string, string>();
+
+for (const product of spanishGroceries) {
+  groceryCategoryByName.set(normalizeText(product.name), product.category);
+}
+
+/** Exact match on normalized product name (ignores accents/case). */
+export function lookupGroceryCategory(name: string): string | null {
+  return groceryCategoryByName.get(normalizeText(name)) ?? null;
+}
+
 // Helper function to search products (static database only)
 function wordMatchesProduct(
   word: string,
