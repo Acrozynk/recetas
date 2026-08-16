@@ -468,6 +468,7 @@ const _spanishGroceriesRaw: GroceryProduct[] = [
   { name: "Judías negras", category: "Despensa", subcategory: "Legumbres" },
   { name: "Habas secas", category: "Despensa", subcategory: "Legumbres" },
   { name: "Edamame", category: "Despensa", subcategory: "Legumbres" },
+  { name: "Tofu", category: "Despensa", subcategory: "Legumbres" },
 
   // Conservas
   { name: "Tomate triturado", category: "Despensa", subcategory: "Conservas" },
