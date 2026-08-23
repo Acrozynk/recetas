@@ -71,6 +71,51 @@ export function addCalendarDays(isoDate: string, days: number): string {
   return d.toISOString().split("T")[0];
 }
 
+type MealPlanRunRow = {
+  id: string;
+  plan_date: string;
+  meal_type: string;
+  recipe_id: string | null;
+};
+
+/**
+ * Finds consecutive calendar days for the same recipe + meal slot as the anchor plan.
+ * Used when editing multi-day runs so we extend or shrink without duplicating days.
+ */
+export function findConsecutiveMealPlanRun<T extends MealPlanRunRow>(
+  mealPlans: T[],
+  anchorPlanId: string
+): T[] {
+  const anchor = mealPlans.find((p) => p.id === anchorPlanId);
+  if (!anchor?.recipe_id) return anchor ? [anchor] : [];
+
+  const matches = mealPlans.filter(
+    (p) => p.recipe_id === anchor.recipe_id && p.meal_type === anchor.meal_type
+  );
+
+  const byDate = new Map<string, T>();
+  for (const plan of matches) {
+    const existing = byDate.get(plan.plan_date);
+    if (!existing || plan.id === anchorPlanId) {
+      byDate.set(plan.plan_date, plan);
+    }
+  }
+
+  let startDate = anchor.plan_date;
+  while (byDate.has(addCalendarDays(startDate, -1))) {
+    startDate = addCalendarDays(startDate, -1);
+  }
+
+  const run: T[] = [];
+  let date = startDate;
+  while (byDate.has(date)) {
+    run.push(byDate.get(date)!);
+    date = addCalendarDays(date, 1);
+  }
+
+  return run;
+}
+
 /**
  * Best-effort inverse when editing a plan: turn a stored servings multiplier
  * back into adults/children, preserving the recipe's adult-to-child ratio.

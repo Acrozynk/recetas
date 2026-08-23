@@ -71,7 +71,7 @@ export default function RecipeOptionsModal({
     setSelectedDate(currentDate ?? "");
     setSelectedMealType(currentMealType ?? "lunch");
     setModalWeekOffset(0);
-    setConsecutiveDayCount(1);
+    setConsecutiveDayCount(initialSelection?.consecutiveDayCount ?? 1);
 
     if (personasMode) {
       if (isEditing && initialSelection?.servingsMultiplier != null) {
@@ -100,6 +100,7 @@ export default function RecipeOptionsModal({
     initialSelection?.selectedVariant,
     initialSelection?.alternativeSelections,
     initialSelection?.servingsMultiplier,
+    initialSelection?.consecutiveDayCount,
     currentDate,
     currentMealType,
   ]);
@@ -368,7 +369,7 @@ export default function RecipeOptionsModal({
             <div className="bg-[var(--color-purple-bg)] rounded-xl p-4 space-y-3">
               <p className="text-xs text-[var(--color-slate)]">
                 {isEditing
-                  ? "Si eliges más de 1 día, la receta también se añade los días siguientes (en el mismo tipo de comida), conservando lo que ya hubiera planificado."
+                  ? "Días consecutivos que ya tienes en el calendario. Si aumentas el número, solo se añaden los días que falten; si lo reduces, se quitan los últimos."
                   : "Si eliges más de 1 día, se añade la misma receta en el mismo tipo de comida los días siguientes (p. ej. 3 días → lunes, martes y miércoles), conservando lo que ya hubiera."}
               </p>
               <div className="flex gap-2 justify-center flex-wrap">

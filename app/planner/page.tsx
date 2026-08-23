@@ -10,7 +10,7 @@ import {
   MEAL_PLAN_CELL_RECIPE_SELECT,
 } from "@/lib/supabase";
 import { recipeTextMatchesQuery } from "@/lib/recipe-search";
-import { addCalendarDays } from "@/lib/meal-plan-portions";
+import { addCalendarDays, findConsecutiveMealPlanRun } from "@/lib/meal-plan-portions";
 import {
   MEAL_LABELS,
   MEAL_TYPES,
@@ -355,14 +355,20 @@ export default function PlannerPage() {
       );
 
       if (existingPlanId) {
-        // Update the edited plan in place. If we're moving to a different slot,
-        // any existing plans there are kept — multiple recipes can coexist now.
+        const runPlans = findConsecutiveMealPlanRun(mealPlans, existingPlanId);
+        const existingDays = runPlans.length;
+        const delta = days - existingDays;
+
+        const sharedFields = {
+          selected_variant: selection.selectedVariant,
+          alternative_selections: selection.alternativeSelections,
+          servings_multiplier: selection.servingsMultiplier,
+        };
+
         const { error } = await supabase
           .from("meal_plans")
           .update({
-            selected_variant: selection.selectedVariant,
-            alternative_selections: selection.alternativeSelections,
-            servings_multiplier: selection.servingsMultiplier,
+            ...sharedFields,
             plan_date: targetDate,
             meal_type: targetMealType,
           })
@@ -370,21 +376,38 @@ export default function PlannerPage() {
 
         if (error) throw error;
 
-        if (days > 1) {
-          const extraRows = Array.from({ length: days - 1 }, (_, i) => ({
-            plan_date: addCalendarDays(targetDate, i + 1),
+        const otherRunIds = runPlans
+          .filter((p) => p.id !== existingPlanId)
+          .map((p) => p.id);
+        if (otherRunIds.length > 0) {
+          const { error: syncError } = await supabase
+            .from("meal_plans")
+            .update(sharedFields)
+            .in("id", otherRunIds);
+          if (syncError) throw syncError;
+        }
+
+        if (delta > 0) {
+          const lastDate = runPlans[runPlans.length - 1].plan_date;
+          const extraRows = Array.from({ length: delta }, (_, i) => ({
+            plan_date: addCalendarDays(lastDate, i + 1),
             meal_type: targetMealType,
             recipe_id: recipe.id,
-            selected_variant: selection.selectedVariant,
-            alternative_selections: selection.alternativeSelections,
-            servings_multiplier: selection.servingsMultiplier,
+            ...sharedFields,
           }));
 
-          if (extraRows.length > 0) {
-            const { error: insertError } = await supabase
+          const { error: insertError } = await supabase
+            .from("meal_plans")
+            .insert(extraRows);
+          if (insertError) throw insertError;
+        } else if (delta < 0) {
+          const toDelete = runPlans.slice(days).map((p) => p.id);
+          if (toDelete.length > 0) {
+            const { error: deleteError } = await supabase
               .from("meal_plans")
-              .insert(extraRows);
-            if (insertError) throw insertError;
+              .delete()
+              .in("id", toDelete);
+            if (deleteError) throw deleteError;
           }
         }
       } else {
@@ -426,6 +449,8 @@ export default function PlannerPage() {
     // up from the already-loaded recipes array.
     const fullRecipe = recipes.find((r) => r.id === plan.recipe_id) ?? plan.recipe;
 
+    const runPlans = findConsecutiveMealPlanRun(mealPlans, plan.id);
+
     setShowRecipeOptions({
       recipe: fullRecipe,
       date: plan.plan_date,
@@ -435,7 +460,7 @@ export default function PlannerPage() {
         selectedVariant: (plan.selected_variant as 1 | 2) || 1,
         alternativeSelections: (plan.alternative_selections as Record<string, boolean>) || {},
         servingsMultiplier: plan.servings_multiplier || 1,
-        consecutiveDayCount: 1,
+        consecutiveDayCount: runPlans.length,
       },
     });
   };
