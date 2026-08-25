@@ -111,7 +111,8 @@ export default function LabelScannerModal({
   isOpen,
   onClose,
 }: LabelScannerModalProps) {
-  const imageInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const libraryInputRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<Tab>("analyze");
   const [ingredientText, setIngredientText] = useState("");
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
@@ -295,7 +296,15 @@ export default function LabelScannerModal({
           {tab === "analyze" ? (
             <>
               <input
-                ref={imageInputRef}
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleImagePick}
+              />
+              <input
+                ref={libraryInputRef}
                 type="file"
                 accept="image/png,image/jpeg,image/webp,image/*"
                 className="hidden"
@@ -304,27 +313,42 @@ export default function LabelScannerModal({
 
               <div className="rounded-xl border border-[var(--border-color)] bg-[var(--color-purple-bg)] p-4 space-y-3">
                 <p className="text-sm font-medium text-[var(--foreground)]">
-                  Desde captura de pantalla
+                  Desde imagen
                 </p>
                 <p className="text-xs text-[var(--color-slate)]">
-                  Haz captura de la etiqueta en el supermercado. Luego elige la imagen
-                  aquí — el texto se extrae en tu iPhone, sin enviar nada a servidores.
-                  También puedes usar Live Text en Fotos (copiar) y pegar abajo.
+                  Fotografía la etiqueta o elige una captura de Fotos. El texto se
+                  extrae en tu iPhone, sin enviar nada a servidores. También puedes
+                  usar Live Text (copiar) y pegar abajo.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
-                    onClick={() => imageInputRef.current?.click()}
+                    onClick={() => cameraInputRef.current?.click()}
                     disabled={ocrProgress != null}
-                    className="flex-1 min-w-[8rem] btn-secondary text-sm py-2"
+                    className="flex-1 min-w-[7rem] btn-secondary text-sm py-2 flex items-center justify-center gap-1.5"
                   >
-                    Elegir captura o foto
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Cámara
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => libraryInputRef.current?.click()}
+                    disabled={ocrProgress != null}
+                    className="flex-1 min-w-[7rem] btn-secondary text-sm py-2 flex items-center justify-center gap-1.5"
+                  >
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Galería o archivo
                   </button>
                   <button
                     type="button"
                     onClick={pasteFromClipboard}
                     disabled={ocrProgress != null}
-                    className="flex-1 min-w-[8rem] btn-secondary text-sm py-2"
+                    className="flex-1 min-w-[7rem] btn-secondary text-sm py-2"
                   >
                     Pegar texto copiado
                   </button>
