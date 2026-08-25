@@ -1,8 +1,9 @@
 import {
-  ADDITIVE_RULES,
-  type AdditiveRule,
+  ADDITIVE_BY_E_CODE,
+  ADDITIVE_CATALOG,
+  type AdditiveEntry,
   type AdditiveVerdict,
-} from "@/lib/additive-rules";
+} from "@/lib/additive-catalog";
 
 export interface AdditiveMatch {
   id: string;
@@ -11,6 +12,18 @@ export interface AdditiveMatch {
   verdict: AdditiveVerdict;
   summary: string;
   matchedOn: string;
+}
+
+export interface UnknownMatch {
+  label: string;
+  detail: string;
+}
+
+export interface ScanResult {
+  avoid: AdditiveMatch[];
+  caution: AdditiveMatch[];
+  ok: AdditiveMatch[];
+  unknown: UnknownMatch[];
 }
 
 function normalizeText(text: string): string {
@@ -22,37 +35,39 @@ function normalizeText(text: string): string {
     .trim();
 }
 
-export function extractECodes(text: string): Set<number> {
-  const codes = new Set<number>();
+export function extractECodes(text: string): number[] {
+  const codes: number[] = [];
+  const seen = new Set<number>();
   const re = /\bE[\s-]?(\d{3,4})\b/gi;
   let match: RegExpExecArray | null;
   while ((match = re.exec(text)) !== null) {
-    codes.add(parseInt(match[1], 10));
+    const code = parseInt(match[1], 10);
+    if (!seen.has(code)) {
+      seen.add(code);
+      codes.push(code);
+    }
   }
   return codes;
 }
 
-function codeMatchesRule(code: number, rule: AdditiveRule): boolean {
-  if (rule.eCodes?.includes(code)) return true;
-  if (rule.eCodeRanges) {
-    for (const [min, max] of rule.eCodeRanges) {
-      if (code >= min && code <= max) return true;
-    }
-  }
-  return false;
-}
-
-function ruleMatchesText(text: string, normalized: string, rule: AdditiveRule): string | null {
-  const eCodes = extractECodes(text);
-  for (const code of eCodes) {
-    if (codeMatchesRule(code, rule)) {
-      return `E${code}`;
+function entryMatchesText(
+  entry: AdditiveEntry,
+  text: string,
+  normalized: string,
+  matchedECodes: Set<number>
+): string | null {
+  if (entry.eCode != null) {
+    const re = new RegExp(`\\bE[\\s-]?${entry.eCode}\\b`, "i");
+    if (re.test(text)) {
+      matchedECodes.add(entry.eCode);
+      return `E${entry.eCode}`;
     }
   }
 
-  if (rule.keywords) {
-    for (const keyword of rule.keywords) {
-      if (normalized.includes(normalizeText(keyword))) {
+  if (entry.keywords) {
+    for (const keyword of entry.keywords) {
+      const nk = normalizeText(keyword);
+      if (nk.length >= 4 && normalized.includes(nk)) {
         return keyword;
       }
     }
@@ -61,41 +76,88 @@ function ruleMatchesText(text: string, normalized: string, rule: AdditiveRule): 
   return null;
 }
 
-/** Scan ingredient label text and return caution/avoid matches. */
-export function scanTextForAdditives(text: string): AdditiveMatch[] {
-  if (!text.trim()) return [];
+function pushMatch(
+  matches: AdditiveMatch[],
+  seen: Set<string>,
+  entry: AdditiveEntry,
+  matchedOn: string
+) {
+  if (seen.has(entry.id)) return;
+  seen.add(entry.id);
+  matches.push({
+    id: entry.id,
+    name: entry.name,
+    category: entry.category,
+    verdict: entry.verdict,
+    summary: entry.summary,
+    matchedOn,
+  });
+}
 
-  const normalized = normalizeText(text);
-  const matches: AdditiveMatch[] = [];
-  const seen = new Set<string>();
-
-  for (const rule of ADDITIVE_RULES) {
-    const matchedOn = ruleMatchesText(text, normalized, rule);
-    if (matchedOn && !seen.has(rule.id)) {
-      seen.add(rule.id);
-      matches.push({
-        id: rule.id,
-        name: rule.name,
-        category: rule.category,
-        verdict: rule.verdict,
-        summary: rule.summary,
-        matchedOn,
-      });
-    }
-  }
-
-  const verdictRank: Record<AdditiveVerdict, number> = { avoid: 0, caution: 1 };
-  return matches.sort(
+function sortMatches(matches: AdditiveMatch[]): AdditiveMatch[] {
+  const rank: Record<AdditiveVerdict, number> = { avoid: 0, caution: 1, ok: 2 };
+  return [...matches].sort(
     (a, b) =>
-      verdictRank[a.verdict] - verdictRank[b.verdict] ||
+      rank[a.verdict] - rank[b.verdict] ||
       a.name.localeCompare(b.name, "es")
   );
 }
 
-export function summarizeAdditiveMatches(matches: AdditiveMatch[]) {
+/** Analiza texto de ingredientes contra el catálogo completo. */
+export function scanTextForAdditives(text: string): ScanResult {
+  const empty: ScanResult = { avoid: [], caution: [], ok: [], unknown: [] };
+  if (!text.trim()) return empty;
+
+  const normalized = normalizeText(text);
+  const allMatches: AdditiveMatch[] = [];
+  const seen = new Set<string>();
+  const matchedECodes = new Set<number>();
+
+  for (const entry of ADDITIVE_CATALOG) {
+    if (
+      entry.id === "nitritos-generico" &&
+      [249, 250, 251, 252].some((c) => matchedECodes.has(c))
+    ) {
+      continue;
+    }
+    const matchedOn = entryMatchesText(entry, text, normalized, matchedECodes);
+    if (matchedOn) {
+      pushMatch(allMatches, seen, entry, matchedOn);
+    }
+  }
+
+  const unknown: UnknownMatch[] = [];
+  for (const code of extractECodes(text)) {
+    if (matchedECodes.has(code)) continue;
+    if (ADDITIVE_BY_E_CODE.has(code)) {
+      const entry = ADDITIVE_BY_E_CODE.get(code)!;
+      pushMatch(allMatches, seen, entry, `E${code}`);
+      matchedECodes.add(code);
+      continue;
+    }
+    unknown.push({
+      label: `E${code}`,
+      detail: "Código E no está en tu guía. Búscalo aparte o revisa la etiqueta.",
+    });
+  }
+
+  unknown.sort((a, b) => a.label.localeCompare(b.label, "es", { numeric: true }));
+
+  const sorted = sortMatches(allMatches);
   return {
-    avoid: matches.filter((m) => m.verdict === "avoid").length,
-    caution: matches.filter((m) => m.verdict === "caution").length,
-    total: matches.length,
+    avoid: sorted.filter((m) => m.verdict === "avoid"),
+    caution: sorted.filter((m) => m.verdict === "caution"),
+    ok: sorted.filter((m) => m.verdict === "ok"),
+    unknown,
+  };
+}
+
+export function summarizeScanResult(result: ScanResult) {
+  return {
+    avoid: result.avoid.length,
+    caution: result.caution.length,
+    ok: result.ok.length,
+    unknown: result.unknown.length,
+    flagged: result.avoid.length + result.caution.length,
   };
 }
