@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getCatalogForBrowse,
   VERDICT_LABELS,
   type AdditiveEntry,
   type AdditiveVerdict,
 } from "@/lib/additive-catalog";
+import {
+  extractTextFromImageFile,
+  isSupportedImageType,
+} from "@/lib/extract-text-from-image";
 import {
   scanTextForAdditives,
   summarizeScanResult,
@@ -107,10 +111,15 @@ export default function LabelScannerModal({
   isOpen,
   onClose,
 }: LabelScannerModalProps) {
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [tab, setTab] = useState<Tab>("analyze");
   const [ingredientText, setIngredientText] = useState("");
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [guideQuery, setGuideQuery] = useState("");
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [ocrProgress, setOcrProgress] = useState<number | null>(null);
+  const [ocrStatus, setOcrStatus] = useState<string | null>(null);
+  const [ocrError, setOcrError] = useState<string | null>(null);
 
   const catalog = useMemo(() => getCatalogForBrowse(), []);
 
@@ -132,11 +141,95 @@ export default function LabelScannerModal({
     setIngredientText("");
     setScanResult(null);
     setGuideQuery("");
+    setPreviewUrl(null);
+    setOcrProgress(null);
+    setOcrStatus(null);
+    setOcrError(null);
   }, [isOpen]);
 
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  const analyzeText = (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setIngredientText(trimmed);
+    setScanResult(scanTextForAdditives(trimmed));
+  };
+
   const runScan = () => {
-    if (!ingredientText.trim()) return;
-    setScanResult(scanTextForAdditives(ingredientText.trim()));
+    analyzeText(ingredientText);
+  };
+
+  const pasteFromClipboard = async () => {
+    setOcrError(null);
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text.trim()) {
+        setOcrError(
+          "El portapapeles está vacío. En Fotos, mantén pulsado el texto de la captura y elige Copiar."
+        );
+        return;
+      }
+      analyzeText(text);
+    } catch {
+      setOcrError(
+        "No se pudo leer el portapapeles. Pega manualmente (mantén pulsado en el cuadro de texto)."
+      );
+    }
+  };
+
+  const handleImagePick = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setOcrError(null);
+    setScanResult(null);
+
+    if (!isSupportedImageType(file)) {
+      setOcrError(
+        "Formato no compatible. Haz una captura en PNG/JPEG o comparte la imagen como JPG."
+      );
+      return;
+    }
+
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl(URL.createObjectURL(file));
+    void extractFromImage(file);
+    event.target.value = "";
+  };
+
+  const extractFromImage = async (file: File) => {
+    setOcrProgress(0);
+    setOcrStatus("loading");
+    setOcrError(null);
+
+    try {
+      const text = await extractTextFromImageFile(file, (progress, status) => {
+        setOcrProgress(Math.round(progress * 100));
+        setOcrStatus(status);
+      });
+
+      if (!text) {
+        setOcrError(
+          "No se leyó texto. Prueba con una captura más nítida o copia el texto desde Fotos (Live Text)."
+        );
+        return;
+      }
+
+      analyzeText(text);
+    } catch (err) {
+      console.error("OCR error:", err);
+      setOcrError(
+        "Error al leer la imagen. Puedes copiar el texto desde Fotos y pegarlo abajo."
+      );
+    } finally {
+      setOcrProgress(null);
+      setOcrStatus(null);
+    }
   };
 
   const summary = scanResult ? summarizeScanResult(scanResult) : null;
@@ -158,7 +251,7 @@ export default function LabelScannerModal({
                 Guía de aditivos
               </h2>
               <p className="text-sm text-[var(--color-slate)] mt-1">
-                Pega ingredientes o consulta la lista completa
+                Captura, foto o texto — todo en el iPhone, sin APIs
               </p>
             </div>
             <button
@@ -201,6 +294,77 @@ export default function LabelScannerModal({
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {tab === "analyze" ? (
             <>
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/*"
+                className="hidden"
+                onChange={handleImagePick}
+              />
+
+              <div className="rounded-xl border border-[var(--border-color)] bg-[var(--color-purple-bg)] p-4 space-y-3">
+                <p className="text-sm font-medium text-[var(--foreground)]">
+                  Desde captura de pantalla
+                </p>
+                <p className="text-xs text-[var(--color-slate)]">
+                  Haz captura de la etiqueta en el supermercado. Luego elige la imagen
+                  aquí — el texto se extrae en tu iPhone, sin enviar nada a servidores.
+                  También puedes usar Live Text en Fotos (copiar) y pegar abajo.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => imageInputRef.current?.click()}
+                    disabled={ocrProgress != null}
+                    className="flex-1 min-w-[8rem] btn-secondary text-sm py-2"
+                  >
+                    Elegir captura o foto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={pasteFromClipboard}
+                    disabled={ocrProgress != null}
+                    className="flex-1 min-w-[8rem] btn-secondary text-sm py-2"
+                  >
+                    Pegar texto copiado
+                  </button>
+                </div>
+                {previewUrl && (
+                  <div className="rounded-lg overflow-hidden border border-[var(--border-color)] bg-white">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={previewUrl}
+                      alt="Captura seleccionada"
+                      className="w-full max-h-40 object-contain"
+                    />
+                  </div>
+                )}
+                {ocrProgress != null && (
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs text-[var(--color-slate)]">
+                      <span>
+                        {ocrStatus === "loading"
+                          ? "Descargando motor OCR (solo la 1ª vez)…"
+                          : "Leyendo texto…"}
+                      </span>
+                      <span>{ocrProgress}%</span>
+                    </div>
+                    <div className="h-1.5 bg-white rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-[var(--color-purple)] transition-all"
+                        style={{ width: `${ocrProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {ocrError && (
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
+                  {ocrError}
+                </div>
+              )}
+
               <div>
                 <label className="text-sm font-medium text-[var(--color-slate)] mb-2 block">
                   Lista de ingredientes
