@@ -57,8 +57,15 @@ function text(
 const E_ENTRIES: AdditiveEntry[] = [
   // Colorantes naturales — tranquilos
   e(100, "Curcumina", "Colorantes", "ok", "Colorante natural. Tranquilo."),
-  e(160, "Carotenos", "Colorantes", "ok", "Colorante natural. Tranquilo.", ["caroteno", "beta-caroteno"]),
+  e(101, "Riboflavina (vitamina B2)", "Colorantes", "ok", "Colorante y vitamina. Tranquilo.", ["riboflavina", "vitamina b2"]),
+  e(120, "Cochinilla / carmín", "Colorantes", "caution", "Colorante natural. Ojo si hay alergia a insectos o ácaros.", ["cochinilla", "carmin", "carmine"]),
+  e(140, "Clorofilas", "Colorantes", "ok", "Colorante natural (verde). Tranquilo.", ["clorofila"]),
+  e(141, "Complejos cúpricos de clorofilas", "Colorantes", "ok", "Colorante natural. Tranquilo."),
+  e(150, "Caramelo", "Colorantes", "ok", "Colorante muy usado (refrescos, salsas). Tranquilo en general.", ["caramelo", "e150a", "e150b", "e150c", "e150d"]),
+  e(153, "Carbón vegetal", "Colorantes", "ok", "Colorante negro. Tranquilo.", ["carbon vegetal"]),
+  e(160, "Carotenos / annatto", "Colorantes", "ok", "Colorante natural. Tranquilo.", ["caroteno", "beta-caroteno", "annatto", "achiote", "e160a", "e160b"]),
   e(162, "Betanina (remolacha)", "Colorantes", "ok", "Colorante natural de remolacha. Tranquilo.", ["betanina", "remolacha"]),
+  e(172, "Óxidos de hierro", "Colorantes", "ok", "Colorante mineral. Tranquilo.", ["oxido de hierro"]),
 
   // Colorantes azoicos — ojo
   e(102, "Tartrazina", "Colorantes", "caution", 'Colorante azoico. Aviso "puede afectar a la atención" en niños.', ["tartrazina", "tartrazine"]),
@@ -90,7 +97,14 @@ const E_ENTRIES: AdditiveEntry[] = [
 
   // Emulgentes
   e(322, "Lecitinas", "Emulgentes", "ok", "Emulgente muy usado, sin problema.", ["lecitina"]),
+  e(401, "Alginato de sodio", "Espesantes", "ok", "Espesante de algas. Tranquilo.", ["alginato"]),
+  e(402, "Alginato de potasio", "Espesantes", "ok", "Espesante de algas. Tranquilo.", ["alginato"]),
+  e(406, "Agar-agar", "Espesantes", "ok", "Espesante natural. Tranquilo.", ["agar"]),
   e(407, "Carragenano", "Emulgentes", "caution", "Investigación reciente sobre microbiota intestinal.", ["carragenano", "carragenina", "carrageenan"]),
+  e(410, "Goma de algarrobo", "Espesantes", "ok", "Espesante natural. Tranquilo.", ["algarrobo", "garrofin"]),
+  e(414, "Goma arábiga", "Espesantes", "ok", "Espesante natural. Tranquilo.", ["goma arabiga", "acacia"]),
+  e(418, "Goma gellan", "Espesantes", "ok", "Espesante. Tranquilo.", ["gellan"]),
+  e(422, "Glicerol", "Humectantes", "ok", "Humectante. Tranquilo.", ["glicerol", "glicerina"]),
   e(432, "Polisorbato 20", "Emulgentes", "caution", "Emulgente con debate sobre microbiota intestinal.", ["polisorbato 20"]),
   e(433, "Polisorbato 80", "Emulgentes", "caution", "Emulgente con debate sobre microbiota intestinal.", ["polisorbato 80"]),
   e(434, "Polisorbato 40", "Emulgentes", "caution", "Emulgente con debate sobre microbiota intestinal.", ["polisorbato 40"]),
@@ -99,29 +113,47 @@ const E_ENTRIES: AdditiveEntry[] = [
   e(440, "Pectinas", "Espesantes", "ok", "Espesante natural. Tranquilo.", ["pectina"]),
   e(466, "Carboximetilcelulosa", "Emulgentes", "caution", "Investigación reciente sobre microbiota intestinal.", ["carboximetilcelulosa", "cmc"]),
   e(471, "Mono- y diglicéridos de ácidos grasos", "Emulgentes", "ok", "Emulgente muy usado, sin problema.", ["monogliceridos", "digliceridos", "mono y digliceridos"]),
+  e(472, "Ésteres de mono- y diglicéridos", "Emulgentes", "ok", "Emulgente muy usado. Tranquilo.", ["e472", "esteres"]),
+  e(473, "Ésteres de sacarosa", "Emulgentes", "ok", "Emulgente. Tranquilo.", ["sacarosa"]),
+  e(481, "Estearoil lactilato de sodio", "Emulgentes", "ok", "Emulgente en pan. Tranquilo.", ["estearoil"]),
+  e(482, "Estearoil lactilato de calcio", "Emulgentes", "ok", "Emulgente en pan. Tranquilo.", ["estearoil"]),
 
-  // Gasificantes
+  // Gasificantes y gases
   e(290, "Dióxido de carbono", "Gases", "ok", "Gas de envasado. Tranquilo.", ["dioxido de carbono", "co2"]),
   e(336, "Cremor tártaro", "Gasificantes", "ok", "Leudante de repostería. Tranquilo.", ["cremor tartaro"]),
+  e(460, "Celulosa microcristalina", "Espesantes", "ok", "Fibra / espesante. Tranquilo.", ["celulosa"]),
+  e(461, "Metilcelulosa", "Espesantes", "ok", "Espesante. Tranquilo.", ["metilcelulosa"]),
+  e(464, "Hidroxipropilmetilcelulosa", "Espesantes", "ok", "Espesante. Tranquilo.", ["hpmc"]),
+  e(470, "Sales de ácidos grasos", "Emulgentes", "ok", "Emulgente. Tranquilo.", ["sales acidos grasos"]),
   e(500, "Carbonatos de sodio", "Gasificantes", "ok", "Bicarbonato / química de repostería. Tranquilo.", ["bicarbonato", "carbonato sodio"]),
   e(503, "Carbonatos de amonio", "Gasificantes", "ok", "Leudante. Tranquilo."),
+  e(504, "Carbonatos de magnesio", "Gasificantes", "ok", "Antiácido / leudante. Tranquilo."),
+  e(508, "Cloruro de potasio", "Sales", "ok", "Sustituto de sal. Tranquilo.", ["cloruro potasio"]),
+  e(509, "Cloruro de calcio", "Sales", "ok", "Agente de firmeza (tofu, quesos). Tranquilo.", ["cloruro calcio"]),
+  e(516, "Sulfato de calcio", "Sales", "ok", "Agente de firmeza. Tranquilo.", ["yeso alimentario"]),
 
   // Antiaglomerantes
   e(551, "Dióxido de silicio", "Antiaglomerantes", "ok", "Antiaglomerante. Tranquilo.", ["silicio"]),
 
   // Potenciadores del sabor
+  e(620, "Ácido glutámico", "Potenciadores", "ok", "Aminoácido natural. Tranquilo.", ["acido glutamico"]),
   e(621, "Glutamato monosódico (GMS)", "Potenciadores", "ok", "El miedo al glutamato está desmentido.", ["glutamato", "gms", "msg"]),
   e(627, "Guanylato disódico", "Potenciadores", "ok", "Potenciador del sabor. Tranquilo.", ["guanylato"]),
   e(631, "Inosinato disódico", "Potenciadores", "ok", "Potenciador del sabor. Tranquilo.", ["inosinato"]),
+  e(635, "5'-ribonucleótidos disódicos", "Potenciadores", "ok", "Potenciador del sabor. Tranquilo.", ["ribonucleotidos"]),
 
   // Espesantes
   e(412, "Goma guar", "Espesantes", "ok", "Espesante natural. Tranquilo.", ["goma guar", "guar"]),
   e(415, "Goma xantana", "Espesantes", "ok", "Espesante natural. Tranquilo.", ["xantana", "xanthan"]),
 
   // Edulcorantes — tranquilos
+  e(950, "Acesulfamo K", "Edulcorantes", "ok", "Edulcorante. OK en general.", ["acesulfamo", "acesulfame"]),
   e(951, "Aspartamo", "Edulcorantes", "ok", "OK en general. Debate solo en dosis enormes.", ["aspartamo"]),
+  e(952, "Ciclamato", "Edulcorantes", "caution", "Edulcorante. Permitido con límites en la UE.", ["ciclamato"]),
+  e(954, "Sacarina", "Edulcorantes", "ok", "Edulcorante clásico. OK en general.", ["sacarina"]),
   e(955, "Sucralosa", "Edulcorantes", "ok", "Edulcorante. OK en general.", ["sucralosa"]),
   e(960, "Glucósidos de esteviol (estevia)", "Edulcorantes", "ok", "Edulcorante natural. OK en general.", ["estevia", "stevia"]),
+  e(968, "Eritritol", "Edulcorantes", "ok", "Poliol con pocas calorías. Tranquilo en cantidad normal.", ["eritritol"]),
 
   // Polioles — ojo
   e(420, "Sorbitol", "Edulcorantes", "caution", "Efecto laxante en cantidad, sobre todo en niños.", ["sorbitol"]),
@@ -140,7 +172,21 @@ const E_ENTRIES: AdditiveEntry[] = [
 
   // Acidulantes
   e(330, "Ácido cítrico", "Acidulantes", "ok", "Ácido de fruta. El bulo de que causa cáncer es falso.", ["acido citrico"]),
+  e(331, "Citratos de sodio", "Acidulantes", "ok", "Regulador de acidez. Tranquilo, como el ácido cítrico.", ["citrato de sodio", "citratos sodio"]),
+  e(332, "Citratos de potasio", "Acidulantes", "ok", "Regulador de acidez. Tranquilo, como el ácido cítrico.", ["citrato de potasio", "citratos potasio"]),
+  e(333, "Citratos de calcio", "Acidulantes", "ok", "Regulador de acidez. Tranquilo.", ["citrato de calcio"]),
+  e(334, "Ácido tartárico", "Acidulantes", "ok", "Acidulante natural (uvas). Tranquilo.", ["acido tartarico", "tartarico"]),
+  e(335, "Tartratos de sodio", "Acidulantes", "ok", "Regulador de acidez. Tranquilo.", ["tartrato"]),
+  e(337, "Tartrato sódico potásico", "Acidulantes", "ok", "Regulador de acidez. Tranquilo.", ["cremor tartaro"]),
   e(338, "Ácido fosfórico", "Acidulantes", "caution", "En refrescos de cola. Es un fosfato: moderar si se abusa.", ["acido fosforico"]),
+  e(339, "Fosfatos de sodio", "Fosfatos", "avoid", "Fosfato. Retiene agua; señal de calidad baja en procesados.", ["fosfato de sodio"]),
+  e(340, "Fosfatos de potasio", "Fosfatos", "avoid", "Fosfato. Retiene agua; señal de calidad baja en procesados.", ["fosfato de potasio"]),
+  e(341, "Fosfatos de calcio", "Fosfatos", "caution", "Fosfato. Menos problemático que E450–452, pero moderar.", ["fosfato de calcio"]),
+
+  e(574, "Ácido glucónico", "Acidulantes", "ok", "Acidulante. Tranquilo.", ["acido gluconico"]),
+  e(575, "Glucono-delta-lactona", "Acidulantes", "ok", "Regulador de acidez. Tranquilo.", ["glucono"]),
+  e(577, "Gluconato de potasio", "Acidulantes", "ok", "Regulador de acidez. Tranquilo.", ["gluconato"]),
+  e(578, "Gluconato de calcio", "Acidulantes", "ok", "Agente de firmeza. Tranquilo.", ["gluconato"]),
 
   // Fosfatos — evitar
   e(450, "Difosfatos", "Fosfatos", "avoid", "Retienen agua e hinchan el producto. Señal de calidad baja.", ["difosfato"]),
@@ -193,6 +239,7 @@ const E_ENTRIES: AdditiveEntry[] = [
   e(283, "Propionato de potasio", "Conservantes", "ok", "Antimoho en pan de molde. Seguro.", ["propionato"]),
 
   // Almidones modificados — tranquilos
+  e(1400, "Dextrinas", "Almidones", "ok", "Almidón modificado. Tranquilo.", ["dextrina"]),
   e(1404, "Almidón oxidado", "Almidones", "ok", '"Modificado" no es químico raro ni transgénico.', ["almidon modificado"]),
   e(1410, "Almidón de monofosfato", "Almidones", "ok", "Almidón modificado. Tranquilo.", ["almidon"]),
   e(1412, "Almidón de difosfato", "Almidones", "ok", "Almidón modificado. Tranquilo.", ["almidon"]),
@@ -207,6 +254,7 @@ const E_ENTRIES: AdditiveEntry[] = [
   e(904, "Goma laca", "Ceras", "ok", "Recubrimiento comestible. Tranquilo.", ["goma laca"]),
 
   // Gases
+  e(920, "L-cisteína", "Mejoradores de harina", "ok", "Aminoácido en pan industrial. Tranquilo.", ["cisteina"]),
   e(941, "Nitrógeno", "Gases", "ok", "Gas de envasado. Tranquilo.", ["nitrogeno"]),
 ];
 
