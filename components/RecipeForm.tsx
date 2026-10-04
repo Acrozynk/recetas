@@ -15,7 +15,10 @@ import {
 } from "@/lib/supabase";
 import {
   extractLinkedRecipeIdsFromInstructions,
+  extractLinkedRecipeRefsFromInstructions,
   buildRecipeLinkToken,
+  formatLinkScale,
+  scaleIngredientAmounts,
 } from "@/lib/recipe-links";
 
 // Lazy-loaded: modal only appears after user clicks the link button.
@@ -854,9 +857,13 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
     setInstructions(updated);
   };
 
-  const handleInsertRecipeLink = (linkedId: string, linkedTitle: string) => {
+  const handleInsertRecipeLink = (
+    linkedId: string,
+    linkedTitle: string,
+    scale: number
+  ) => {
     if (linkModalStepIndex === null) return;
-    const token = buildRecipeLinkToken(linkedId, linkedTitle);
+    const token = buildRecipeLinkToken(linkedId, linkedTitle, scale);
     const idx = linkModalStepIndex;
     const text = instructions[idx].text;
     const ta = instructionTextareaRefs.current[idx];
@@ -2200,7 +2207,17 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
               📎 Vista previa: ingredientes de recetas enlazadas en los pasos
             </p>
             <div className="space-y-4">
-              {linkedPreviewRecipes.map((lr) => (
+              {linkedPreviewRecipes.map((lr) => {
+                const ref = extractLinkedRecipeRefsFromInstructions(
+                  instructions,
+                  recipe?.id
+                ).find((r) => r.recipeId === lr.id);
+                const scale = ref?.scale ?? 1;
+                const scaled = scaleIngredientAmounts(
+                  lr.ingredients as Ingredient[],
+                  scale
+                );
+                return (
                 <div key={lr.id}>
                   <p className="text-sm font-medium text-[var(--foreground)] mb-1">
                     <Link
@@ -2211,9 +2228,14 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                     >
                       {lr.title}
                     </Link>
+                    {scale !== 1 && (
+                      <span className="text-xs font-normal text-[var(--color-slate)] ml-1">
+                        ×{formatLinkScale(scale)}
+                      </span>
+                    )}
                   </p>
                   <ul className="text-xs text-[var(--color-slate)] space-y-0.5 pl-2 border-l-2 border-[var(--color-purple-bg-dark)]">
-                    {(lr.ingredients as Ingredient[])
+                    {scaled
                       .filter((ing) => ing.name?.trim())
                       .map((ing, j) => {
                         if (ing.isHeader || ing.name.startsWith("**")) {
@@ -2231,7 +2253,8 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
                       })}
                   </ul>
                 </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -2242,9 +2265,8 @@ export default function RecipeForm({ recipe, mode, onSave, onCancel, hideNavButt
         <h2 className="font-display text-lg font-semibold mb-2">Instrucciones</h2>
         <p className="text-sm text-[var(--color-slate-light)] mb-4">
           Selecciona los ingredientes que intervienen en cada paso. Usa{" "}
-          <strong>🔗 Enlazar receta</strong> para insertar un paso que apunta a
-          otra receta; sus ingredientes se mostrarán en la lista principal al
-          ver la receta.
+          <strong>🔗 Enlazar receta</strong> para incluir los pasos e
+          ingredientes de otra receta (puedes elegir ½×, 1×, 2×…).
         </p>
 
         <div className="space-y-4">

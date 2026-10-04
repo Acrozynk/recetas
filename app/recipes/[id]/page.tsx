@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -36,8 +36,11 @@ import {
   parseAmount
 } from "@/lib/unit-conversion";
 import {
-  splitInstructionWithRecipeLinks,
   extractLinkedRecipeIdsFromInstructions,
+  extractLinkedRecipeRefsFromInstructions,
+  flattenInstructionsWithLinkedRecipes,
+  scaleIngredientAmounts,
+  formatLinkScale,
 } from "@/lib/recipe-links";
 import { getRecipeDefaultPersonas } from "@/lib/meal-plan-portions";
 
@@ -181,12 +184,10 @@ function formatIngredientForStep(
 }
 
 interface EnrichedStepPart {
-  type: "text" | "ingredient" | "recipeLink";
+  type: "text" | "ingredient";
   content: string;
   ingredient?: Ingredient;
   formattedIngredient?: string;
-  recipeId?: string;
-  linkLabel?: string;
 }
 
 import { categorizeIngredient } from "@/lib/categorize-ingredient";
@@ -658,7 +659,7 @@ function enrichStepWithIngredients(
   return parts;
 }
 
-/** Enriquece texto del paso con cantidades de ingredientes y enlaces [[receta:…]] */
+/** Enriquece texto del paso con cantidades de ingredientes */
 function enrichInstructionText(
   stepText: string,
   ingredients: Ingredient[],
@@ -670,31 +671,13 @@ function enrichInstructionText(
     name: string
   ) => { amount: string; unit: string }
 ): EnrichedStepPart[] {
-  const segments = splitInstructionWithRecipeLinks(stepText);
-  const out: EnrichedStepPart[] = [];
-  for (const seg of segments) {
-    if (seg.type === "link") {
-      out.push({
-        type: "recipeLink",
-        content: seg.label,
-        linkLabel: seg.label,
-        recipeId: seg.recipeId,
-      });
-      continue;
-    }
-    if (seg.text.length > 0 || segments.length === 1) {
-      out.push(
-        ...enrichStepWithIngredients(
-          seg.text,
-          ingredients,
-          scaleAmount,
-          useVariant2,
-          convertUnit
-        )
-      );
-    }
-  }
-  return out;
+  return enrichStepWithIngredients(
+    stepText,
+    ingredients,
+    scaleAmount,
+    useVariant2,
+    convertUnit
+  );
 }
 
 export default function RecipeDetailPage() {
@@ -853,6 +836,44 @@ export default function RecipeDetailPage() {
       cancelled = true;
     };
   }, [recipe?.id, recipe?.instructions]);
+
+  const linkedRefs = useMemo(() => {
+    if (!recipe) return [];
+    return extractLinkedRecipeRefsFromInstructions(
+      normalizeInstructions(recipe.instructions),
+      recipe.id
+    );
+  }, [recipe]);
+
+  const displaySteps = useMemo(() => {
+    if (!recipe) return [];
+    const linkedById = new Map(
+      linkedRecipes.map((lr) => [lr.id, lr] as const)
+    );
+    return flattenInstructionsWithLinkedRecipes(
+      recipe.id,
+      recipe.title,
+      normalizeInstructions(recipe.instructions),
+      linkedById,
+      normalizeInstructions
+    );
+  }, [recipe, linkedRecipes]);
+
+  const cookableStepCount = displaySteps.filter((s) => !s.isHeader).length;
+
+  const shoppingIngredients = useMemo(() => {
+    if (!recipe) return [];
+    const parent = (recipe.ingredients as Ingredient[]) || [];
+    const extra: Ingredient[] = [];
+    for (const ref of linkedRefs) {
+      const lr = linkedRecipes.find((r) => r.id === ref.recipeId);
+      if (!lr) continue;
+      extra.push(
+        ...scaleIngredientAmounts(lr.ingredients as Ingredient[], ref.scale)
+      );
+    }
+    return [...parent, ...extra];
+  }, [recipe, linkedRecipes, linkedRefs]);
 
   // Initialize portions when navigating to a recipe (by id)
   useEffect(() => {
@@ -2229,7 +2250,14 @@ export default function RecipeDetailPage() {
                   <p className="text-xs font-semibold text-[var(--color-slate)] uppercase tracking-wide">
                     Ingredientes de recetas enlazadas
                   </p>
-                  {linkedRecipes.map((lr) => (
+                  {linkedRecipes.map((lr) => {
+                    const ref = linkedRefs.find((r) => r.recipeId === lr.id);
+                    const scale = ref?.scale ?? 1;
+                    const scaledIngs = scaleIngredientAmounts(
+                      lr.ingredients as Ingredient[],
+                      scale
+                    );
+                    return (
                     <div key={lr.id}>
                       <h3 className="text-sm font-semibold text-[var(--foreground)] mb-2 flex flex-wrap items-center gap-2">
                         <span className="text-base" aria-hidden>
@@ -2242,11 +2270,13 @@ export default function RecipeDetailPage() {
                           {lr.title}
                         </Link>
                         <span className="text-xs font-normal text-[var(--color-slate-light)]">
-                          (cantidades como en esa receta)
+                          {scale === 1
+                            ? "(cantidades como en esa receta)"
+                            : `(×${formatLinkScale(scale)} respecto a esa receta)`}
                         </span>
                       </h3>
                       <ul className="space-y-1.5 pl-2 border-l-2 border-[var(--color-purple-bg-dark)]">
-                        {(lr.ingredients as Ingredient[]).map((ing, j) => {
+                        {scaledIngs.map((ing, j) => {
                           const isHdr =
                             ing.isHeader || ing.name.startsWith("**");
                           if (isHdr) {
@@ -2261,9 +2291,8 @@ export default function RecipeDetailPage() {
                             );
                           }
                           if (!ing.name?.trim()) return null;
-                          const idScale = (a: string) => a;
                           const converted = convertIngredientUnit(
-                            idScale(ing.amount || ""),
+                            scaleAmount(ing.amount || ""),
                             ing.unit,
                             ing.name
                           );
@@ -2282,7 +2311,8 @@ export default function RecipeDetailPage() {
                         })}
                       </ul>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -2313,7 +2343,7 @@ export default function RecipeDetailPage() {
                 <div className="mb-4 p-3 bg-[var(--color-purple-bg)] rounded-xl border border-[var(--color-purple-bg-dark)]">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-[var(--color-slate)]">
-                      Paso {currentStep + 1} de {normalizeInstructions(recipe.instructions).length}
+                      Paso {currentStep + 1} de {displaySteps.length}
                     </span>
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-[var(--color-slate-light)]">
@@ -2343,7 +2373,7 @@ export default function RecipeDetailPage() {
                     <div
                       className="h-full bg-[var(--color-purple)] transition-all duration-300"
                       style={{
-                        width: `${((currentStep + 1) / normalizeInstructions(recipe.instructions).length) * 100}%`,
+                        width: `${((currentStep + 1) / Math.max(1, displaySteps.length)) * 100}%`,
                       }}
                     />
                   </div>
@@ -2359,8 +2389,8 @@ export default function RecipeDetailPage() {
                       Anterior
                     </button>
                     <button
-                      onClick={() => goToNextStep(normalizeInstructions(recipe.instructions).length)}
-                      disabled={currentStep === normalizeInstructions(recipe.instructions).length - 1}
+                      onClick={() => goToNextStep(displaySteps.length)}
+                      disabled={currentStep === displaySteps.length - 1}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium bg-[var(--color-purple)] text-white disabled:opacity-40 disabled:cursor-not-allowed hover:opacity-90 transition-opacity"
                     >
                       Siguiente
@@ -2373,49 +2403,72 @@ export default function RecipeDetailPage() {
               )}
 
               <ol className="space-y-4">
-                {normalizeInstructions(recipe.instructions).map((step, i) => {
-                  // Calculate step number (only counting non-headers)
-                  const stepNumber = normalizeInstructions(recipe.instructions).slice(0, i + 1).filter(s => !s.isHeader).length;
-                  
-                  // Render section header
+                {displaySteps.map((step, i) => {
+                  const stepNumber = displaySteps
+                    .slice(0, i + 1)
+                    .filter((s) => !s.isHeader).length;
+
                   if (step.isHeader) {
                     return (
-                      <li key={i} className="pt-4 pb-1 first:pt-0">
-                        <span className="text-amber-700 font-semibold text-sm uppercase tracking-wide">
-                          {step.text}:
+                      <li key={step.key} className="pt-4 pb-1 first:pt-0">
+                        <span
+                          className={`text-amber-700 font-semibold text-sm ${
+                            step.isLinked ? "" : "uppercase tracking-wide"
+                          }`}
+                        >
+                          {step.text}
+                          {step.isLinked && step.scale !== 1
+                            ? ` (×${formatLinkScale(step.scale)})`
+                            : ""}
+                          {step.isLinked ? "" : ":"}
                         </span>
+                        {step.isLinked && (
+                          <Link
+                            href={`/recipes/${step.sourceRecipeId}?from=${recipe.id}`}
+                            className="ml-2 text-xs font-normal text-[var(--color-purple)] hover:underline normal-case tracking-normal"
+                          >
+                            ver receta
+                          </Link>
+                        )}
                       </li>
                     );
                   }
-                  
+
+                  const sourceRecipe = step.isLinked
+                    ? linkedRecipes.find((r) => r.id === step.sourceRecipeId)
+                    : recipe;
+                  const sourceIngredients = (sourceRecipe?.ingredients as Ingredient[]) || [];
                   const stepIngredients = step.ingredientIndices
-                    .map(idx => (recipe.ingredients as Ingredient[])[idx])
+                    .map((idx) => sourceIngredients[idx])
                     .filter(Boolean);
-                  
                   const isCurrentStep = cookingMode && i === currentStep;
                   const isCompletedStep = completedSteps.has(i);
-                  
-                  // Determine variant mode for ingredients
-                  const useVariant2ForStep = recipe.variant_1_label 
-                    ? selectedVariant === 2 
-                    : showSecondaryUnits;
-                  
-                  // Enrich step text with ingredient quantities
-                  // If step has specific ingredients linked, use only those; otherwise use all
-                  const ingredientsToMatch = stepIngredients.length > 0 
-                    ? stepIngredients 
-                    : (recipe.ingredients as Ingredient[]);
+
+                  const useVariant2ForStep = step.isLinked
+                    ? false
+                    : recipe.variant_1_label
+                      ? selectedVariant === 2
+                      : showSecondaryUnits;
+
+                  const ingredientsToMatch =
+                    stepIngredients.length > 0
+                      ? stepIngredients
+                      : sourceIngredients;
+                  const scaledMatch = scaleIngredientAmounts(
+                    ingredientsToMatch,
+                    step.scale
+                  );
                   const enrichedParts = enrichInstructionText(
                     step.text,
-                    ingredientsToMatch,
+                    scaledMatch,
                     scaleAmount,
                     useVariant2ForStep,
                     convertIngredientUnit
                   );
-                  
+
                   return (
                     <li
-                      key={i}
+                      key={step.key}
                       onClick={() => cookingMode && setCurrentStep(i)}
                       className={`border-l-2 pl-4 transition-all duration-200 ${
                         isCurrentStep
@@ -2459,20 +2512,11 @@ export default function RecipeDetailPage() {
                                     </span>
                                   )}
                                 </span>
-                              ) : part.type === "recipeLink" && part.recipeId ? (
-                                <Link
-                                  key={partIdx}
-                                  href={`/recipes/${part.recipeId}?from=${recipe.id}`}
-                                  className="text-[var(--color-purple)] font-semibold underline decoration-2 underline-offset-2 hover:text-[var(--color-purple-dark)]"
-                                >
-                                  {part.linkLabel || part.content}
-                                </Link>
                               ) : (
                                 <span key={partIdx}>{part.content}</span>
                               )
                             )}
                           </p>
-                          
                         </div>
                       </div>
                     </li>
@@ -2481,7 +2525,7 @@ export default function RecipeDetailPage() {
               </ol>
 
               {/* Cooking Complete Message */}
-              {cookingMode && completedSteps.size === normalizeInstructions(recipe.instructions).length && (
+              {cookingMode && completedSteps.size >= cookableStepCount && cookableStepCount > 0 && (
                 <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-xl text-center animate-fade-in">
                   <div className="text-4xl mb-2">🎉</div>
                   <p className="font-semibold text-green-800">¡Receta completada!</p>
@@ -2555,7 +2599,7 @@ export default function RecipeDetailPage() {
       <AddToShoppingListModal
         isOpen={showAddToShoppingList}
         onClose={() => setShowAddToShoppingList(false)}
-        ingredients={recipe.ingredients as Ingredient[]}
+        ingredients={shoppingIngredients}
         recipeName={recipe.title}
         scaleAmount={scaleAmount}
       />

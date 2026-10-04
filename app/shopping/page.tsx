@@ -12,6 +12,7 @@ import {
   DEFAULT_CATEGORIES,
   RECIPE_SHOPPING_SELECT,
   getAlternativeIngredients,
+  normalizeInstructions,
 } from "@/lib/supabase";
 import {
   type SupermarketConfig,
@@ -30,6 +31,10 @@ import { GROCERY_CATEGORIES } from "@/lib/grocery-categories";
 import { addCustomProduct } from "@/lib/supabase";
 import { combineQuantities, parseQuantity, formatQuantity } from "@/lib/unit-conversion";
 import { addCalendarDays } from "@/lib/meal-plan-portions";
+import {
+  extractLinkedRecipeRefsFromInstructions,
+  scaleIngredientAmounts,
+} from "@/lib/recipe-links";
 import {
   categorizeIngredient,
   improveCategoryIfOtros,
@@ -2094,6 +2099,104 @@ export default function ShoppingPage() {
                 category: categorizeIngredient(item.name),
                 recipeTitle,
               });
+            }
+          }
+        }
+      }
+
+      const plannedIds = [
+        ...new Set(
+          (mealPlans as MealPlan[])
+            .map((p) => p.recipe?.id)
+            .filter((id): id is string => !!id)
+        ),
+      ];
+      if (plannedIds.length > 0) {
+        const { data: withInst } = await supabase
+          .from("recipes")
+          .select("id, instructions")
+          .in("id", plannedIds);
+        const refsByParent = new Map<
+          string,
+          { recipeId: string; scale: number }[]
+        >();
+        for (const row of withInst || []) {
+          const refs = extractLinkedRecipeRefsFromInstructions(
+            normalizeInstructions(row.instructions),
+            row.id
+          );
+          if (refs.length > 0) refsByParent.set(row.id, refs);
+        }
+        const linkedIds = [
+          ...new Set(
+            [...refsByParent.values()].flat().map((r) => r.recipeId)
+          ),
+        ];
+        if (linkedIds.length > 0) {
+          const { data: linkedRows } = await supabase
+            .from("recipes")
+            .select("id, title, ingredients")
+            .in("id", linkedIds);
+          const linkedMap = new Map(
+            (linkedRows || []).map((r) => [r.id, r])
+          );
+          const excludedIngredients = [
+            "sal",
+            "agua",
+            "especias",
+            "pimienta",
+            "pimienta negra",
+          ];
+
+          for (const plan of mealPlans as MealPlan[]) {
+            if (!plan.recipe) continue;
+            const refs = refsByParent.get(plan.recipe.id);
+            if (!refs) continue;
+            const servingsMultiplier = plan.servings_multiplier || 1;
+            const recipeTitle = plan.recipe.title;
+
+            for (const ref of refs) {
+              const linked = linkedMap.get(ref.recipeId);
+              if (!linked) continue;
+              const scaled = scaleIngredientAmounts(
+                (linked.ingredients as Ingredient[]) || [],
+                ref.scale * servingsMultiplier
+              );
+              for (const ing of scaled) {
+                if (ing.isHeader || ing.name?.startsWith("**")) continue;
+                if (!ing.name?.trim()) continue;
+                const itemNameLower = ing.name.toLowerCase().trim();
+                if (
+                  excludedIngredients.some(
+                    (excluded) =>
+                      itemNameLower === excluded ||
+                      itemNameLower.includes(excluded)
+                  )
+                ) {
+                  continue;
+                }
+                const newQuantity = `${ing.amount || ""} ${ing.unit || ""}`.trim();
+                const mapKey = `${recipeTitle}|||${itemNameLower}`;
+                const existing = ingredientMap.get(mapKey);
+                if (existing) {
+                  if (newQuantity && existing.quantity) {
+                    existing.quantity = combineQuantities(
+                      existing.quantity,
+                      newQuantity,
+                      ing.name
+                    );
+                  } else if (newQuantity) {
+                    existing.quantity = newQuantity;
+                  }
+                } else {
+                  ingredientMap.set(mapKey, {
+                    name: ing.name,
+                    quantity: newQuantity,
+                    category: categorizeIngredient(ing.name),
+                    recipeTitle,
+                  });
+                }
+              }
             }
           }
         }
