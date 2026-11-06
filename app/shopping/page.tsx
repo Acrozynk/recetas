@@ -47,6 +47,8 @@ const LabelScannerModal = dynamic(
   { ssr: false, loading: () => null }
 );
 
+const DEFAULT_SELECTED_PLAN_DAYS = 5;
+
 // Category icons mapping
 const CATEGORY_ICONS: Record<string, string> = {
   "Frutas y Verduras": "🥬",
@@ -2203,13 +2205,19 @@ export default function ShoppingPage() {
       }
 
       // Convert to preview ingredients array
+      const defaultSelectionEnd = addCalendarDays(
+        todayStr,
+        DEFAULT_SELECTED_PLAN_DAYS - 1
+      );
       const preview: PreviewIngredient[] = Array.from(ingredientMap.entries()).map(
         ([compoundKey, value], index) => ({
           id: `preview-${index}-${compoundKey.replace(/[^a-zA-Z0-9]/g, "-")}`,
           name: value.name,
           quantity: value.quantity,
           category: value.category,
-          selected: true,
+          selected: Array.from(recipeDates.get(value.recipeTitle) ?? []).some(
+            (date) => date <= defaultSelectionEnd
+          ),
           recipes: [value.recipeTitle],
         })
       );
